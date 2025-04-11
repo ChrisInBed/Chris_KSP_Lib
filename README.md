@@ -15,6 +15,8 @@ Video: [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本
 
 `pegland` is the highlight of this script package, adapted from the PEG launch guidance algorithm developed by NASA in the 1960s for the Surveyor project. It achieves fuel-optimal pinpoint landing in a vacuum environment with an error margin within 100 m.
 
+Reference: [Explicit guidance equations for multistage boost trajectories](https://ntrs.nasa.gov/citations/19660006073)
+
 ```kOS
 run pegland.  // Default mode
 run pegland(1).  // Emergency mode, lands immediately
