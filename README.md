@@ -2,6 +2,8 @@
 
 kOS scripts for KSP stock or RSS/RO environments.
 
+Video: [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
+
 ## MOD List
 
 - KSP-1.12.5
