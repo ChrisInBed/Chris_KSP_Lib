@@ -14,6 +14,8 @@
 
 `pegland`是这个脚本包中最精彩的程序，从1960s NASA为Surveyor项目开发的PEG发射制导算法修改而来，实现真空环境下燃料最优的定点着陆，误差在100 m内。
 
+参考文献：[Explicit guidance equations for multistage boost trajectories](https://ntrs.nasa.gov/citations/19660006073)
+
 ```kOS
 run pegland.  // 默认模式
 run pegland(1).  // 紧急模式，无需等待点火位置，直接着陆
