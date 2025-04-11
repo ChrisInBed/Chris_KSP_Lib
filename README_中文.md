@@ -1,6 +1,8 @@
 # Chris_KSP_Lib
 适用于KSP原版或RSS/RO环境的KOS脚本。
 
+视频演示：[[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
+
 ## MOD 列表
 
 - KSP-1.12.5
