@@ -89,7 +89,10 @@ If the user changes the landing point during descent, the landing program can be
 - Supports limited-throttle and non-throttleable engines. When the lower throttle limit is above 60%, landing precision cannot be guaranteed, and when the final phase thrust-to-weight ratio is above 1.5, landing is unsafe.
 - If you do not want the engine to shut down, set the parameter `P_ALLO_RESTART = 0`, but ensure the final phase thrust-to-weight ratio is less than 1, or the rocket will not be able to land.
 - Although beyond the scope of the current algorithm, the script supports multi-stage rocket landings. Set `P_ENGINE = "auto"`, and the script will automatically stage when the current stage is burnout. For manual staging, turn off the engine manually before staging, or the debris might collide with the spacecraft. Landing precision cannot be guaranteed.
-- If you need to use solid rockets for deceleration, it is recommended to set `P_ENGINE = <tag>`. Apparently, solid rockets generally cannot be used in the final landing phase, because they cannot be turned off.
+- If you need to use solid rockets for deceleration, it is recommended to set `P_ENGINE = <tag>`. Apparently, solid rockets generally cannot be used in the final landing phase, because they cannot be turned off. Instructions for this tricky landing:
+  1. Assign tag for the braking engines, like "descent"
+  2. Run PEGLand: `run pegland(0,0,"descent")`
+  3. When the braking engines burn out, stage manually, the PEGLand program will be aware of the chaning in stage number , updating engine parameters, and finish landing with new engines.
 
 ## Executing Maneuver Nodes
 
