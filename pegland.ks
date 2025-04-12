@@ -1,4 +1,5 @@
 parameter P_NOWAIT is false.
+parameter P_ALLOW_RESTART is true.
 parameter P_ENGINE is "current".
 clearScreen.
 print "PEG landing guidance" AT(0,0).
@@ -11,33 +12,33 @@ print "================ Result ================" AT(0,21).
 
 runOncePath("./lib/engine_utility.ks").
 function print_engines_simple_info {
-	parameter elist.
-	local _summary to get_engines_info(elist).
-	for e in elist {
-		print e:tag + " " + e:title.
-	}
-	print "Thrust = " + _summary:thrust AT(0,2).
-	print "Isp = " + _summary:ISP AT (0,3).
-	print "Minthrottle = " + _summary:minthrottle AT(0,4).
-	print "Ullage = " + _summary:ullage AT(0,5).
+    parameter elist.
+    local _summary to get_engines_info(elist).
+    for e in elist {
+        print e:tag + " " + e:title.
+    }
+    print "Thrust = " + _summary:thrust AT(0,2).
+    print "Isp = " + _summary:ISP AT (0,3).
+    print "Minthrottle = " + _summary:minthrottle AT(0,4).
+    print "Ullage = " + _summary:ullage AT(0,5).
 }
 set done to false.
 if P_ENGINE = "auto" {
-	when engine_stage_check() then {
-		stage.
-		set elist to get_active_engines().
+    when engine_stage_check() then {
+        stage.
+        set elist to get_active_engines().
         set enginfo to get_engines_info(elist).
-		return (not done).
-	}
-	wait 0.1.  // wait for staging
-	print "Engine autostaging.".
-	set elist to get_active_engines().
+        return (not done).
+    }
+    wait 0.1.  // wait for staging
+    print "Engine autostaging.".
+    set elist to get_active_engines().
 }
 else if P_ENGINE = "current" {
-	set elist to get_active_engines().
+    set elist to get_active_engines().
 }
 else {
-	set elist to search_engine(P_ENGINE).
+    set elist to search_engine(P_ENGINE).
 }
 set enginfo to get_engines_info(elist).
 print_engines_simple_info(elist).
@@ -131,7 +132,19 @@ set m0 to ship:mass.
 set f0 to enginfo:thrust.
 set ve to enginfo:ISP * 9.81.
 set thro_min to enginfo:minthrottle.
-set std_throttle to 0.95.
+set std_throttle to (max(0.90, thro_min) + 1) / 2.
+
+// when stage, update engine information
+on stage:number {
+    set elist to get_active_engines().
+    set enginfo to get_engines_info(elist).
+    set f0 to enginfo:thrust.
+    set ve to enginfo:ISP * 9.81.
+    set thro_min to enginfo:minthrottle.
+    set std_throttle to (max(0.90, thro_min) + 1) / 2.
+    print_engines_simple_info(elist).
+    return true.
+}
 
 set sma to ship:orbit:semimajoraxis.
 set ecc to ship:orbit:eccentricity.
@@ -151,7 +164,7 @@ if (not addons:tr:hastarget) {
 }
 set target_geo to addons:tr:gettarget.
 set RTtrue to (target_geo:position-ship:body:position):mag.
-set RT to RTtrue + 200.  // descent phase target
+set RT to RTtrue + 150.  // descent phase target
 set VRTtrue to 0.
 set VRT to VRTtrue - 3.  // descent phase target
 set THETA_T to theta + _get_angle(__raxis, __haxis, __taxis, target_geo:position-ship:body:position).
@@ -184,7 +197,7 @@ function get_initial_params {
     local _distance to 0.5 * _amean * T ^ 2.
     local dtheta to _distance / Rm * 180 / constant:pi.
     set theta0 to THETA_T - dtheta.
-    local _discount to 0.1.
+    local _discount to 1.
     local num_iter to 0.
     until false {
         local r0 to _orbital_r_at_theta(sma, ecc, theta0).
@@ -196,7 +209,7 @@ function get_initial_params {
         // local b2 to b1*tau - ve*T^2/2.
         local c0 to b0*T - b1.
         local c1 to c0*tau - ve*T^2/2.
-        local c2 to c1*tau - ve*T^3/6.
+        // local c2 to c1*tau - ve*T^3/6.
 
         local error_r to RT - (r0 + vr0*T).
         local error_vr to VRT - vr0.
@@ -204,24 +217,23 @@ function get_initial_params {
         set B to (error_vr - A*b0) / b1.
 
         local r_mean to (r0+RT) / 2.
-        local _racc0 to _get_racc(r0, vt0).
-        local fr to A + _racc0 / a0.
-        local _raccT to g0.
-        local _aT to a0/(1-T/tau).
-        local fr1 to B + (_raccT/_aT - fr) / T.
-        local ft to -(1-fr^2/2).  // decelerate, so ft < 0
-        local ft1 to fr*fr1.
-        local ft2 to fr1^2/2.
-        set dtheta to (vt0/r0*T + (ft*c0 + ft1*c1 + ft2*c2)/r_mean) * 180 / constant:pi.
+        local _fdotr_0 to A + _get_racc(r0, vt0) / a0.
+        local _fdott_0 to -sqrt(1-_fdotr_0^2).
+        local _a_mid to a0 / (1-T/tau/2).
+        local _vt_mid to vt0 - _fdott_0 * ve * ln(1-T/tau/2).
+        local _fdotr_mid to A + B*T/2 + _get_racc(r_mean, _vt_mid) / _a_mid.
+        local _fdott_mid to -sqrt(1-_fdotr_mid^2).
+
+        set dtheta to (vt0/r0*T + _fdott_mid * c0 / r_mean) * 180 / constant:pi.
         set theta0 to THETA_T - dtheta.
-        local dv to -r0*vt0/r_mean / ft.  // zero-order approximation
-        // local dv to (-r0*vt0/r_mean + ve*T*(ft1+ft2*tau) + ft2*ve*T^2/2)/(ft+ft1*tau+ft2*tau^2).  // second order approximation
+
+        local dv to -r0*vt0/r_mean / _fdott_mid.  // zero-order middle approximation
         local _deltaT to _discount * (tau * (1 - exp(-dv/ve)) - T).
         set T to T + _deltaT.
         set num_iter to num_iter + 1.
         print "Iter " + num_iter + ", T = " + round(T) + ", dv = "+ round(dv) + "     " AT(0,14).
         print "dtheta = " + round(dtheta) + ", A = " + round(A, 3) + ", B = " + round(B, 3) + "     " AT(0,15).
-        if abs(_deltaT) < 0.01 {
+        if abs(_deltaT) < 0.005 {
             break.
         }
     }
@@ -254,7 +266,7 @@ function step_control {
     // local b2 to b1*tau - ve*T^2/2.
     local c0 to b0*T - b1.
     local c1 to c0*tau - ve*T^2/2.
-    local c2 to c1*tau - ve*T^3/6.
+    // local c2 to c1*tau - ve*T^3/6.
 
     local error_r to RT - (r0 + vr0*T).
     local error_vr to VRT - vr0.
@@ -262,20 +274,18 @@ function step_control {
     set B to (error_vr - A*b0) / b1.
 
     local r_mean to (r0+RT) / 2.
-    local _racc0 to _get_racc(r0, vt0).
-    local fr to A + _racc0 / a0.
-    local _raccT to g0.
-    local _aT to a0/(1-T/tau).
-    local fr1 to B + (_raccT/_aT - fr) / T.
-    local ft to -(1-fr^2/2).  // decelerate, so ft < 0
-    local ft1 to fr*fr1.
-    local ft2 to fr1^2/2.
-    local dv to -r0*vt0/r_mean / ft.  // zero-order approximation
-    // local dv to (-r0*vt0/r_mean + ve*T*(ft1+ft2*tau) + ft2*ve*T^2/2)/(ft+ft1*tau+ft2*tau^2).  // second order approximation
+    local _fdotr_0 to A + _get_racc(r0, vt0) / a0.
+    local _fdott_0 to -sqrt(1-_fdotr_0^2).
+    local _a_mid to a0 / (1-T/tau/2).
+    local _vt_mid to vt0 - _fdott_0 * ve * ln(1-T/tau/2).
+    local _fdotr_mid to A + B*T/2 + _get_racc(r_mean, _vt_mid) / _a_mid.
+    local _fdott_mid to -sqrt(1-_fdotr_mid^2).
+    local dv to -r0*vt0/r_mean / _fdott_mid.  // zero-order middle approximation
     set T to tau * (1 - exp(-dv/ve)).
 
-    local dtheta to (vt0/r0*T + (ft*c0 + ft1*c1 + ft2*c2)/r_mean) * 180 / constant:pi.
+    local dtheta to (vt0/r0*T + _fdott_mid * c0 / r_mean) * 180 / constant:pi.
     local dtheta_real to THETA_T - theta0.
+
     set throttle_target to max(thro_min, min(1, std_throttle * (1 + Ka*(dtheta - dtheta_real) / dtheta_real))).
 
     print "Iter: "+ num_iter+", T = " + round(T-tt) + ", dv = " + round(-ve*ln(1-T/tau)) + "     " AT(0,14).
@@ -317,10 +327,9 @@ function phase_descent {
     local _fhcomp_pid to pidLoop(5, 0.05, 0.03, -0.1, 0.1).
     set _fhcomp_pid:setpoint to 0.
     local fhcomp to 0.
-    // lock fhcomp to max(0, min(0.1, Kh * vdot(target_geo:position:normalized, _haxis))).
     lock ftcomp to -sqrt(1-frcomp^2-fhcomp^2).
-    set __target_altitude to _get_attitude(frcomp, ftcomp, fhcomp).
-    lock steering to __target_altitude.
+    lock __target_attitude to _get_attitude(frcomp, ftcomp, fhcomp).
+    lock steering to __target_attitude.
     RCS ON.
     wait until time:seconds >= ignition_time - _ullage_time.
     print "Braking start.                             " AT(0,12).
@@ -333,71 +342,76 @@ function phase_descent {
 
     local num_iter to 0.
     local _old_ground_speed to ship:groundspeed.
-    until (T - tt < 0 or rrr < RT or theta > THETA_T) {
+    until (T - tt < 0 or rrr < RT) {
         local __new_control to step_control(rrr, vr, theta, theta1, ship:mass, tt, T, A, B, num_iter).
         set A to __new_control[0].
         set B to __new_control[1].
         set T to __new_control[2].
         set _time_begin to time:seconds.
         set fhcomp to _fhcomp_pid:update(time:seconds, -vdot(target_geo:position:normalized, _haxis)).
-        set __target_altitude to _get_attitude(frcomp, ftcomp, fhcomp).
         set throttle_target to __new_control[3].
         set num_iter to num_iter + 1.
-        if T < 10 and ship:groundspeed > _old_ground_speed {
+        if T < 10 and (ship:groundspeed / (abs(ship:verticalspeed) + 0.001) < 1.5 or (ship:groundspeed > _old_ground_speed)) {
+        // if T < 10 and (ship:verticalspeed / (abs(ship:airspeed) + 0.001) > vdot(ship:facing:vector, up:vector) or (ship:groundspeed > _old_ground_speed)) {
             // low energy cutoff
             break.
         }
         set _old_ground_speed to ship:groundspeed.
     }
-    lock throttle to thro_min.
 }
 
 function get_max_vertical_acc {
     local _fr to vdot(steering:forevector, up:forevector).
-	local _acc to std_throttle * f0 * std_throttle / ship:mass * _fr.
-	return _acc - g0.
+    local _acc to std_throttle * f0 / ship:mass * _fr.
+    return _acc - g0.
 }
 
 function get_target_vertical_v {
-	return sqrt(2*max(0,ship:bounds:bottomaltradar)*get_max_vertical_acc()).
+    return sqrt(2*max(0,ship:bounds:bottomaltradar)*get_max_vertical_acc()).
 }
 
-function _phase_final_get_altitude {
-    // keep pitch > 50 deg
-    local __cosalpha to max(0.643, vdot(srfRetrograde:forevector, up:forevector)).
-    local __cotalpha to sqrt(1 - __cosalpha^2) / __cosalpha.
-    local __horizontalvec to vxcl(up:forevector, srfRetrograde:forevector).
-    return lookDirUp(__horizontalvec * __cotalpha + up:forevector, sun:position).
+function _phase_final_get_attitude {
+    // keep pitch > 30 deg
+    local __tanalpha to min(0.577, 1.2 * ship:groundspeed / (abs(ship:verticalspeed) + 0.001)).
+    local __horizontalvec to vxcl(up:forevector, srfRetrograde:forevector):normalized.
+    return lookDirUp(__horizontalvec * __tanalpha + up:forevector, sun:position).
 }
 
 function phase_final {
-	// final phase have no targeting, just reduce lateral speed and land.
+    // final phase have no targeting, just reduce lateral speed and land.
+    if (P_ALLOW_RESTART) {
+        lock throttle to 0.
+        if (enginfo:ullage) {set ship:control:fore to 0.5.}
+    }
+    else {lock throttle to thro_min.}
     print "Final phase.                               " AT(0,12).
-	// lock steering to lookDirUp(srfRetrograde:vector, sun:position).
-    lock steering to _phase_final_get_altitude().
-    wait until vang(ship:facing:forevector, up:forevector) > 20.
-	local bound_box to ship:bounds.
-	lock _targetV to get_target_vertical_v() * 0.9.
-	set mythrott to std_throttle.
-	lock throttle to mythrott.
-	set PID_throttle to pidLoop(0.5, 0.01, 0.01, thro_min, 1).
+    lock steering to _phase_final_get_attitude().
+    // vecDraw(v(0,0,0), {return steering:forevector*20.}, RGB(0, 255, 0), "attitude", 1, true).
+    local bound_box to ship:bounds.
+    lock _targetV to get_target_vertical_v() * (max(thro_min, 0.7) + 1) / 2.
+    wait until (-ship:verticalspeed) >= _targetV and vang(ship:facing:forevector, steering:forevector) < 40.
+    local mythrott to std_throttle.
+    lock throttle to mythrott.
+    set ship:control:fore to 0.
+    local PID_throttle to pidLoop(0.5, 0.01, 0.01, thro_min, 1).
     set done to false.
-    when (bound_box:bottomaltradar < 0.2) then {
+    when (bound_box:bottomaltradar < 0.1 or abs(ship:verticalspeed) < 0.1) then {
         set done to true.
         return false.
     }
-    until ship:groundspeed < 0.05 or done {
-        set mythrott to PID_throttle:update(time:seconds, ship:verticalspeed+_targetV-ship:groundspeed*0.6).
+    until (ship:groundspeed < 0.02 and bound_box:bottomaltradar < 3) or done {
+        set mythrott to PID_throttle:update(time:seconds, ship:verticalspeed+_targetV-ship:groundspeed).
     }
+    print "Touchdown..." AT(0,22).
     lock steering to lookDirUp(up:vector, sun:position).
-	until bound_box:bottomaltradar < 0.2 or done {
-		set mythrott to PID_throttle:update(time:seconds, ship:verticalspeed+_targetV).
-	}
-	unlock steering.
-	unlock _targetV.
-	unset PID_throttle.
-	lock throttle to 0.
-	wait 0.2.  // wait for throttle to be 0
+    until done {
+        set mythrott to PID_throttle:update(time:seconds, ship:verticalspeed+_targetV).
+    }
+    lock throttle to 0.
+    wait until bound_box:bottomaltradar < 0.1.
+    wait 0.2.
+    unlock steering.
+    unlock _targetV.
 }
 
 phase_descent().
