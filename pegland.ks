@@ -87,7 +87,8 @@ function set_descent_phase_target {
 set_descent_phase_target().
 
 // action group 10 is for reset engine and target information
-on ag10 {
+// staging can also update engine information
+on (ag10+stage:number) {
     set_engine_parameters(get_active_engines()).
     set target_geo to addons:tr:gettarget.
     set_descent_phase_target().
@@ -180,8 +181,8 @@ function phase_final {
     lock steering to lookDirUp(lo_fvec, sun:position).
     // vecDraw(v(0,0,0), {return steering:forevector*20.}, RGB(0, 255, 0), "attitude", 1, true).
     local bound_box to ship:bounds.
+    wait until vang(ship:facing:forevector, steering:forevector) < 40 and terminal_time_to_fire(bound_box:bottomaltradar, lo_fvec, ship:mass, f0, max(final_std_throttle, ship:mass * (g0+0.4) / f0)).
     local mythrott to max(final_std_throttle, ship:mass * (g0+0.4) / f0).
-    wait until vang(ship:facing:forevector, steering:forevector) < 40 and terminal_time_to_fire(bound_box:bottomaltradar, lo_fvec, ship:mass, f0, mythrott).
     lock throttle to mythrott.
     set ship:control:fore to 0.
     local _target_attitude to lookDirUp(lo_fvec, sun:position).
