@@ -1,7 +1,11 @@
 # Chris_KSP_Lib
 适用于KSP原版或RSS/RO环境的KOS脚本。
 
-视频演示：[[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
+视频演示：
+
+- [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
+- [[KSP/RSS/RO]PEGLand v0.3: 早期探测器一键自动定点落月](https://www.bilibili.com/video/BV1ZJdZY6EwE)
+- [[KSP/RSS/RO]PEGLand v0.3阿波罗登月特别版：厘米级优雅着陆](https://www.bilibili.com/video/BV1wGdZYjEgm/?share_source=copy_web&vd_source=c95e75114f56a5367c332dfeef079f60)
 
 ## MOD 列表
 
@@ -76,7 +80,7 @@ run pegland(0, 0, "auto"). // 自动分级
    dv: 估计剩余燃烧Δv
    A: 俯仰控制参数
    thro: 油门
-   E: 着陆位置误差（中心天体极坐标下的角度），正值表示着陆点在目标后方
+   E: 着陆位置误差，正值表示着陆点在目标后方
    ```
 
 3. 末段着陆：在目标点上方大约150m处调整姿态，消除水平速度并着陆。这一阶段没有瞄准目标点，因此引入了主要的着陆误差。我会在后续更新中加入更完善的末端着陆制导算法。
@@ -92,6 +96,27 @@ run pegland(0, 0, "auto"). // 自动分级
   1. 给用于减速的引擎设置tag，比如"descent"
   2. 运行PEGLand: `run pegland(0,0,"descent")`
   3. 当减速引擎燃尽时，按下空格分级，着陆程序会检测到当前分级的变化并更新引擎参数，继续完成着陆。
+- 如果需要在飞行中切换引擎，请在切换后按下"0"键，程序会检测到10号动作组被激活并更新引擎参数。
+
+### Apollo LM 着陆程序
+
+`peglandprec`是精确着陆脚本，尽管是专门为Apollo LM设计的，但我尽可能让这个脚本能够适用于其他的着陆器。
+
+```
+run peglandprec(P_NOWAIT, P_ENGINE)
+参数:
+   P_NOWAIT: 立刻启动下降程序，不要等待滑行至点火位置，默认为 false
+   P_ENGINE: 引擎模式。
+      “current”: (默认)使用当前已激活的引擎
+      “auto”: 自动分级。当前分级燃尽时自动激活下一分级
+      <标签>: 搜索符合标签的引擎，在点火时激活
+```
+
+`peglandprec`将动力下降段的目标前移500米，并在后面添加了由二次制导控制的接近段。由于二次制导不一定满足油门约束，需要由主下降段确保接近段起点在合理范围。接近段会控制航天器以低油门缓缓前进到目标上方并以朝上的姿态下降。误差小于1 cm。使用`peglandprec`程序需要：
+
+- 深度节流引擎：末段推重比下限小于1
+- 比`pegland`多消耗约5%的燃料
+- 着陆器不能在中途分级
 
 ## 执行机动节点
 

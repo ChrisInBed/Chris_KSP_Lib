@@ -2,7 +2,11 @@
 
 kOS scripts for KSP stock or RSS/RO environments.
 
-Video: [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
+Video:
+
+- [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
+- [[KSP/RSS/RO]PEGLand v0.3: 早期探测器一键自动定点落月](https://www.bilibili.com/video/BV1ZJdZY6EwE)
+- [[KSP/RSS/RO]PEGLand v0.3阿波罗登月特别版：厘米级优雅着陆](https://www.bilibili.com/video/BV1wGdZYjEgm/?share_source=copy_web&vd_source=c95e75114f56a5367c332dfeef079f60)
 
 ## MOD List
 
@@ -77,7 +81,7 @@ Requirements for using this program:
    dv: Estimated remaining burn Δv
    A: Pitch control parameter
    thro: Throttle
-   E: Landing position error (angle in central body polar coordinates), positive value indicates landing point is over the target
+   E: Landing position error, positive value indicates landing point is over the target
    ```
 
 3. Final Landing: Adjusts attitude upwards at about 200m above the target point, cancels horizontal velocity, and lands. This phase introduces the main landing error as it does not aim for the target point. A more refined final landing guidance algorithm will be added in future updates.
@@ -93,6 +97,27 @@ If the user changes the landing point during descent, the landing program can be
   1. Assign tag for the braking engines, like "descent"
   2. Run PEGLand: `run pegland(0,0,"descent")`
   3. When the braking engines burn out, stage manually, the PEGLand program will be aware of the chaning in stage number , updating engine parameters, and finish landing with new engines.
+- If you need to switch engine in flight, please press "0" key after switching. The process will monitor chaning on action group No.10 to update engine information.
+
+### Apollo LM Landing program
+
+`peglandprec` is a program for precise landing. Though it was designed for the Apollo LM, I tried my best to make it suitable for other landers.
+
+```kOS
+run peglandprec(P_NOWAIT, P_ENGINE)
+Parameters:
+   P_NOWAIT: Start the descent program immediately without waiting to glide to the ignition point. Default is false.
+   P_ENGINE: Engine mode.
+      "current": (Default) Use the currently activated engine.
+      "auto": Automatic staging. Automatically activate the next stage when the current stage is burnout.
+      <tag>: Search for an engine matching the tag and activate it at ignition
+```
+
+Compared to `pegland`, this program adds a "approch phase" controled by quadratic guidance behind the "descent phase". Because the throttle constraints may not be satisfied in quadratic guidance algorithm, the initial condition must be sophiscatedly adjusted by the previous descent phase. In approach phase, the lander will slowly fly to the target and perform an elegant landing, with error less than 1 cm. To use `peglandprec`, you need:
+
+- Deep throttling engine: final phase $TWR_{min} < 1$
+- Cost 5% more fuel than `pegland`
+- Single-stage lander
 
 ## Executing Maneuver Nodes
 

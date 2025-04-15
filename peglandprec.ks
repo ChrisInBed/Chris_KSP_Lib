@@ -1,5 +1,4 @@
 parameter P_NOWAIT is false.
-parameter P_ALLOW_RESTART is true.
 parameter P_ENGINE is "current".
 clearScreen.
 print "PEG landing guidance" AT(0,0).
@@ -11,6 +10,7 @@ print "================ Result ================" AT(0,21).
 // line 11~20: guidance state
 
 runOncePath("0:/lib/landlib/peg.ks").
+runOncePath("0:/lib/landlib/quadratic.ks").
 runOncePath("0:/lib/landlib/terminal.ks").
 runOncePath("0:/lib/engine_utility.ks").
 
@@ -77,20 +77,28 @@ if (not addons:tr:hastarget) {
 }
 set target_geo to addons:tr:gettarget.
 function set_descent_phase_target {
-    set desRT to (target_geo:position-ship:body:position):mag + 150.  // 150 m above ground
-    set desVRT to -3.  // 3 m/s downward
+    set desRT to (target_geo:position-ship:body:position):mag + 100.  // 100 m above ground
+    set desVRT to -8.  // 8 m/s downward
     set THETA_T to eta0 + __peg_get_angle(__raxis, __haxis, __taxis, target_geo:position-ship:body:position).
-    set desTHETA_T to THETA_T - 0/Rm*180/constant:pi.  // 0 m before target
-    set desVTT to 0.  // 0 m/s lateral speed
+    set desTHETA_T to THETA_T - 500/Rm*180/constant:pi.  // 500 m before target
+    set desVTT to 40.  // 40 m/s lateral speed
     print "Target position: " + target_geo AT(0,6).
 }
 set_descent_phase_target().
+function set_approach_phase_target {
+    set appRT to V(0, 0, 0).  //
+    set appVT to V(0, 0, -0.2). // 0.2 m/s downward
+    set appAT to V(0, 0, 0). // no acceleration
+    set appJx to 0.  // no Jerk
+}
+set_approach_phase_target().
 
 // action group 10 is for reset engine and target information
 on ag10 {
     set_engine_parameters(get_active_engines()).
     set target_geo to addons:tr:gettarget.
     set_descent_phase_target().
+    set_approach_phase_target().
     return true.
 }
 
@@ -132,7 +140,7 @@ function phase_descent {
     set _fhcomp_pid:setpoint to 0.
     local fhcomp to 0.
     lock lo_ftcomp to -sqrt(1-lo_frcomp^2-fhcomp^2).
-    lock steering to lookDirUp(lo_frcomp*lo_raxis + lo_ftcomp*lo_taxis + fhcomp*lo_haxis, up:forevector).
+    lock steering to lookDirUp(lo_frcomp*lo_raxis + lo_ftcomp*lo_taxis + fhcomp*lo_haxis, -up:forevector).  // face up
     RCS ON.
     wait until time:seconds >= ignition_time - _ullage_time.
     print "Braking start.                             " AT(0,12).
@@ -144,8 +152,7 @@ function phase_descent {
     lock throttle to throttle_target.
 
     local num_iter to 0.
-    local _old_ground_speed to ship:groundspeed.
-    until (T - lo_tt < 0 or lo_r < desRT) {
+    until (T - lo_tt < 5 or lo_r < desRT or ship:groundspeed < desVTT) {
         local __new_control to peg_step_control(lo_tt, lo_r, lo_vr, lo_theta, lo_vtheta, ship:mass, f0, thro_min, 1, std_throttle, ve, T, A, B, desRT, desVRT, desTHETA_T, desVTT).
         set A to __new_control[0].
         set B to __new_control[1].
@@ -158,36 +165,68 @@ function phase_descent {
         set num_iter to num_iter + 1.
         print "Iter: "+ num_iter+", T = " + round(T) + ", dv = " + round(__peg_get_dv(lo_acc, ve, T)) + "     " AT(0,14).
         print "A = " + round(A, 3) + ", thro = " + round(throttle_target, 3) + ", E = " + round(theta_error/180*constant:pi*Rm/1000, 4) + " km    " AT(0,15).
-        if T < 10 and (T <= 0 or ship:groundspeed / (abs(ship:verticalspeed) + 0.001) < 1.5 or (ship:groundspeed > _old_ground_speed)) {
-            break.
-        }
-        set _old_ground_speed to ship:groundspeed.
     }
     lock steering to "kill".
     set __gap_throttle to std_throttle.
     lock throttle to __gap_throttle.
 }
 
+function phase_approach {
+    // approach phase have a more precise targeting
+    print "Approach phase.                            " AT(0,12).
+    // reference frame: origin point is located at the ground target point
+    // and adopt up-fore axis system.
+    lock lo_raxis to up:forevector.
+    lock lo_haxis to vcrs(lo_raxis, ship:velocity:surface):normalized.
+    lock lo_taxis to vcrs(lo_haxis, lo_raxis):normalized.
+
+    lock lo_r to V(-target_geo:position*lo_taxis, -target_geo:position*lo_haxis, ship:bounds:bottomaltradar).
+    lock lo_v to V(ship:velocity:surface*lo_taxis, ship:velocity:surface*lo_haxis, ship:velocity:surface*lo_raxis).
+
+    local qT to quadratic_get_burntime(lo_r, lo_v, appRT, appVT, appAT, appJx).
+    local __control to quadratic_step_control(lo_r, lo_v, appRT, appVT, appAT, qT).
+    // local qT to __control[0].
+    local qJ to __control[1].
+    local qS to __control[2].
+    
+    local _time_begin to time:seconds.
+    lock lo_tt to qT + time:seconds - _time_begin.
+
+    // throttle and attitude control
+    lock lo_af to appAT + qJ*lo_tt + qS*lo_tt^2/2 + V(0, 0, g0).
+    lock steering to lookDirUp(lo_af:x*lo_taxis+lo_af:y*lo_haxis+lo_af:z*lo_raxis, sun:position).
+    lock throttle to max(thro_min, min(1, ship:mass * lo_af:mag / f0)).
+
+    until (lo_tt > -5 or lo_r:z < appRT:z) {
+        set qT to lo_tt.
+        set __control to quadratic_step_control(lo_r, lo_v, appRT, appVT, appAT, qT).
+        // set qT to __control[0].
+        set qJ to __control[1].
+        set qS to __control[2].
+        set _time_begin to time:seconds.
+        // estimate remaining deltav by linear approximation
+        local __dv to -(lo_af:mag + (appAT+V(0,0,g0)):mag)/2 * qT.
+        print "T = " + round(qT) + ", dv = " + round(__dv) + "             " AT(0,14).
+        print "thro = " + round(throttle, 2) + ", J = " + qJ + ", S = " + qS + "    " AT(0,15).
+    }
+    lock steering to "kill".
+    set __gap_throttle to max(thro_min, min(1, ship:mass * lo_af:mag / f0)).
+    lock throttle to __gap_throttle.
+}
+
 function phase_final {
     // final phase have no targeting, just reduce lateral speed and land.
-    if (P_ALLOW_RESTART) {
-        lock throttle to 0.
-        if (enginfo:ullage) {set ship:control:fore to 0.5.}
-    }
-    else {lock throttle to thro_min.}
     print "Final phase.                               " AT(0,12).
     lock lo_fvec to terminal_get_fvec().
     lock steering to lookDirUp(lo_fvec, sun:position).
     // vecDraw(v(0,0,0), {return steering:forevector*20.}, RGB(0, 255, 0), "attitude", 1, true).
     local bound_box to ship:bounds.
-    local mythrott to max(final_std_throttle, ship:mass * (g0+0.4) / f0).
-    wait until vang(ship:facing:forevector, steering:forevector) < 40 and terminal_time_to_fire(bound_box:bottomaltradar, lo_fvec, ship:mass, f0, mythrott).
+    local mythrott to max(thro_min, min(1, ship:mass * g0 / f0 * 0.8)).  // hover
     lock throttle to mythrott.
-    set ship:control:fore to 0.
     local _target_attitude to lookDirUp(lo_fvec, sun:position).
     lock steering to _target_attitude.
-    until (bound_box:bottomaltradar < 0.1 or abs(ship:verticalspeed) < 0.1) {
-        local __new_control to terminal_step_control(bound_box:bottomaltradar, lo_fvec, ship:mass, f0, thro_min, 1, max(final_std_throttle, ship:mass * (g0+0.4) / f0)).
+    until (bound_box:bottomaltradar < 0.1) {
+        local __new_control to terminal_step_control(bound_box:bottomaltradar, lo_fvec, ship:mass, f0, thro_min, 1, max(thro_min, min(1, ship:mass * (g0+0.2) / f0))).
         set _target_attitude to lookDirUp(__new_control[0], sun:position).
         set mythrott to __new_control[1].
     }
@@ -199,6 +238,7 @@ function phase_final {
 }
 
 phase_descent().
+phase_approach().
 phase_final().
 peg_finalize().
 terminal_finalize().
