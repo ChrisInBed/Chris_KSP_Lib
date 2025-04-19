@@ -200,11 +200,11 @@ function phase_approach {
 
     until (lo_tt > -5 or lo_r:z < appRT:z) {
         set qT to lo_tt.
+        set _time_begin to time:seconds.
         set __control to quadratic_step_control(lo_r, lo_v, appRT, appVT, appAT, qT).
         // set qT to __control[0].
         set qJ to __control[1].
         set qS to __control[2].
-        set _time_begin to time:seconds.
         // estimate remaining deltav by linear approximation
         local __dv to -(lo_af:mag + (appAT+V(0,0,g0)):mag)/2 * qT.
         print "T = " + round(qT) + ", dv = " + round(__dv) + "             " AT(0,14).
