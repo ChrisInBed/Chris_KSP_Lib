@@ -22,7 +22,7 @@ function __terminal_target_vertical_v {
 
 function terminal_get_fvec {
     // keep pitch > 30 deg
-    local __tanalpha to min(0.577, 1.2 * ship:groundspeed / (abs(ship:verticalspeed) + 0.001)).
+    local __tanalpha to min(0.577, 1.0 * ship:groundspeed / (abs(ship:verticalspeed) + 0.001)).
     local __horizontalvec to vxcl(up:forevector, srfRetrograde:forevector):normalized.
     return __horizontalvec * __tanalpha + up:forevector.
 }

@@ -95,7 +95,7 @@ set_approach_phase_target().
 
 // action group 10 is for reset engine and target information
 // staging can also update engine information
-on (ag10+stage:number) {
+on ("0"+ag10+stage:number) {
     set_engine_parameters(get_active_engines()).
     set target_geo to addons:tr:gettarget.
     set_descent_phase_target().
