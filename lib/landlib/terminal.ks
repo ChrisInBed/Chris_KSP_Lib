@@ -1,9 +1,11 @@
 set __TERMINAL_g0 to ship:body:mu / ship:body:radius^2.
 set __TERMINAL_PID_throttle to pidLoop(0.5, 0.01, 0.01).
+set __TERMINAL_uplock to false.
 
 function terminal_finalize {
     unset __TERMINAL_g0.
     unset __TERMINAL_PID_throttle.
+    unset __TERMINAL_uplock.
 }
 
 function __terminal_max_vertical_acc {
@@ -48,7 +50,8 @@ function terminal_step_control {
     local thro_plan to 0.
     local fvec_plan to v(0,0,0).
     local _targetV to __terminal_target_vertical_v(height, fvec, f0/m0*std_throttle).
-    if (ship:groundspeed < 0.02 and height < 3) {
+    if (__TERMINAL_uplock or (ship:groundspeed < 0.02 and height < 3)) {
+        set __TERMINAL_uplock to true.
         set thro_plan to __TERMINAL_PID_throttle:update(time:seconds, ship:verticalspeed-_targetV).
         set fvec_plan to up:forevector.
     }

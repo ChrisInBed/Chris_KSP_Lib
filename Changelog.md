@@ -16,3 +16,10 @@
 - Reconstruct code hierarchy
 - Added quadratic guidance
 - Added special version `peglandprec` for Apollo LM landing
+
+## 2025/04/29 v0.4
+
+- Optimized iteration efficiency in PEG guidance
+- Optimized throttle control in PEG guidance
+- Optimized efficiency in quadratic landing guidance
+- Add landing target adjustment function, make it easy for landing with limited-throttling engines

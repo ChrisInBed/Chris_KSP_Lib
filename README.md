@@ -22,10 +22,11 @@ Video:
 Reference: [Explicit guidance equations for multistage boost trajectories](https://ntrs.nasa.gov/citations/19660006073)
 
 ```kOS
-run pegland(P_NOWAIT, P_ALLO_RESTART, P_ENGINE)
+run pegland(P_NOWAIT, P_ALLO_RESTART, P_ADJUST, P_ENGINE)
 Parameters:
    P_NOWAIT: Start the descent program immediately without waiting to glide to the ignition point. Default is false.
    P_ALLO_RESTART: Allow engine to restart, consuming two ignitions. Default is true.
+   P_ADJUST: Target adjustment vector. Default is V(0,0,0)
    P_ENGINE: Engine mode.
       "current": (Default) Use the currently activated engine.
       "auto": Automatic staging. Automatically activate the next stage when the current stage is burnout.
@@ -38,8 +39,9 @@ Parameters:
 run pegland.  // Start descent at the optimal time, two ignitions, using the currently activated engine.
 run pegland(1). // Start the engine immediately for descent.
 run pegland(0, 0). // Allow only one engine ignition.
-run pegland(0, 0, "descent"). // Search for the engine tagged "descent" and activate it at ignition.
-run pegland(0, 0, "auto"). // Automatic staging.
+run pegland(0, 1, V(0,0,0), "descent"). // Search for the engine tagged "descent" and activate it at ignition.
+run pegland(0, 1, V(0,0,0), "auto"). // Automatic staging.
+run pegland(0, 1, V(-50,10,1))  // Adjust landing target: advance 50m, right 50m, upward 1m
 ```
 
 Requirements for using this program:
@@ -90,12 +92,12 @@ If the user changes the landing point during descent, the landing program can be
 
 ### Notes
 
-- Supports limited-throttle and non-throttleable engines. When the lower throttle limit is above 60%, landing precision cannot be guaranteed, and when the final phase thrust-to-weight ratio is above 1.5, landing is unsafe.
+- Supports limited-throttle and non-throttleable engines. When the lower throttle limit is above 60%, landing precision cannot be guaranteed, and when the final phase thrust-to-weight ratio is above 1.5, landing is unsafe. It's easy to use `P_ADJUST` to perform (relatively) precise landing with limited-throttle engines. You can simulate the landing process once, and set `P_ADJUST` to compensate the landing error.
 - If you do not want the engine to shut down, set the parameter `P_ALLO_RESTART = 0`, but ensure the final phase thrust-to-weight ratio is less than 1, or the rocket will not be able to land.
 - Although beyond the scope of the current algorithm, the script supports multi-stage rocket landings. Set `P_ENGINE = "auto"`, and the script will automatically stage when the current stage is burnout. For manual staging, turn off the engine manually before staging, or the debris might collide with the spacecraft. Landing precision cannot be guaranteed.
 - If you need to use solid rockets for deceleration, it is recommended to set `P_ENGINE = <tag>`. Apparently, solid rockets generally cannot be used in the final landing phase, because they cannot be turned off. Instructions for this tricky landing:
   1. Assign tag for the braking engines, like "descent"
-  2. Run PEGLand: `run pegland(0,0,"descent")`
+  2. Run PEGLand: `run pegland(0,1,V(0,0,0),"descent")`
   3. When the braking engines burn out, stage manually, the PEGLand program will be aware of the chaning in stage number , updating engine parameters, and finish landing with new engines.
 - If you need to switch engine in flight, please press "0" key after switching. The process will monitor chaning on action group No.10 to update engine information.
 

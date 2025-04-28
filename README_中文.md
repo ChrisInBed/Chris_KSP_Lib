@@ -21,10 +21,11 @@
 参考文献：[Explicit guidance equations for multistage boost trajectories](https://ntrs.nasa.gov/citations/19660006073)
 
 ```kOS
-run pegland(P_NOWAIT, P_ALLO_RESTART, P_ENGINE)
+run pegland(P_NOWAIT, P_ALLO_RESTART, P_ADJUST, P_ENGINE)
 参数:
    P_NOWAIT: 立刻启动下降程序，不要等待滑行至点火位置，默认为 false
    P_ALLO_RESTART: 允许发动机重启，这会消耗两次点火次数。默认为 true
+   P_ADJUST: 目标修正向量。默认为 V(0,0,0)
    P_ENGINE: 引擎模式。
       “current”: (默认)使用当前已激活的引擎
       “auto”: 自动分级。当前分级燃尽时自动激活下一分级
@@ -37,8 +38,9 @@ run pegland(P_NOWAIT, P_ALLO_RESTART, P_ENGINE)
 run pegland.  // 在最优时机启动下降，两次点火，使用当前激活的引擎
 run pegland(1). // 立刻启动引擎执行下降
 run pegland(0, 0). // 仅允许引擎点火一次
-run pegland(0, 0, "descent"). // 搜索标签为"descent"的引擎，在点火时启动它
-run pegland(0, 0, "auto"). // 自动分级
+run pegland(0, 1, V(0,0,0), "descent"). // 搜索标签为"descent"的引擎，在点火时启动它
+run pegland(0, 1, V(0,0,0), "auto"). // 自动分级
+run pegland(0, 1, V(-50,10,1)).  // 移动目标：提前50米，向右10米，向上1米
 ```
 
 使用该程序需要：
@@ -89,12 +91,13 @@ run pegland(0, 0, "auto"). // 自动分级
 
 ### 注意事项
 
-- 支持浅节流和不节流发动机。当节流范围下限高于60%时，无法保证着陆精度，末段推重比下限高于1.5时，着陆不安全。
+- 支持浅节流和不节流发动机。当节流范围下限高于60%时，无法保证着陆精度，末段推重比下限高于1.5时，着陆不安全。`P_ADJUST`参数目的是给浅节流发动机精确着陆提供方便，你可以先模拟着陆一次，将着陆误差输入到`P_ADJUST`参数中调整着陆目标，以获得更高的着陆精度。
+
 - 如果不希望发动机熄火，请设置参数 `P_ALLO_RESTART = 0`，但需要保证末段推重比下限小于1，否则火箭无法着陆。
 - 尽管超出了当前算法的处理范围，该脚本支持多级火箭着陆。设置`P_ENGINE = "auto"`，当前分级燃尽时，脚本会自动分级。如果需要手动分级，请在分级之前手动关闭发动机，否则分离后的残骸可能会撞上航天器。无法保证着陆点精度。
 - 如果需要使用固体火箭完成减速，建议设置 `P_ENGINE = <tag>`，并在固体火箭燃尽时手动分级。但显然，固体火箭一般无法在最终着陆段使用，因为它关不掉。具体操作：
   1. 给用于减速的引擎设置tag，比如"descent"
-  2. 运行PEGLand: `run pegland(0,0,"descent")`
+  2. 运行PEGLand: `run pegland(0,1,V(0,0,0),"descent")`
   3. 当减速引擎燃尽时，按下空格分级，着陆程序会检测到当前分级的变化并更新引擎参数，继续完成着陆。
 - 如果需要在飞行中切换引擎，请在切换后按下"0"键，程序会检测到10号动作组被激活并更新引擎参数。
 
@@ -103,9 +106,10 @@ run pegland(0, 0, "auto"). // 自动分级
 `peglandprec`是精确着陆脚本，尽管是专门为Apollo LM设计的，但我尽可能让这个脚本能够适用于其他的着陆器。
 
 ```
-run peglandprec(P_NOWAIT, P_ENGINE)
+run peglandprec(P_NOWAIT, P_ADJUST, P_ENGINE)
 参数:
    P_NOWAIT: 立刻启动下降程序，不要等待滑行至点火位置，默认为 false
+   P_ADJUST: 目标修正向量。默认为 V(0,0,0)
    P_ENGINE: 引擎模式。
       “current”: (默认)使用当前已激活的引擎
       “auto”: 自动分级。当前分级燃尽时自动激活下一分级
