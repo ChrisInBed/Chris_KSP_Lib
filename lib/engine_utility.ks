@@ -6,17 +6,25 @@ function get_engines_info {
 	local _minthrottle to 0.0.
 	local _ullage to false.
 	local _number to 0.
+	local _spooluptime to 0.
 	for e in elist {
 		set _number to _number + 1.
 		set _thrustvec to _thrustvec + e:possiblethrust * e:facing:vector.
 		set _Isp to _Isp + (e:possiblethrust/max(100, e:visp)).
 		set _minthrottle to max(_minthrottle, e:minthrottle).
 		if e:ullage { set _ullage to true. }
+		// RealFuel information: spool up time
+		if e:hasmodule("ModuleEnginesRF") {
+			local _rfmod to e:getmodule("ModuleEnginesRF").
+			if _rfmod:hasfield("effective spool-up time") {
+				set _spooluptime to max(_spooluptime, _rfmod:getfield("effective spool-up time")).
+			}
+		}
 	}
 	local _thrust to _thrustvec:mag.
-	if _thrust < 1e-4 return lexicon("thrust", _thrust, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", false).
+	if _thrust < 1e-4 return lexicon("thrust", _thrust, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", false, "spooluptime", 0.0).
 	set _Isp to _thrust / _Isp.
-	return lexicon("number", _number, "thrust", _thrust, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", _ullage).
+	return lexicon("number", _number, "thrust", _thrust, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", _ullage, "spooluptime", _spooluptime).
 }
 
 function need_ullage {

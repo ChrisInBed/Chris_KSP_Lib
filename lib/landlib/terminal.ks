@@ -1,62 +1,63 @@
 set __TERMINAL_g0 to ship:body:mu / ship:body:radius^2.
-set __TERMINAL_PID_throttle to pidLoop(0.5, 0.01, 0.01).
 set __TERMINAL_uplock to false.
+set __TERMINAL_thro_PID to pidLoop(1, 0.1, 0.05).
 
 function terminal_finalize {
     unset __TERMINAL_g0.
-    unset __TERMINAL_PID_throttle.
     unset __TERMINAL_uplock.
+    unset __TERMINAL_thro_PID.
 }
 
-function __terminal_max_vertical_acc {
-    parameter fvec.
-    parameter facc.
-    local _fr to vdot(fvec, up:forevector).
-    return facc * _fr - __TERMINAL_g0.
-}
+function __terminal_get_deltar {
+    parameter vrT.
+    parameter af.
 
-function __terminal_target_vertical_v {
-    parameter height.
-    parameter fvec.
-    parameter facc.
-    return -sqrt(2*max(0, height)*__terminal_max_vertical_acc(fvec, facc)).
+    local v0 to ship:velocity:surface:mag.
+    local vr0 to ship:verticalspeed.
+    if (vr0 >= 0) return 0.  // start only in falling
+    local tc to v0 / __TERMINAL_g0 / (1 - vr0 / (v0+0.001)).
+    local _uc to af*tc*(1+vr0/v0)/2.
+    local _T to (vrT-vr0+_uc)/(af-__TERMINAL_g0).
+    local deltar to vr0*_T + (af-__TERMINAL_g0)*_T^2/2 - _uc*(_T - tc/3).
+
+    return deltar.
 }
 
 function terminal_get_fvec {
-    // keep pitch > 30 deg
-    local __tanalpha to min(0.577, 1.0 * ship:groundspeed / (abs(ship:verticalspeed) + 0.001)).
+    // keep pitch > 45 deg
+    local __tanalpha to min(1.0, 1.0 * ship:groundspeed / (abs(ship:verticalspeed) + 0.001)).
     local __horizontalvec to vxcl(up:forevector, srfRetrograde:forevector):normalized.
     return __horizontalvec * __tanalpha + up:forevector.
 }
 
 function terminal_time_to_fire {
     parameter height.
-    parameter fvec.
+    parameter vrT.
     parameter m0.
     parameter f0.
     parameter std_throttle.
-    return ship:verticalspeed <= __terminal_target_vertical_v(height, fvec, f0/m0*std_throttle).
+    return height + __terminal_get_deltar(vrT, std_throttle*f0/m0) < 0.
 }
 
 function terminal_step_control {
     parameter height.
-    parameter fvec.
+    parameter vrT.
     parameter m0.
     parameter f0.
     parameter thro_min.
     parameter thro_max.
     parameter std_throttle.
 
-    local thro_plan to 0.
+    local thro_plan to std_throttle.
     local fvec_plan to v(0,0,0).
-    local _targetV to __terminal_target_vertical_v(height, fvec, f0/m0*std_throttle).
-    if (__TERMINAL_uplock or (ship:groundspeed < 0.02 and height < 3)) {
+    local deltar to __terminal_get_deltar(vrT, std_throttle*f0/m0).
+    if (__TERMINAL_uplock or (ship:groundspeed < 0.01 and height < 3)) {
         set __TERMINAL_uplock to true.
-        set thro_plan to __TERMINAL_PID_throttle:update(time:seconds, ship:verticalspeed-_targetV).
+        set thro_plan to std_throttle * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
         set fvec_plan to up:forevector.
     }
     else {
-        set thro_plan to __TERMINAL_PID_throttle:update(time:seconds, ship:verticalspeed-_targetV-ship:groundspeed*0.3).
+        set thro_plan to std_throttle * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
         set fvec_plan to terminal_get_fvec().
     }
     set thro_plan to max(thro_min, min(thro_max, thro_plan)).

@@ -23,3 +23,8 @@
 - Optimized throttle control in PEG guidance
 - Optimized efficiency in quadratic landing guidance
 - Add landing target adjustment function, make it easy for landing with limited-throttling engines
+
+## 2025/05/06 v0.5
+
+- Optimized terminal landing guidance
+- Optimized landing target adjustment function and landing error display

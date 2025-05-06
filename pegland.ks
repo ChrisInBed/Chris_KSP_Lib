@@ -1,6 +1,6 @@
 parameter P_NOWAIT is false.
 parameter P_ALLOW_RESTART is true.
-parameter P_ADJUST is V(0, 0, 0).
+parameter P_ADJUST is v(0, 0, 0).
 parameter P_ENGINE is "current".
 clearScreen.
 print "PEG landing guidance" AT(0,0).
@@ -24,6 +24,7 @@ function print_engines_simple_info {
     print "Isp = " + round(_summary:ISP, 1) + "s       " AT (0,3).
     print "Minthrottle = " + round(_summary:minthrottle, 2) + "       " AT(0,4).
     print "Ullage = " + _summary:ullage + "   " AT(0,5).
+    print "Spool-up time = " + _summary:spooluptime AT(0,6).
 }
 set done to false.
 if P_ENGINE = "auto" {
@@ -50,6 +51,7 @@ function set_engine_parameters {
     set f0 to enginfo:thrust.
     set ve to enginfo:ISP * 9.81.
     set thro_min to enginfo:minthrottle.
+    set spooluptime to enginfo:spooluptime.
     set std_throttle to (max(0.90, thro_min) + 1) / 2.
     set final_std_throttle to (max(0.60, thro_min) * 2 + 1) / 3.
     print_engines_simple_info(elist).
@@ -82,15 +84,10 @@ set target_height to 0.
 function update_target_geo {
     // move target position
     set target_geo to addons:tr:gettarget.
-    local __raxis_target to (target_geo:position-ship:body:position):normalized.
-    local __haxis_target to __haxis.
-    local __taxis_target to vcrs(__haxis_target, __raxis_target):normalized.
-    local _new_target_pos to target_geo:position-ship:body:position
-        + __haxis_target * P_ADJUST:y
-        + __taxis_target * P_ADJUST:x.
-    set target_geo to ship:body:geopositionof(_new_target_pos+ship:body:position).
+    local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
+    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor).
     set target_height to P_ADJUST:z.
-    print "Target position: " + target_geo AT(0,6).
+    print "Target position: " + target_geo AT(0,7).
 }
 update_target_geo().
 function set_descent_phase_target {
@@ -105,7 +102,7 @@ set_descent_phase_target().
 // action group 10 is for reset engine and target information
 // staging can also update engine information
 on ("0"+ag10+stage:number) {
-    set P_ADJUST to V(0, 0, 0).
+    set P_ADJUST to v(0,0,0).
     update_target_geo().
     set_engine_parameters(get_active_engines()).
     set_descent_phase_target().
@@ -222,21 +219,23 @@ function phase_final {
     else {lock throttle to thro_min.}
     print "Final phase.                               " AT(0,12).
     set landing_phase to 3.
+    local bound_box to ship:bounds.
+    lock _height to bound_box:bottomaltradar - target_height.
+    local vrT to -0.05.  // 5 cm/s downward
+    lock lo_std_throttle to max(thro_min, min(final_std_throttle, ship:mass * (g0+0.4) / f0)).
     lock lo_fvec to terminal_get_fvec().
     lock steering to lookDirUp(lo_fvec, sun:position).
     // vecDraw(v(0,0,0), {return steering:forevector*20.}, RGB(0, 255, 0), "attitude", 1, true).
-    local bound_box to ship:bounds.
-    lock _height to bound_box:bottomaltradar - target_height.
-    wait until vang(ship:facing:forevector, steering:forevector) < 40 and terminal_time_to_fire(_height, lo_fvec, ship:mass, f0, max(final_std_throttle, ship:mass * (g0+0.4) / f0)).
-    local mythrott to max(final_std_throttle, ship:mass * (g0+0.4) / f0).
-    lock throttle to mythrott.
+    wait until vang(ship:facing:forevector, steering:forevector) < 40 and terminal_time_to_fire(_height+ship:verticalspeed*spooluptime, vrT, ship:mass, f0, lo_std_throttle).
+    local throttle_target to lo_std_throttle.
+    lock throttle to throttle_target.
     set ship:control:fore to 0.
     local _target_attitude to lookDirUp(lo_fvec, sun:position).
     lock steering to _target_attitude.
     until (_height < 0.1 or abs(ship:verticalspeed) < 0.1) {
-        local __new_control to terminal_step_control(_height, lo_fvec, ship:mass, f0, thro_min, 1, max(final_std_throttle, ship:mass * (g0+0.4) / f0)).
+        local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, lo_std_throttle).
         set _target_attitude to lookDirUp(__new_control[0], sun:position).
-        set mythrott to __new_control[1].
+        set throttle_target to __new_control[1].
     }
     lock steering to lookDirUp(up:forevector, sun:position).
     lock throttle to 0.
@@ -252,4 +251,8 @@ terminal_finalize().
 unset __gap_throttle.
 unset landing_phase.
 print "Landing completed." AT(0,22).
-print "Target distance: " + round(target_geo:position:mag, 2) + " m" AT(0,23).
+print "Target distance: " + round(target_geo:distance, 2) + " m" AT(0,23).
+set __errorfactor to 1/180*constant:pi*(ship:body:radius+target_geo:terrainheight).
+print "Error: " + round((ship:geoposition:lat-target_geo:lat)*__errorfactor, 2) + " m (North), "
+     + round((ship:geoposition:lng-target_geo:lng)*__errorfactor, 2) + " m (East)" AT(0,24).
+unset __errorfactor.

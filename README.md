@@ -41,7 +41,7 @@ run pegland(1). // Start the engine immediately for descent.
 run pegland(0, 0). // Allow only one engine ignition.
 run pegland(0, 1, V(0,0,0), "descent"). // Search for the engine tagged "descent" and activate it at ignition.
 run pegland(0, 1, V(0,0,0), "auto"). // Automatic staging.
-run pegland(0, 1, V(-50,10,1))  // Adjust landing target: advance 50m, right 50m, upward 1m
+run pegland(0, 1, V(-50,10,1))  // Adjust landing target: 50m south, 10m east, 1m above ground
 ```
 
 Requirements for using this program:
@@ -99,7 +99,7 @@ If the user changes the landing point during descent, the landing program can be
   1. Assign tag for the braking engines, like "descent"
   2. Run PEGLand: `run pegland(0,1,V(0,0,0),"descent")`
   3. When the braking engines burn out, stage manually, the PEGLand program will be aware of the chaning in stage number , updating engine parameters, and finish landing with new engines.
-- If you need to switch engine in flight, please press "0" key after switching. The process will monitor chaning on action group No.10 to update engine information.
+- If you need to switch engine or update target landing site in flight, please press "0" key after switching. The process will monitor chaning on action group No.10 to update engine information.
 
 ### Apollo LM Landing program
 
