@@ -85,7 +85,7 @@ function update_target_geo {
     // move target position
     set target_geo to addons:tr:gettarget.
     local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
-    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor).
+    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
     set target_height to P_ADJUST:z.
     print "Target position: " + target_geo AT(0,7).
 }
@@ -254,5 +254,5 @@ print "Landing completed." AT(0,22).
 print "Target distance: " + round(target_geo:distance, 2) + " m" AT(0,23).
 set __errorfactor to 1/180*constant:pi*(ship:body:radius+target_geo:terrainheight).
 print "Error: " + round((ship:geoposition:lat-target_geo:lat)*__errorfactor, 2) + " m (North), "
-     + round((ship:geoposition:lng-target_geo:lng)*__errorfactor, 2) + " m (East)" AT(0,24).
+     + round((ship:geoposition:lng-target_geo:lng)*__errorfactor*cos(target_geo:lat), 2) + " m (East)" AT(0,24).
 unset __errorfactor.

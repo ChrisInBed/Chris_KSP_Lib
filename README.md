@@ -106,9 +106,10 @@ If the user changes the landing point during descent, the landing program can be
 `peglandprec` is a program for precise landing. Though it was designed for the Apollo LM, I tried my best to make it suitable for other landers.
 
 ```kOS
-run peglandprec(P_NOWAIT, P_ENGINE)
+run peglandprec(P_NOWAIT, P_ADJUST, P_ENGINE)
 Parameters:
    P_NOWAIT: Start the descent program immediately without waiting to glide to the ignition point. Default is false.
+   P_ADJUST: Target adjustment vector. Default is V(0,0,0)
    P_ENGINE: Engine mode.
       "current": (Default) Use the currently activated engine.
       "auto": Automatic staging. Automatically activate the next stage when the current stage is burnout.
@@ -120,6 +121,23 @@ Compared to `pegland`, this program adds a "approch phase" controled by quadrati
 - Deep throttling engine: final phase $TWR_{min} < 1$
 - Cost 5% more fuel than `pegland`
 - Single-stage lander
+
+#### Setting target for descent phase
+
+There are 3 phases in `peglandprec`: descent, approach and terminal. We need to manually set target for descent phase, and this will become the start point for the following approach phase. In most cases, the default settings should be adequate. But in case you want to adjust them to acquire a more satisfying approach phase:
+
+![](./pictures/des2app.jpg)
+
+![](./pictures/des_target.png)
+
+The descent target are defined by 4 parameters:
+
+- `RT`: Radar height, default is 100m
+- `VRT`: Vertical speed, default is -6m/s
+- `LT`: Horizontal distance to the final target, default is 500m
+- `VLT`: Ground speed, default is 50m/s
+
+The time span approach phase is approximately $4.5\times LT/VLT$. If it is too long, fuel will be wasted and the throttle may break physics limit at some time point; if too short, the landing precision won't be guaranteed.
 
 ## Executing Maneuver Nodes
 

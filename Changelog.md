@@ -28,3 +28,7 @@
 
 - Optimized terminal landing guidance
 - Optimized landing target adjustment function and landing error display
+
+## 2025/05/24 v0.6
+
+- Optimized landing attitude and guidance target in `peglandprec`

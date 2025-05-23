@@ -77,7 +77,7 @@ function get_time_to_theta {
         set thetaT to thetaT + 360.
     }
     local r0 to get_orbit_r_at_theta(sma, ecc, theta0).
-    local dt to get_orbit_period(sma, mu) / 3600.  // interval time
+    local dt to get_orbit_period(sma, mu) / 180.  // interval time
     local coef to sqrt(mu/sma/(1-ecc^2)).
     local _theta to theta0.
     local _tt to t0.
@@ -87,7 +87,7 @@ function get_time_to_theta {
         local dtheta to dt * coef * (ecc * cos(_theta) + 1) / rr * 180 / constant:pi.
         local dr to dt * coef * ecc * sin(_theta).
         set _last_theta to _theta.
-        set _theta to mod(_theta + dtheta, 360).
+        set _theta to _theta + dtheta.
         set rr to rr + dr.
         set _tt to _tt + dt.
         // print "Integral: dt = " + round(_tt-t0) + ", theta = " + round(_theta) + ", thetaT = " + round(thetaT) + "  " AT(0, 13).

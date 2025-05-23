@@ -15,7 +15,14 @@ runOncePath("0:/lib/landlib/quadratic.ks").
 runOncePath("0:/lib/landlib/terminal.ks").
 runOncePath("0:/lib/engine_utility.ks").
 
+// Steering PID optimized for ROCapolloLMBDB, but not for general use.
+// If you are flying Apollo LM, the following settings will help attitude control::
+// set steeringManager:pitchpid:KD to 1.
+// set steeringManager:yawpid:KD to 1.
+// set steeringManager:rollpid:KD to 2.
+
 set __gap_throttle to 0.  // between phases, throttle will be locked to this value
+set __updirection to V(0,0,0).  // facing
 
 function print_engines_simple_info {
     parameter elist.
@@ -84,17 +91,17 @@ function update_target_geo {
     // move target position
     set target_geo to addons:tr:gettarget.
     local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
-    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor).
+    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
     set target_height to P_ADJUST:z.
     print "Target position: " + target_geo AT(0,7).
 }
 update_target_geo().
 function set_descent_phase_target {
     set desRT to (target_geo:position-ship:body:position):mag + target_height + 100.  // 100 m above ground
-    set desVRT to -8.  // 8 m/s downward
+    set desVRT to -6.  // 6 m/s downward
     set THETA_T to eta0 + __peg_get_angle(__raxis, __haxis, __taxis, target_geo:position-ship:body:position).
     set desTHETA_T to THETA_T - 500/Rm*180/constant:pi.  // 500 m before target
-    set desVTT to 40.  // 40 m/s lateral speed
+    set desVTT to 50.  // 50 m/s lateral speed
 }
 set_descent_phase_target().
 function set_approach_phase_target {
@@ -164,7 +171,7 @@ function phase_descent {
         parameter tt.
         local frcomp to peg_get_frcomp(tt, lo_r, lo_vtheta, lo_acc, A, B).
         local ftcomp to -sqrt(max(0, 1-frcomp^2-fhcomp^2)).
-        set steering_target to lookDirUp(frcomp*raxis + ftcomp*taxis + fhcomp*haxis, up:forevector).
+        set steering_target to lookDirUp(frcomp*raxis + ftcomp*taxis + fhcomp*haxis, haxis).
     }
     RCS ON.
     update_axis().
@@ -233,6 +240,7 @@ function phase_approach {
         set vv to V(ship:velocity:surface*taxis, ship:velocity:surface*haxis, ship:verticalspeed).
     }
     update_state().
+    set __updirection to -taxis.
 
     local qT to quadratic_get_burntime(rr, vv, appRT, appVT, appAT, appJx).
     local __control to quadratic_step_control(rr, vv, appRT, appVT, appAT, appJx, qT).
@@ -255,7 +263,7 @@ function phase_approach {
         local _tt to lo_tt + latency.
         update_state().
         set _af to appAT + qJ*_tt + qS*_tt^2/2 + V(0, 0, g0).
-        set steering_target to lookDirUp(_af:x*taxis + _af:y*haxis + _af:z*raxis, sun:position).
+        set steering_target to lookDirUp(_af:x*taxis + _af:y*haxis + _af:z*raxis, __updirection).
         set throttle_target to max(thro_min, min(1, ship:mass * _af:mag / f0)).
         set latency to time:seconds - _time_now.
         return true.
@@ -284,21 +292,22 @@ function phase_final {
     print "Final phase.                               " AT(0,12).
     set landing_phase to 3.
     lock lo_fvec to terminal_get_fvec().
-    lock steering to lookDirUp(lo_fvec, sun:position).
+    lock steering to lookDirUp(lo_fvec, __updirection).
     // vecDraw(v(0,0,0), {return steering:forevector*20.}, RGB(0, 255, 0), "attitude", 1, true).
     local bound_box to ship:bounds.
     lock _height to bound_box:bottomaltradar - target_height.
     local vrT to -0.05.  // 5 cm/s downward
     local throttle_target to max(thro_min, min(1, ship:mass * g0 / f0)).  // hover
     lock throttle to throttle_target.
-    local _target_attitude to lookDirUp(lo_fvec, sun:position).
+    local _target_attitude to lookDirUp(lo_fvec, __updirection).
     lock steering to _target_attitude.
     until (_height < 0.1) {
         local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, max(thro_min, min(1, ship:mass * (g0+0.3) / f0))).
-        set _target_attitude to lookDirUp(__new_control[0], sun:position).
+        // set _target_attitude to lookDirUp(__new_control[0], __updirection).
+        set _target_attitude to lookDirUp(up:forevector, __updirection).
         set throttle_target to __new_control[1].
     }
-    lock steering to lookDirUp(up:forevector, sun:position).
+    lock steering to lookDirUp(up:forevector, __updirection).
     lock throttle to 0.
     wait until _height < 0.1.
     wait 0.2.
@@ -310,11 +319,12 @@ phase_approach().
 phase_final().
 peg_finalize().
 terminal_finalize().
+steeringManager:resettodefault().
 unset __gap_throttle.
 unset landing_phase.
 print "Landing completed." AT(0,22).
 print "Target distance: " + round(target_geo:distance, 2) + " m" AT(0,23).
 set __errorfactor to 1/180*constant:pi*(ship:body:radius+target_geo:terrainheight).
 print "Error: " + round((ship:geoposition:lat-target_geo:lat)*__errorfactor, 2) + " m (North), "
-     + round((ship:geoposition:lng-target_geo:lng)*__errorfactor, 2) + " m (East)" AT(0,24).
+     + round((ship:geoposition:lng-target_geo:lng)*__errorfactor*cos(target_geo:lat), 2) + " m (East)" AT(0,24).
 unset __errorfactor.
