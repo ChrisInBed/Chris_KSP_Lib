@@ -63,6 +63,36 @@ function get_orbit_omega_at_theta {
     return sqrt(mu/(sma*(1-ecc^2))^3) * (1 + ecc * cos(theta))^2.
 }
 
+function get_orbit_vecVR_at_theta {
+    parameter sma.
+    parameter ecc.
+    parameter unitUy.
+    parameter theta.
+    parameter unitRref.
+    parameter etaref.
+    parameter mu.
+
+    local magR to sma*(1-ecc^2)/(1+ecc*cos(theta)).
+    local unitR to angleAxis(-(theta-etaref), unitUy) * unitRref.
+    local vecR to unitR * magR.
+    local _f1 to (mu/sma/(1-ecc^2))^0.5.
+    local magVR to _f1 * ecc * sin(theta).
+    local magVT to _f1 * (1 + ecc * cos(theta)).
+    local unitTH to vCrs(unitR, unitUy).
+    local vecV to unitR * magVR + unitTH * magVT.
+    return list(vecV, vecR).
+}
+
+function get_ground_vecR_at_time {
+    parameter tt.
+    parameter vecRref.
+    parameter tref.
+    parameter omega.
+
+    local vecRT to angleAxis(omega:mag*180/constant:pi *(tt-tref), -omega:normalized) * vecRref.
+    return vecRT.
+}
+
 function get_time_to_theta {
     parameter sma.
     parameter ecc.
@@ -94,4 +124,19 @@ function get_time_to_theta {
     }
     // linear interpolation
     return _tt - (_theta - thetaT) / (_theta - _last_theta) * dt.
+}
+
+function get_active_waypoint {
+    for wp in allWaypoints() {
+        if wp:isselected return wp.
+    }
+    return 0.
+}
+
+function get_target_geo {
+    local activewp to get_active_waypoint().
+    if (activewp = 0) {
+        return 0.
+    }
+    return activewp:geoPosition.
 }

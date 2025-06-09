@@ -17,127 +17,100 @@ Video:
 
 ## PEG Landing
 
-`pegland` is the highlight of this script package, adapted from the PEG launch guidance algorithm developed by NASA in the 1960s for the Surveyor project. It achieves fuel-optimal pinpoint landing in a vacuum environment with an error margin within 30 m.
+`pegland` is the most exciting part of this script package, adapted from the PEG launch guidance algorithm developed by NASA in the 1980s for the Space Shuttle program. It enables fuel-optimal pinpoint landings in a vacuum environment.
 
-Reference: [Explicit guidance equations for multistage boost trajectories](https://ntrs.nasa.gov/citations/19660006073)
+Reference: [An explicit solution to the exoatmospheric powered flight guidance and trajectory optimization problem for rocket propelled vehicles | Guidance, Navigation, and Control and Co-located Conferences](https://arc.aiaa.org/doi/10.2514/6.1977-1051)
+
+### Algorithm Principles
+
+PEGLand includes three guidance phases:
+
+- **Descent Phase**: Decelerates from the landing orbit aiming near the landing point. It first estimates the ignition position and, upon coasting to this position, uses the PEG algorithm to iteratively predict the landing point and update control parameters for a fuel-optimal descent. This phase is precise if the spacecraft engine can throttle to 60%.
+
+- **Approach Phase**: Moves slowly from near the landing point to 50 cm above it. Uses the same quadratic guidance algorithm as the Apollo missions to reduce landing error to the decimeter level. This phase requires a deep-throttling engine to allow hovering. It can be skipped if the spacecraft lacks this capability.
+
+- **Final Phase**: Descends slowly from above the landing point, eliminating lateral velocity, and touches down at 5 cm/s.
+
+### Using PEGLand
 
 ```kOS
-run pegland(P_NOWAIT, P_ALLO_RESTART, P_ADJUST, P_ENGINE)
+run pegland(P_GUI, P_PREC, P_NOWAIT, P_ADJUST, P_ENGINE)
 Parameters:
-   P_NOWAIT: Start the descent program immediately without waiting to glide to the ignition point. Default is false.
-   P_ALLO_RESTART: Allow engine to restart, consuming two ignitions. Default is true.
-   P_ADJUST: Target adjustment vector. Default is V(0,0,0)
+   P_GUI: Open GUI. Default is true
+   P_PREC: Add approach phase for high-precision landing. Default is false
+   P_NOWAIT: Start descent program immediately without waiting to coast to ignition position (i.e., ignite_now in the GUI window). Default is false
+   P_ADJUST: Target correction vector. Default is V(0,0,0)
    P_ENGINE: Engine mode.
-      "current": (Default) Use the currently activated engine.
-      "auto": Automatic staging. Automatically activate the next stage when the current stage is burnout.
-      <tag>: Search for an engine matching the tag and activate it at ignition. Especially useful for solid rockets.
+      “current”: (default) Use currently activated engines
+      <label>: Search for engines matching the label and activate at ignition. Especially useful for solid rockets
 ```
 
 **Examples:**
 
 ```kOS
-run pegland.  // Start descent at the optimal time, two ignitions, using the currently activated engine.
-run pegland(1). // Start the engine immediately for descent.
-run pegland(0, 0). // Allow only one engine ignition.
-run pegland(0, 1, V(0,0,0), "descent"). // Search for the engine tagged "descent" and activate it at ignition.
-run pegland(0, 1, V(0,0,0), "auto"). // Automatic staging.
-run pegland(0, 1, V(-50,10,1))  // Adjust landing target: 50m south, 10m east, 1m above ground
+run pegland.  // Open PEGLand GUI
+run pegland(0,1,1). // Do not open GUI, start engine descent immediately, add approach phase
+run pegland(0,0,0,V(0,0,0),"descent"). // Do not open GUI, use engines labeled "descent"
+run pegland(0,0,0,V(-50,10,1)).  // Move target: 50m south, 10m east, 1m up
 ```
 
-Requirements for using this program:
+### PEGLand GUI
 
-1. Ensure the spacecraft meets landing requirements: sufficient Δv, final phase $TWR_{min} < 1$.
+In most cases, you can perform guidance settings with one click in the PEGLand GUI and dynamically adjust parameters during landing. Basic settings include:
 
-2. Proper initial orbit and landing point, with the landing point approximately below the periapsis.
+- `active`: Activate/stop the guidance program. Activating this button will start the guidance program immediately and execute the landing as planned. Stopping will reset the program to initial state.
+- `Ignite Now`: Ignite immediately without waiting for coasting to the ignition position.
+- `Add Approach Phase`: Add approach phase for precise landing.
+- `start phase`: Choose which guidance phase to start from. If you are already close to the ground and moving slowly, you can start soft landing from the `final phase`.
+- `Rotation`: Spacecraft roll angle.
 
-3. Set the landing target in the Trajectories mod window. It is highly recommended to use it with WaypointManager:
-   1. Create a waypoint on the map using WaypointManager and set navigation to this waypoint.
+![](./pictures/gui_explained_eng.png)
 
-      ![](./pictures/waypointmanager.png)
+#### Adjusting the Landing Point
 
-   2. Use the active waypoint as the landing target in Trajectories.
+You can click `current waypoint` or manually enter the landing point's latitude and longitude, **and click `update target`** to set the landing point. If you find the original landing point unsuitable during descent, PEGLand provides a convenient visual adjustment feature. Click `show target` to display the landing location on the HUD, then use the adjustment buttons to move the landing point in any direction. The distance moved with each click can be set in `Moving step`.
 
-      ![](./pictures/trajectories.png)
+**Note:**
 
-`pegland` in default mode has three phases:
+- Only the descent and approach phases allow landing point adjustments.
+- Excessive adjustments may cause guidance divergence.
+- Adjust as early as possible when far from the landing point.
+- For spacecraft without throttling capability, adjusting the landing point may not be helpful.
 
-1. Estimation of ignition position: Iteratively calculates ignition position, time, and initial control parameters.
+![](./pictures/gui_explained_eng1.png)
 
-   ![](./pictures/waitingphase.png)
+#### Adjusting Descent Phase Targets
 
-   ```
-   Time to ignition: Countdown to ignition
-   T: Estimated landing burn time
-   dv: Estimated landing burn Δv
-   dtheta: Distance from ignition start position to target position (angle in central body polar coordinates)
-   A, B: Pitch control parameters
-   ```
-
-2. Powered descent: Automatically adjusts attitude 60s before ignition, performs ullage maneuver and ignition 2s before ignition. Control parameters are iteratively updated during the burn. The throttle remains above the engine's minimum throttle, preventing engine shutdown.
-
-   ![](./pictures/brakingphase.png)
-
-   ```
-   Iter: Number of calculation iterations
-   T: Estimated remaining burn time
-   dv: Estimated remaining burn Δv
-   A: Pitch control parameter
-   thro: Throttle
-   E: Landing position error, positive value indicates landing point is over the target
-   ```
-
-3. Final Landing: Adjusts attitude upwards at about 200m above the target point, cancels horizontal velocity, and lands. This phase introduces the main landing error as it does not aim for the target point. A more refined final landing guidance algorithm will be added in future updates.
-
-If the user changes the landing point during descent, the landing program can be interrupted and rerun in emergency mode. The program will then ignite and descend immediately without waiting for gliding to the ignition position.
-
-### Notes
-
-- Supports limited-throttle and non-throttleable engines. When the lower throttle limit is above 60%, landing precision cannot be guaranteed, and when the final phase thrust-to-weight ratio is above 1.5, landing is unsafe. It's easy to use `P_ADJUST` to perform (relatively) precise landing with limited-throttle engines. You can simulate the landing process once, and set `P_ADJUST` to compensate the landing error.
-- If you do not want the engine to shut down, set the parameter `P_ALLO_RESTART = 0`, but ensure the final phase thrust-to-weight ratio is less than 1, or the rocket will not be able to land.
-- Although beyond the scope of the current algorithm, the script supports multi-stage rocket landings. Set `P_ENGINE = "auto"`, and the script will automatically stage when the current stage is burnout. For manual staging, turn off the engine manually before staging, or the debris might collide with the spacecraft. Landing precision cannot be guaranteed.
-- If you need to use solid rockets for deceleration, it is recommended to set `P_ENGINE = <tag>`. Apparently, solid rockets generally cannot be used in the final landing phase, because they cannot be turned off. Instructions for this tricky landing:
-  1. Assign tag for the braking engines, like "descent"
-  2. Run PEGLand: `run pegland(0,1,V(0,0,0),"descent")`
-  3. When the braking engines burn out, stage manually, the PEGLand program will be aware of the chaning in stage number , updating engine parameters, and finish landing with new engines.
-- If you need to switch engine or update target landing site in flight, please press "0" key after switching. The process will monitor chaning on action group No.10 to update engine information.
-
-### Apollo LM Landing program
-
-`peglandprec` is a program for precise landing. Though it was designed for the Apollo LM, I tried my best to make it suitable for other landers.
-
-```kOS
-run peglandprec(P_NOWAIT, P_ADJUST, P_ENGINE)
-Parameters:
-   P_NOWAIT: Start the descent program immediately without waiting to glide to the ignition point. Default is false.
-   P_ADJUST: Target adjustment vector. Default is V(0,0,0)
-   P_ENGINE: Engine mode.
-      "current": (Default) Use the currently activated engine.
-      "auto": Automatic staging. Automatically activate the next stage when the current stage is burnout.
-      <tag>: Search for an engine matching the tag and activate it at ignition
-```
-
-Compared to `pegland`, this program adds a "approch phase" controled by quadratic guidance behind the "descent phase". Because the throttle constraints may not be satisfied in quadratic guidance algorithm, the initial condition must be sophiscatedly adjusted by the previous descent phase. In approach phase, the lander will slowly fly to the target and perform an elegant landing, with error less than 1 cm. To use `peglandprec`, you need:
-
-- Deep throttling engine: final phase $TWR_{min} < 1$
-- Cost 5% more fuel than `pegland`
-- Single-stage lander
-
-#### Setting target for descent phase
-
-There are 3 phases in `peglandprec`: descent, approach and terminal. We need to manually set target for descent phase, and this will become the start point for the following approach phase. In most cases, the default settings should be adequate. But in case you want to adjust them to acquire a more satisfying approach phase:
+Descent phase targets need manual setting, though default settings are usually sufficient. You may need to adjust these parameters for the approach phase to perform as expected:
 
 ![](./pictures/des2app.jpg)
 
-![](./pictures/des_target.png)
+![](./pictures/gui_explained_destarget.png)
 
-The descent target are defined by 4 parameters:
+The main descent phase target is defined by four parameters:
 
-- `RT`: Radar height, default is 100m
-- `VRT`: Vertical speed, default is -6m/s
-- `LT`: Horizontal distance to the final target, default is 500m
-- `VLT`: Ground speed, default is 50m/s
+- `RT`: Altitude above ground
+- `VRT`: Vertical descent speed
+- `LT`: Horizontal distance to target
+- `VLT`: Horizontal speed
 
-The time span approach phase is approximately $4.5\times LT/VLT$. If it is too long, fuel will be wasted and the throttle may break physics limit at some time point; if too short, the landing precision won't be guaranteed.
+The approach phase duration is approximately $4.5 \times LT/VLT$. A longer approach phase wastes fuel and may exceed throttle limits, while a shorter one may reduce landing precision.
+
+#### Tips
+
+1. Ensure the spacecraft meets landing requirements: sufficient Δv. If the final phase thrust-to-weight ratio range includes 1, it's recommended to add an approach phase for a smoother landing.
+
+2. Choose an appropriate initial orbit and landing point, with the landing point roughly below the orbit's periapsis. If the landing point is far off the orbit plane, PEGLand can still work perfectly, but at the cost of more fuel.
+
+3. In both GUI and command-line modes, PEGLand will try to read the active waypoint. You can set waypoints using WaypointManager to avoid manually entering latitude and longitude.
+
+   ![](./pictures/waypointmanager.png)
+
+4. For engines with limited or no throttling, landing precision cannot be guaranteed (neither by the geniuses at NASA). However, you can simulate the landing first, then load a previous save and adjust the landing point based on the error to reduce it to within 100 meters.
+
+5. If the thrust-to-weight ratio lower limit is above 2 during final landing, be cautious, this is even more risky than Falcon 9's suicide burn.
+
+6. Currently, PEGLand only supports single-stage rocket landings, but you can switch engines or stages during landing and press the "0" key to update engine parameters. PEGLand will not be optimized for multi-stage rockets in the future, as predicting future stage engine parameters is fxxking hell complicated.
 
 ## Executing Maneuver Nodes
 

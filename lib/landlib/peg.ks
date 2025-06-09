@@ -1,32 +1,28 @@
 runOncePath("0:/lib/chrismath.ks").
 runOncePath("0:/lib/orbit.ks").  // orbit prediction and calculations
 
-// set __PEG_Ka to 1.
-set __PEG_thro_pid to pidLoop(3, 0.1, 0.05).
-set __PEG_mu to ship:body:mu.
+declare global __PEG_mu to ship:body:mu.
+declare global __PEG_N_integral to 11.
+declare global __PEG_thro_pid to pidLoop(5, 0.05, 0.05).
 
-function peg_finalize {
-    // unset __PEG_Ka.
-    unset __PEG_thro_pid.
-    unset __PEG_mu.
+function peg_init {
+    set __PEG_mu to ship:body:mu.
+    set __PEG_N_integral to 11.
+    set __PEG_thro_pid to pidLoop(5, 0.05, 0.05).
 }
 
 function __peg_get_angle {
-    parameter _r0axis.
-    parameter _h0axis.
-    parameter _t0axis.
-    parameter _pos.
-    local _ang to vang(vxcl(_h0axis, _pos), _r0axis).
-    if (vdot(vxcl(_h0axis, _pos), _t0axis) < 0) {
-        set _ang to -_ang.
+    parameter vec1.
+    parameter vec2.
+    parameter unitH.
+    
+    set vec1 to vxcl(unitH, vec1).
+    set vec2 to vxcl(unitH, vec2).
+    local theta to vang(vec1, vec2).
+    if vDot(vCrs(vec2, vec1), unitH) < 0 {
+        set theta to -theta.
     }
-    return _ang.
-}
-
-function __peg_get_racc {
-    parameter _rr.
-    parameter _vtheta.
-    return __PEG_mu/_rr^2 - _vtheta^2/_rr.
+    return theta.
 }
 
 function __peg_get_burn_time {
@@ -44,178 +40,283 @@ function __peg_get_dv {
 }
 
 function peg_get_initial_params {
-    parameter sma.
-    parameter ecc.
-    parameter mu.
-    parameter a0.
-    parameter ve.
-    parameter RT.
-    parameter VRT.
-    parameter VTT.
-    parameter THETA_T.
-    // initial parameters
-    local T to 0.
-    local A to 0.
-    local B to 0.
-    local theta0 to 0.
-    // initial guess
+    parameter tgt.
+    parameter obts.
+    parameter shp.
+    
+    // ignition point
+    local etaT to __peg_get_angle(obts["unitRref"], tgt["vecRL"], obts["unitUy"]) + obts["etaref"].
+    local eta0 to etaT.  // ignition point
+    local t2ign to get_time_to_theta(obts["sma"], obts["ecc"], __PEG_mu, 0, obts["etaref"], eta0).
+    local obtomega to get_orbit_omega_at_theta(obts["sma"], obts["ecc"], eta0, __PEG_mu).
+    // build VL, RL
+    local vecbodyomega to tgt["vecbodyomega"].
+    local vecRLref to tgt["vecRL"].
+    local vecVL_rht to tgt["vecVL_rht"].
+    local vecRL to get_ground_vecR_at_time(t2ign, vecRLref, 0, vecbodyomega).
+    local unitRL to vecRL:normalized.
+    local unitTHL to vCrs(unitRL, obts["unitUy"]):normalized.
+    local unitHL to vCrs(unitRL, unitTHL).
+    local vecVL to vCrs(vecRL, vecbodyomega) + vecVL_rht:x * unitRL + vecVL_rht:y * unitHL + vecVL_rht:z * unitTHL.
+    // ship parameters
+    local ve to shp["ve"].
+    local a0 to shp["thrust"]*shp["throttle"] / shp["mass"].
     local tau to ve/a0.
-    local _tgt_v to sqrt(VTT^2 + VRT^2).
-    set T to tau*(1-exp(-abs(get_orbit_v_at_theta(sma, ecc, THETA_T, mu) - _tgt_v)/ve)).
-    local _amean to a0/(1-T/tau/2).
-    local _distance to VTT * T + 0.5 * _amean * T ^ 2.
-    local dtheta to _distance / RT * 180 / constant:pi.
-    set theta0 to THETA_T - dtheta.
-    local _discount to 1.
-    local num_iter to 0.
-    until num_iter > 2000 {
-        local r0 to get_orbit_r_at_theta(sma, ecc, theta0).
-        local vr0 to get_orbit_vr_at_theta(sma, ecc, theta0, mu).
-        local vt0 to get_orbit_vt_at_theta(sma, ecc, theta0, mu).
-        // integral coefficients
-        local b0 to -ve*ln(1-T/tau).
-        local b1 to b0*tau - ve*T.
-        // local b2 to b1*tau - ve*T^2/2.
-        local c0 to b0*T - b1.
-        local c1 to c0*tau - ve*T^2/2.
-        // local c2 to c1*tau - ve*T^3/6.
+    // initialize control
+    local _vecVandvecR to get_orbit_vecVR_at_theta(obts["sma"], obts["ecc"], obts["unitUy"], eta0, obts["unitRref"], obts["etaref"], __PEG_mu).
+    local vecV0 to _vecVandvecR[0].
+    local vecR0 to _vecVandvecR[1].
+    local deltav to (vecVL - vecV0):mag.
+    local T to __peg_get_burn_time(a0, ve, deltav).
+    local vecGAV1 to -__PEG_mu*vecR0/vecR0:mag^3.
+    local vecGAV2 to vecGAV1.
+    local vecVGO to vecVL - vecV0 - vecGAV1*T.
+    local unituK to vecVGO:normalized.
+    local deruK to vCrs(unituK, obts["unitUy"]) / T / 10.
+    local omega to deruK:mag.
+    // integrals
+    function _make_integrals {
+        local _tseq to list().
+        mlinspace(0, T, __PEG_N_integral, _tseq).
+        local _aseq to list().
+        mzeros(__PEG_N_integral, _aseq).
+        marropt({parameter tt. return a0/(1-tt/tau).}, list(_tseq), _aseq).
+        local _sinseq to list().
+        mzeros(__PEG_N_integral, _sinseq).
+        marropt({parameter tt. return sin(omega*tt *180/constant:pi).}, list(_tseq), _sinseq).
+        marrmul(_sinseq, _aseq).
+        local _cosseq to list().
+        mzeros(__PEG_N_integral, _cosseq).
+        marropt({parameter tt. return cos(omega*tt *180/constant:pi).}, list(_tseq), _cosseq).
+        marrmul(_cosseq, _aseq).
+        local _interval to T/(__PEG_N_integral-1).
+        local Bvs to mintegral(_sinseq, _interval).
+        local Bvc to mintegral(_cosseq, _interval).
+        local K to arcTan(Bvs/Bvc) /180*constant:pi / omega.
+        // use _sinseq list for remaining integrals
+        marropt({parameter tt. return cos(omega*(tt-K) *180/constant:pi).}, list(_tseq), _sinseq).
+        marrmul(_sinseq, _aseq).
+        local Av to mintegral(_sinseq, _interval).
+        marropt({parameter tt. return (T-tt)*cos(omega*(tt-K) *180/constant:pi).}, list(_tseq), _sinseq).
+        marrmul(_sinseq, _aseq).
+        local Ar to mintegral(_sinseq, _interval).
+        marropt({parameter tt. return (T-tt)*sin(omega*(tt-K) *180/constant:pi).}, list(_tseq), _sinseq).
+        marrmul(_sinseq, _aseq).
+        local Br to mintegral(_sinseq, _interval).
+        return lexicon("Av", Av, "Bvs", Bvs, "Bvc", Bvc, "Ar", Ar, "Br", Br, "K", K).
+    }
+    local _integrals to _make_integrals().
+    set vecVGO to _integrals["Av"] * unituK.
+    local vecRGO to _integrals["Ar"] * unituK + _integrals["Br"] * deruK / omega.
+    local vecVF to V(0,0,0).
+    local vecRF to V(0,0,0).
 
-        local error_r to RT - (r0 + vr0*T).
-        local error_vr to VRT - vr0.
-        set A to (error_vr/b1 - error_r/c1) / (b0/b1 - c0/c1).
-        set B to (error_vr - A*b0) / b1.
+    local numiter to 0.
+    until false {
+        // predictor
+        local _last_vecRF to V(0,0,0).
+        until false {
+            set vecVF to vecV0 + vecVGO + vecGAV1*T.
+            set vecRF to vecR0 + vecV0*T + vecRGO + 0.5*vecGAV2*T^2.
+            if (vecRF - _last_vecRF):mag < 1 {
+                break.
+            }
+            set _last_vecRF to vecRF.
+            local _magR0 to vecR0:mag.
+            local _vecG0 to -__PEG_mu*vecR0/_magR0^3.
+            local _derG0 to -__PEG_mu/_magR0^3 * (vecV0 - 3*vDot(vecV0, vecR0)/_magR0^2 * vecR0).
+            local _magRF to vecRF:mag.
+            local _vecGF to -__PEG_mu*vecRF/_magRF^3.
+            local _derGF to -__PEG_mu/_magRF^3 * (vecVF - 3*vDot(vecVF, vecRF)/_magRF^2 * vecRF).
+            set vecGAV1 to (_vecGF + _vecG0)/2 - (_derGF - _derG0)*T/12.
+            set vecGAV2 to (3*_vecGF + 7*_vecG0)/10 - (_derGF - 1.5*_derG0)*T/15.
+        }
+        // corrector
+        // t2ign + T -> etaT: VL, RL_new = R(T_new-T)*(VL, RL); etaT = etaT + angle(RL, RL_new)
+        // etaT -> eta0_new
+        // eta0_new -> t2ign: t2ign = t2ign + (eta0_new - eta0)/omega
+        set vecRL to get_ground_vecR_at_time(t2ign + T, vecRLref, 0, vecbodyomega).
+        set unitRL to vecRL:normalized.
+        set unitTHL to vCrs(unitRL, obts["unitUy"]):normalized.
+        set unitHL to vCrs(unitRL, unitTHL).
+        set vecVL to vCrs(vecRL, vecbodyomega) + vecVL_rht:x * unitRL + vecVL_rht:y * unitHL + vecVL_rht:z * unitTHL.
+        set etaT to __peg_get_angle(obts["unitRref"], vecRL, obts["unitUy"]) + obts["etaref"].
+        set eta0_new to etaT - __peg_get_angle(vecR0, vecRF, obts["unitUy"]).
+        set t2ign to t2ign + (eta0_new - eta0)/180*constant:pi/obtomega.
+        set _vecVandvecR to get_orbit_vecVR_at_theta(obts["sma"], obts["ecc"], obts["unitUy"], eta0_new, obts["unitRref"], obts["etaref"], __PEG_mu).
+        set vecV0 to _vecVandvecR[0].
+        set vecR0 to _vecVandvecR[1].
+        // solver
+        set vecVGO to vecVL - vecV0 - vecGAV1*T.
+        set unituK to vecVGO:normalized.
+        set T to T + (vecVGO:mag - _integrals["Av"]) / (a0/(1-T/tau)*cos(omega*(T-_integrals["K"]) *180/constant:pi)).
+        set _integrals to _make_integrals().
+        set vecVGO to _integrals["Av"] * unituK.
+        set vecRGO to vecRL - vecR0 - vecV0*T - 0.5*vecGAV2*T^2.
+        set vecRGO to _integrals["Ar"] * unituK + vecRGO - unituK * vDot(vecRGO, unituK).
+        local vecRGOV to vecRGO - _integrals["Ar"] * unituK.
+        set omega to omega * vecRGOV:mag / msafedivision(_integrals["Br"], 1e-7).
+        set deruK to vecRGOV:normalized * omega.
+        if abs(eta0_new - eta0) < 0.001 {
+            break.
+        }
+        set eta0 to eta0_new.
+        set numiter to numiter + 1.
+        print "Iter " + numiter + ", T = " + round(T) + ", Av = "+ round(_integrals["Av"]) + "     " AT(0,14).
+        print "dpitch = " + round(omega*T*180/constant:pi) + ", K = " + round(_integrals["K"]) + "   " AT(0,15).
+    }
+    local gst to lexicon(
+        "eta0", eta0, "T", T, "K", _integrals["K"], "unituK", unituK, "deruK", deruK, "throttle", shp["throttle"],
+        "vecV0", vecV0, "vecR0", vecR0, "vecVF", vecVF, "vecRF", vecRF, "Av", _integrals["Av"],
+        "vecGAV1", vecGAV1, "vecGAV2", vecGAV2,
+        "unitHref", -obts["unitUy"], "vecErr", vecRF - vecRL, "numiter", numiter
+    ).
+    // // log column names
+    // log "ve%m0%f0%throttle%a0%vecVL_rht%vecbodyomega%sma%ecc%unitUy%unitRref%etaref
+    // %vecV0%vecR0%vecVF%vecRF%vecVL%vecRL%vecGAV1%vecGAV2%unituK%deruK%K%T%t2ign
+    // %eta0%etaT%vecVGO%vecRGO%Av%Bvs%Bvc%Ar%Br" to "0:/peg_init.log".
+    // // log values
+    // log ve+"%"+shp["mass"]+"%"+shp["thrust"]+"%"+shp["throttle"]+"%"+a0+"%"+vecVL_rht+"%"+vecbodyomega+"%"+
+    //     obts["sma"]+"%"+obts["ecc"]+"%"+obts["unitUy"]+"%"+obts["unitRref"]+"%"+obts["etaref"]+"%"+
+    //     vecV0+"%"+vecR0+"%"+vecVF+"%"+vecRF+"%"+vecVL+"%"+vecRL+"%"+vecGAV1+"%"+vecGAV2+"%"+
+    //     unituK+"%"+deruK+"%"+_integrals["K"]+"%"+T+"%"+t2ign+"%"+eta0+"%"+etaT+
+    //     "%"+vecVGO+"%"+vecRGO+"%"+_integrals["Av"]+"%"+_integrals["Bvs"]+
+    //     "%"+_integrals["Bvc"]+"%"+_integrals["Ar"]+"%"+_integrals["Br"] to "0:/peg_init.log".
+    return gst.
+}
 
-        // first-order approximation
-        // local r_mean to (r0+RT) / 2.
-        // local _fdotr_0 to max(-1, min(1, A + __peg_get_racc(r0, vt0) / a0)).
-        // local _ft0 to -sqrt(1-_fdotr_0^2).
-        // local _accT to a0 / (1-T/tau).
-        // local _fdotr_T to max(-1, min(1, A + B*T + __peg_get_racc(RT, VTT) / _accT)).
-        // local _fdott_T to -sqrt(1-_fdotr_T^2).
-        // local _ft1 to (_fdott_T-_ft0)/T.
-        // set dtheta to (vt0/r0*T + (_ft0*c0+_ft1*c1) / r_mean) * 180 / constant:pi.
-        // local dv to ((VTT/RT-vt0/r0)*r_mean + _ft1*ve*T)/(_ft0+_ft1*tau).
+function peg_step_control {
+    parameter tgt.
+    parameter shp.
+    parameter gst.
 
-        // zero-order midpoint approximation
-        local r_mean to (r0+RT) / 2.
-        local _fdotr_0 to max(-1, min(1, A + __peg_get_racc(r0, vt0) / a0)).
-        local _fdott_0 to -sqrt(1-_fdotr_0^2).
-        local _a_mid to a0 / (1-T/tau/2).
-        local _vt_mid to vt0 - _fdott_0 * ve * ln(1-T/tau/2).
-        local _fdotr_mid to max(-1, min(1, A + B*T/2 + __peg_get_racc(r_mean, _vt_mid) / _a_mid)).
-        local _fdott_mid to -sqrt(1-_fdotr_mid^2).
-        set dtheta to (vt0/r0*T + _fdott_mid * c0 / r_mean) * 180 / constant:pi.
-        local dv to (RT*VTT-r0*vt0)/r_mean / _fdott_mid.
-
-        set theta0 to THETA_T - dtheta.
-        local _deltaT to _discount * (tau * (1 - exp(-dv/ve)) - T).
-        set T to T + _deltaT.
-        set num_iter to num_iter + 1.
-        if abs(_deltaT) < 0.001 {
+    if gst["T"] < 5 {
+        // stop update control
+        return gst.
+    }
+    // build VL, RL
+    local vecbodyomega to tgt["vecbodyomega"].
+    local vecRLref to tgt["vecRL"].
+    local vecVL_rht to tgt["vecVL_rht"].
+    local vecRL to get_ground_vecR_at_time(gst["T"], vecRLref, 0, vecbodyomega).
+    local unitRL to vecRL:normalized.
+    local unitTHL to vCrs(gst["unitHref"], unitRL):normalized.
+    local unitHL to vCrs(unitRL, unitTHL).
+    // ship parameters
+    local ve to shp["ve"].
+    local a0 to shp["thrust"]*gst["throttle"] / shp["mass"].
+    local tau to ve/a0.
+    // corrector
+    local vecV0 to gst["vecV0"].
+    local vecR0 to gst["vecR0"].
+    local vecVF to gst["vecVF"].
+    local vecRF to gst["vecRF"].
+    local unitRD to vxcl(unitHL, vecRF):normalized.
+    local vecRD to unitRD * vecRL:mag.
+    local unitTHD to vCrs(unitHL, unitRD).
+    set unitTHD to unitTHD:normalized.
+    local unitHD to vCrs(unitRD, unitTHD).
+    local vecVD to vCrs(vecRD, vecbodyomega) + vecVL_rht:x * unitRD + vecVL_rht:y * unitHD + vecVL_rht:z * unitTHD.
+    // solver
+    local omega to gst["deruK"]:mag.
+    local T to gst["T"].
+    local vecGAV1 to gst["vecGAV1"].
+    local vecGAV2 to gst["vecGAV2"].
+    local vecVGO to vecVD - vecV0 - vecGAV1*T.
+    local unituK to vecVGO:normalized.
+    set T to T + (vecVGO:mag - gst["Av"]) / (a0/(1-T/tau)*cos(omega*(T-gst["K"]) *180/constant:pi)).
+    // integrals
+    function _make_integrals {
+        local _tseq to list().
+        mlinspace(0, T, __PEG_N_integral, _tseq).
+        local _aseq to list().
+        mzeros(__PEG_N_integral, _aseq).
+        marropt({parameter tt. return a0/(1-tt/tau).}, list(_tseq), _aseq).
+        local _sinseq to list().
+        mzeros(__PEG_N_integral, _sinseq).
+        marropt({parameter tt. return sin(omega*tt *180/constant:pi).}, list(_tseq), _sinseq).
+        marrmul(_sinseq, _aseq).
+        local _cosseq to list().
+        mzeros(__PEG_N_integral, _cosseq).
+        marropt({parameter tt. return cos(omega*tt *180/constant:pi).}, list(_tseq), _cosseq).
+        marrmul(_cosseq, _aseq).
+        local _interval to T/(__PEG_N_integral-1).
+        local Bvs to mintegral(_sinseq, _interval).
+        local Bvc to mintegral(_cosseq, _interval).
+        local K to arcTan(Bvs/Bvc) /180*constant:pi / omega.
+        // use _sinseq list for remaining integrals
+        marropt({parameter tt. return cos(omega*(tt-K) *180/constant:pi).}, list(_tseq), _sinseq).
+        marrmul(_sinseq, _aseq).
+        local Av to mintegral(_sinseq, _interval).
+        marropt({parameter tt. return (T-tt)*cos(omega*(tt-K) *180/constant:pi).}, list(_tseq), _sinseq).
+        marrmul(_sinseq, _aseq).
+        local Ar to mintegral(_sinseq, _interval).
+        marropt({parameter tt. return (T-tt)*sin(omega*(tt-K) *180/constant:pi).}, list(_tseq), _sinseq).
+        marrmul(_sinseq, _aseq).
+        local Br to mintegral(_sinseq, _interval).
+        return lexicon("Av", Av, "Bvs", Bvs, "Bvc", Bvc, "Ar", Ar, "Br", Br, "K", K).
+    }
+    local _integrals to _make_integrals().
+    set vecVGO to _integrals["Av"] * unituK.
+    local vecRGO to vecRD - vecR0 - vecV0*T - 0.5*vecGAV2*T^2.
+    set vecRGO to _integrals["Ar"] * unituK + vecRGO - unituK * vDot(vecRGO, unituK).
+    local vecRGOV to vecRGO - _integrals["Ar"] * unituK.
+    set omega to omega * vecRGOV:mag / msafedivision(_integrals["Br"], 1e-7).
+    local deruK to vecRGOV:normalized * omega.
+    // predictor
+    set vecRF to vecRD.
+    until false {
+        local _last_vecRF to vecRF.
+        local _magR0 to vecR0:mag.
+        local _vecG0 to -__PEG_mu*vecR0/_magR0^3.
+        local _derG0 to -__PEG_mu/_magR0^3 * (vecV0 - 3*vDot(vecV0, vecR0)/_magR0^2 * vecR0).
+        local _magRF to vecRF:mag.
+        local _vecGF to -__PEG_mu*vecRF/_magRF^3.
+        local _derGF to -__PEG_mu/_magRF^3 * (vecVF - 3*vDot(vecVF, vecRF)/_magRF^2 * vecRF).
+        set vecGAV1 to (_vecGF + _vecG0)/2 - (_derGF - _derG0)*T/12.
+        set vecGAV2 to (3*_vecGF + 7*_vecG0)/10 - (_derGF - 1.5*_derG0)*T/15.
+        set vecVF to vecV0 + vecVGO + vecGAV1*T.
+        set vecRF to vecR0 + vecV0*T + vecRGO + 0.5*vecGAV2*T^2.
+        if (vecRF - _last_vecRF):mag < 1 {
             break.
         }
     }
-    return LIST(T, A, B, theta0, num_iter).
+    // throttle routine
+    local alpha to 1/(1-T/2/tau).
+    // local throt to gst["throttle"] * (1 + vDot(unitTHL, vecRF-vecRL)/vDot(unitTHL, vecVF*T-alpha*vecRGO)).
+    local throt to gst["throttle"] * (1+__PEG_thro_pid:update(time:seconds, -vDot(unitTHL, vecRF-vecRL)/vDot(unitTHL, vecVF*T-alpha*vecRGO))).
+    set throt to min(max(throt, shp["thro_min"]), shp["thro_max"]).
+    set gst["T"] to T.
+    set gst["K"] to _integrals["K"].
+    set gst["unituK"] to unituK.
+    set gst["deruK"] to deruK.
+    set gst["throttle"] to throt.
+    set gst["Av"] to _integrals["Av"].
+    set gst["vecVF"] to vecVF.
+    set gst["vecRF"] to vecRF.
+    set gst["vecGAV1"] to vecGAV1.
+    set gst["vecGAV2"] to vecGAV2.
+    set gst["vecErr"] to vecRF - vecRL.
+    // if not (defined __PEG_log_head) {
+    //     // log column names
+    //     log "t%ve%m0%f0%throttle%a0%vecVL_rht%vecbodyomega%unitHref
+    //     %vecV0%vecR0%vecVD%vecRD%vecVF%vecRF%vecRL%vecGAV1%vecGAV2%unituK%deruK%K%T
+    //     %vecVGO%vecRGO%Av%Bvs%Bvc%Ar%Br" to "0:/peg_control.log".
+    //     local __PEG_log_head to false.
+    // }
+    // // log values
+    // log time:seconds+"%"+ve+"%"+shp["mass"]+"%"+shp["thrust"]+"%"+gst["throttle"]+"%"+a0+"%"+vecVL_rht+"%"+vecbodyomega+"%"+
+    //     gst["unitHref"]+"%"+vecV0+"%"+vecR0+"%"+vecVD+"%"+vecRD+"%"+vecVF+"%"+vecRF+"%"+
+    //     vecRL+"%"+vecGAV1+"%"+vecGAV2+"%"+unituK+"%"+deruK+"%"+gst["K"]+"%"+T+
+    //     "%"+vecVGO+"%"+vecRGO+"%"+_integrals["Av"]+"%"+_integrals["Bvs"]+
+    //     "%"+_integrals["Bvc"]+"%"+_integrals["Ar"]+"%"+_integrals["Br"] to "0:/peg_control.log".
+    return gst.
 }
 
-function peg_step_control{
+function peg_get_burnvec {
     parameter tt.
-    parameter r0.
-    parameter vr0.
-    parameter theta0.
-    parameter vt0.
-    parameter m0.
-    parameter f0.
-    parameter thro_min.
-    parameter thro_max.
-    parameter throttle_target.
-    parameter ve.
-    parameter T.
-    parameter A.
-    parameter B.
-    parameter RT.
-    parameter VRT.
-    parameter VTT.
-    parameter THETA_T.
-    
-    set T to T - tt.
-    if (T < 10) {
-        return LIST(A+B*tt, B, T, throttle_target, 0).
-    }
-    local a0 to f0/m0 * throttle_target.
-    local tau to ve/a0.
-    
-    local b0 to -ve*ln(1-T/tau).
-    local b1 to b0*tau - ve*T.
-    // local b2 to b1*tau - ve*T^2/2.
-    local c0 to b0*T - b1.
-    local c1 to c0*tau - ve*T^2/2.
-    // local c2 to c1*tau - ve*T^3/6.
+    parameter gst.
 
-    local error_r to RT - (r0 + vr0*T).
-    local error_vr to VRT - vr0.
-    set A to (error_vr/b1 - error_r/c1) / (b0/b1 - c0/c1).
-    set B to (error_vr - A*b0) / b1.
-
-    // first-order approximation
-    // local r_mean to (r0+RT) / 2.
-    // local _fdotr_0 to max(-1, min(1, A + __peg_get_racc(r0, vt0) / a0)).
-    // local _ft0 to -sqrt(1-_fdotr_0^2).
-    // local _accT to a0 / (1-T/tau).
-    // local _fdotr_T to max(-1, min(1, A + B*T + __peg_get_racc(RT, VTT) / _accT)).
-    // local _fdott_T to -sqrt(1-_fdotr_T^2).
-    // local _ft1 to (_fdott_T-_ft0)/T.
-    // local dtheta to (vt0/r0*T + (_ft0*c0+_ft1*c1) / r_mean) * 180 / constant:pi.
-    // local dv to ((VTT/RT-vt0/r0)*r_mean + _ft1*ve*T)/(_ft0+_ft1*tau).
-
-    // zero-order midpoint approximation
-    local r_mean to (r0+RT) / 2.
-    local _fdotr_0 to max(-1, min(1, A + __peg_get_racc(r0, vt0) / a0)).
-    local _fdott_0 to -sqrt(1-_fdotr_0^2).
-    local _a_mid to a0 / (1-T/tau/2).
-    local _vt_mid to vt0 - _fdott_0 * ve * ln(1-T/tau/2).
-    local _fdotr_mid to max(-1, min(1, A + B*T/2 + __peg_get_racc(r_mean, _vt_mid) / _a_mid)).
-    local _fdott_mid to -sqrt(1-_fdotr_mid^2).
-    local dtheta to (vt0/r0*T + _fdott_mid * c0 / r_mean) * 180 / constant:pi.
-    local dv to (RT*VTT-r0*vt0)/r_mean / _fdott_mid.
-
-    set T to tau * (1 - exp(-dv/ve)).
-    local dtheta_real to THETA_T - theta0.
-    local theta_error to dtheta - dtheta_real.
-
-    // // full iteration including throttle
-    // if (dtheta_real < 0) {
-    //     // If the target is behind, use max throttle.
-    //     set throttle_target to thro_max.
-    // }
-    // else {
-    //     // First-order approximation
-    //     // set c0 to (r_mean*(dtheta_real/180*constant:pi-vt0/r0*T) + 0.5*_ft1*ve*T^2) / (_ft0+_ft1*tau).
-    //     // set tau to T + (ve*T - c0) / b0.
-    //     // set throttle_target to max(thro_min, min(thro_max, m0*ve/f0/tau)).
-
-    //     // zero-order midpoint approximation
-    //     set c0 to r_mean*(dtheta_real/180*constant:pi-vt0/r0*T) / _fdott_mid.
-    //     set tau to T + (ve*T - c0) / b0.
-    //     set throttle_target to max(thro_min, min(thro_max, m0*ve/f0/tau)).
-    // }
-    
-    // simple P control
-    // set throttle_target to max(thro_min, min(thro_max, throttle_target * (1 + __PEG_Ka*(dtheta - dtheta_real) / dtheta_real))).
-
-    // PID control
-    set throttle_target to max(thro_min, min(thro_max, throttle_target + __PEG_thro_pid:update(time:seconds, (dtheta_real-dtheta)/dtheta_real))).
-
-    return LIST(A, B, T, throttle_target, theta_error).
-}
-
-function peg_get_frcomp {
-    parameter tt.
-    parameter rr.
-    parameter vtheta.
-    parameter acc.
-    parameter A.
-    parameter B.
-
-    return max(0, min(1, A + B*tt + __peg_get_racc(rr, vtheta)/acc)).
+    local omega to gst["deruK"]:mag.
+    return gst["unituK"] * cos(omega*(tt-gst["K"]) *180/constant:pi) + gst["deruK"]/omega * sin(omega*(tt-gst["K"]) *180/constant:pi).
 }

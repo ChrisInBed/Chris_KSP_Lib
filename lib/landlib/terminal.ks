@@ -2,10 +2,10 @@ set __TERMINAL_g0 to ship:body:mu / ship:body:radius^2.
 set __TERMINAL_uplock to false.
 set __TERMINAL_thro_PID to pidLoop(1, 0.1, 0.05).
 
-function terminal_finalize {
-    unset __TERMINAL_g0.
-    unset __TERMINAL_uplock.
-    unset __TERMINAL_thro_PID.
+function terminal_init {
+    set __TERMINAL_g0 to ship:body:mu / ship:body:radius^2.
+    set __TERMINAL_uplock to false.
+    set __TERMINAL_thro_PID to pidLoop(1, 0.1, 0.05).
 }
 
 function __terminal_get_deltar {
@@ -51,7 +51,7 @@ function terminal_step_control {
     local thro_plan to std_throttle.
     local fvec_plan to v(0,0,0).
     local deltar to __terminal_get_deltar(vrT, std_throttle*f0/m0).
-    if (__TERMINAL_uplock or (ship:groundspeed < 0.01 and height < 3)) {
+    if (__TERMINAL_uplock or (ship:groundspeed < 0.1 and height < 3)) {
         set __TERMINAL_uplock to true.
         set thro_plan to std_throttle * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
         set fvec_plan to up:forevector.

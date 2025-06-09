@@ -30,7 +30,7 @@ function quadratic_step_control {
     parameter qJx.
     parameter qT.
     
-    if (qT < -10 and vxcl(V(0,0,1), qRT - qr0):mag > 50) {
+    if (vxcl(V(0,0,1), qRT - qr0):mag > 15) {
         set qT to quadratic_get_burntime(qr0, qv0, qRT, qVT, qAT, qJx).
     }
     local qJ to 24/qT^3*(qr0-qRT) - 6/qT^2*(qv0+3*qVT) - 6/qT*qAT.

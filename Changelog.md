@@ -32,3 +32,10 @@
 ## 2025/05/24 v0.6
 
 - Optimized landing attitude and guidance target in `peglandprec`
+
+## 2025/06/10 v0.7
+
+- Add GUI interaction for PEGLand, enabling visual adjustment of landing site
+- Replace the PEG algorithm with space shuttle launch guidance to allow for large off-axis landings
+- Modify the PEG algorithm to account for celestial body rotation, permitting landings on rapidly rotating bodies
+- Optimize the secondary guidance phase and final landing control
