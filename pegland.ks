@@ -82,7 +82,7 @@ function initialize_guidance {
     set g0 to mu / ship:body:radius^2.
 
     set target_rotation to 0.
-    update_target_geo().
+    // update_target_geo().
     set unitRtgt to (target_geo:position - body:position):normalized.
     set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
     set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
@@ -226,7 +226,7 @@ function phase_descent {
         gui_update_status_display(lexicon(
             "status", "PEG initialization",
             "numiter", init_num_iter,
-            "height", ship:altitude,
+            "height", alt:radar,
             "distance", target_geo:distance,
             "error", gst["vecErr"]:mag,
             "vspeed", ship:verticalspeed,
@@ -317,7 +317,7 @@ function phase_descent {
             gui_update_status_display(lexicon(
                 "status", "descent",
                 "numiter", num_iter,
-                "height", ship:altitude,
+                "height", alt:radar,
                 "distance", target_geo:distance,
                 "error", gst["vecErr"]:mag,
                 "vspeed", ship:verticalspeed,
@@ -406,7 +406,7 @@ function phase_approach {
             gui_update_status_display(lexicon(
                 "status", "approach",
                 "numiter", numiter,
-                "height", ship:altitude,
+                "height", alt:radar,
                 "distance", target_geo:distance,
                 "error", 0,
                 "vspeed", ship:verticalspeed,
@@ -481,7 +481,7 @@ function summary_guidance {
         gui_update_status_display(lexicon(
             "status", "completed",
             "numiter", 0,
-            "height", ship:altitude,
+            "height", alt:radar,
             "distance", target_geo:distance,
             "error", vxcl(up:forevector, target_geo:position):mag,
             "vspeed", ship:verticalspeed,
@@ -496,6 +496,7 @@ function summary_guidance {
 
 function main {
     init_print().
+    update_target_geo().
     until done {
         initialize_guidance().
         wait until guidance_active or done.
