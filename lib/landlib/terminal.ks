@@ -1,11 +1,11 @@
 set __TERMINAL_g0 to ship:body:mu / ship:body:radius^2.
 set __TERMINAL_uplock to false.
-set __TERMINAL_thro_PID to pidLoop(1, 0.1, 0.05).
+set __TERMINAL_thro_PID to pidLoop(1, 0.01, 0).
 
 function terminal_init {
     set __TERMINAL_g0 to ship:body:mu / ship:body:radius^2.
     set __TERMINAL_uplock to false.
-    set __TERMINAL_thro_PID to pidLoop(1, 0.1, 0.05).
+    set __TERMINAL_thro_PID to pidLoop(1, 0.01, 0).
 }
 
 function __terminal_get_deltar {
@@ -25,7 +25,10 @@ function __terminal_get_deltar {
 
 function terminal_get_fvec {
     // keep pitch > 45 deg
-    local __tanalpha to min(1.0, 1.0 * ship:groundspeed / (abs(ship:verticalspeed) + 0.001)).
+    local __tanalpha to 1.0.
+    if (ship:verticalspeed < 0) {
+        set __tanalpha to min(1.0, 1.0 * ship:groundspeed / (abs(ship:verticalspeed) + 0.001)).
+    }
     local __horizontalvec to vxcl(up:forevector, srfRetrograde:forevector):normalized.
     return __horizontalvec * __tanalpha + up:forevector.
 }

@@ -144,7 +144,7 @@ function set_engine_parameters {
     set thro_min to enginfo:minthrottle.
     set spooluptime to enginfo:spooluptime.
     set std_throttle to (max(0.90, thro_min) + 1) / 2.
-    set final_std_throttle to (max(0.60, thro_min) * 2 + 1) / 3.
+    set final_std_throttle to (max(0.60, thro_min) + 1) / 2.
     if (enginfo:ullage) {
         set ullage_time to 2.
     }
@@ -431,23 +431,24 @@ function phase_final {
     print "Final phase.                               " AT(0,12).
     set guidance_status to "final".
     terminal_init().
-    if (not add_approach_phase) {
-        lock throttle to 0.
-        if (ullage) {set ship:control:fore to 0.5.}
-    }
+    local elist to get_active_engines().
     lock lo_fvec to terminal_get_fvec().
     lock steering to get_target_steering(lo_fvec, target_rotation).
     local bound_box to ship:bounds.
     lock _height to bound_box:bottomaltradar - target_height.
     local vrT to -0.05.  // 5 cm/s downward
-    local _extra_g to 0.4.
-    if (add_approach_phase) {
-        set _extra_g to 0.2.
+    local _extra_g to 0.2.
+    if (not add_approach_phase) {
+        set _extra_g to 0.4.
+        if (not terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, ship:mass, f0, final_std_throttle)) {
+            // waiting for ignition
+            lock throttle to 0.
+            wait until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, ship:mass, f0, final_std_throttle).
+            set ship:control:fore to 1.
+            wait until engine_stability(elist) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime), vrT, ship:mass, f0, final_std_throttle).
+        }
     }
     lock lo_std_throttle to max(thro_min, min(final_std_throttle, ship:mass * (g0+_extra_g) / f0)).
-    if (not add_approach_phase) {
-        wait until (break_guidance_cycle) or (vang(ship:facing:forevector, steering:forevector) < 40 and terminal_time_to_fire(_height+ship:verticalspeed*spooluptime, vrT, ship:mass, f0, lo_std_throttle)).
-    }
     local throttle_target to lo_std_throttle.
     lock throttle to throttle_target.
     set ship:control:fore to 0.
@@ -465,6 +466,7 @@ function phase_final {
     wait until _height < 0.1 or (break_guidance_cycle).
     wait 0.2.
     unlock steering.
+    unlock throttle.
     set guidance_status to "completed".
 }
 
