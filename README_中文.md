@@ -6,7 +6,7 @@
 - [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
 - [[KSP/RSS/RO]PEGLand v0.3: 早期探测器一键自动定点落月](https://www.bilibili.com/video/BV1ZJdZY6EwE)
 - [[KSP/RSS/RO]PEGLand v0.3阿波罗登月特别版：厘米级优雅着陆](https://www.bilibili.com/video/BV1wGdZYjEgm)
-- [[KSP/RSS/RO\]PEGLand 0.7: 通用定点着陆制导，支持目视修正](https://www.bilibili.com/video/BV1yUT6z4ExF)
+- [[KSP/RSS/RO]PEGLand 0.7: 通用定点着陆制导，支持目视修正](https://www.bilibili.com/video/BV1yUT6z4ExF)
 
 ## MOD 列表
 
@@ -100,11 +100,14 @@ run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，�
 2. 合适的初始着陆轨道和着陆点。在一定范围内，不同的着陆轨道的燃料需求差别不大，但**不合适的着陆轨道会导致大量的燃料浪费，甚至是制导发散**。
 
    - **轨道高度**：着陆点上方的轨道高度需要匹配发动机推重比。从过高的轨道开始下降，航天器需要向下俯仰加速，才能在有限时间内触及地面；而对于过低的轨道，航天器需要花费燃料维持高度。可以通过下面的经验公式计算合适的轨道高度：
+     
      $$
      \text{燃烧时间}\ T\approx \frac{m_0I_{sp}g_{E}}{f}\left[1-\exp \left(-\frac{v}{I_{sp}g_E}\right)\right]\\
      \text{着陆点上方轨道高度}\ H\approx \frac18 gT^2
      $$
-     其中 $$m_0$$ 是航天器初质量，$$I_{sp}$$是比冲，$$g_E=9.81\ m/s^2$$是地球表面重力加速度，$$f$$是推力，$$v$$是轨道速度，$$g$$是着陆点的重力加速度。比如阿波罗着陆器，
+     
+     其中 $m_0$ 是航天器初质量，$I_{sp}$是比冲，$g_E=9.81\ m/s^2$是地球表面重力加速度，$f$是推力，$v$是轨道速度，$g$是着陆点的重力加速度。比如阿波罗着陆器，
+     
      $$
      {m_0=17\ \rm t}\\
      {f=47\ \rm kN}\\
@@ -114,13 +117,17 @@ run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，�
      {T\approx \frac{m_0I_{sp}g_{E}}{f}\left[1-\exp \left(-\frac{v}{I_{sp}g_E}\right)\right]=470\ \rm s}\\
      {H\approx \frac18 gT^2=45\ \rm km}
      $$
+     
      因此合适的轨道高度在45 km左右，实际上在15~80 km之间均可行。
 
    - **法向距离**：着陆点偏离轨道平面的距离。PEGLand需要控制偏航角修正法向误差，法向距离过大会增加燃料消耗，甚至导致制导发散。容许的法向距离可以用下面的经验公式估计：
+     
      $$
      \text{法向距离}\ h<0.1\cdot vT
      $$
+     
      例如阿波罗着陆器：
+     
      $$
      h<0.1\cdot vT=80\ \rm km
      $$
