@@ -104,36 +104,35 @@ The approach phase duration is approximately $4.5 \times LT/VLT$. A longer appro
 
    - **Orbital Altitude**: The orbital altitude above the landing point needs to match the engine's thrust-to-weight ratio. Starting descent from too high an orbit requires the spacecraft to pitch down and accelerate to reach the ground in a limited time; from too low an orbit, it needs to spend fuel to maintain altitude. You can calculate a suitable orbital altitude using the following empirical formula:
      
-      $$
-      \text{Burning Time}\ T\approx \frac{m_0I_{sp}g_{E}}{f}\left[1-\exp \left(-\frac{v}{I_{sp}g_E}\right)\right]\\
-      \text{Orbital Altitude Above Landing Point}\ H\approx \frac{1}{8} gT^2
-      $$
+$$\text{Burning Time}\ T\approx \frac{m_0I_{sp}g_{E}}{f}\left[1-\exp \left(-\frac{v}{I_{sp}g_E}\right)\right]$$
+
+$$\text{Orbital Altitude Above Landing Point}\ H\approx \frac{1}{8} gT^2$$
       
-      where $m_0$ is the initial mass of the spacecraft, $I_{sp}$ is the specific impulse, $g_E=9.81\ \text{m/s}^2$ is Earth's gravitational acceleration, $f$ is thrust, $v$ is orbital speed, and $g$ is the gravitational acceleration at the landing point. For example, for the Apollo LM:
+   where $m_0$ is the initial mass of the spacecraft, $I_{sp}$ is the specific impulse, $g_E=9.81\ \text{m/s}^2$ is Earth's gravitational acceleration, $f$ is thrust, $v$ is orbital speed, and $g$ is the gravitational acceleration at the landing point. For example, for the Apollo LM:
 
-      $$
-      {m_0=17\ \text{t}}\\
-      {f=47\ \text{kN}}\\
-      {I_{sp}=305\ \text{s}}\\
-      {g=1.62\ \text{m/s}^2}\\
-      {v=1700\ \text{m/s}}\\
-      {T\approx \frac{m_0I_{sp}g_{E}}{f}\left[1-\exp \left(-\frac{v}{I_{sp}g_E}\right)\right]=470\ \text{s}}\\
-      {H\approx \frac{1}{8} gT^2=45\ \text{km}}
-      $$
+$${m_0=17\ \text{t}}$$
 
-      Thus, a suitable orbital altitude is around 45 km, but anywhere between 15 and 80 km is feasible.
+$${f=47\ \text{kN}}$$
+
+$${I_{sp}=305\ \text{s}}$$
+
+$${g=1.62\ \text{m/s}^2}$$
+
+$${v=1700\ \text{m/s}}$$
+
+$${T\approx \frac{m_0I_{sp}g_{E}}{f}\left[1-\exp \left(-\frac{v}{I_{sp}g_E}\right)\right]=470\ \text{s}}$$
+
+$${H\approx \frac{1}{8} gT^2=45\ \text{km}}$$
+
+   Thus, a suitable orbital altitude is around 45 km, but anywhere between 15 and 80 km is feasible.
 
    - **Normal Distance**: The distance of the landing point from the orbital plane. PEGLand needs to control yaw angle to correct normal errors, and a large normal distance increases fuel consumption and may cause guidance divergence. The allowable normal distance can be estimated using the following empirical formula:
      
-     $$
-     \text{Normal Distance}\ h<0.1\cdot vT
-     $$
+$$\text{Normal Distance}\ h<0.1\cdot vT$$
      
-     For example, for the Apollo LM:
+   For example, for the Apollo LM:
      
-     $$
-     h<0.1\cdot vT=80\ \text{km}
-     $$
+$$h<0.1\cdot vT=80\ \text{km}$$
 
 3. In both GUI and command-line modes, PEGLand will try to read the active waypoint. You can set waypoints using WaypointManager to avoid manually entering latitude and longitude.
 
