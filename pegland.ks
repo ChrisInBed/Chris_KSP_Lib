@@ -3,7 +3,7 @@ parameter P_PREC to false.
 parameter P_NOWAIT is false.
 parameter P_ADJUST is v(0, 0, 0).
 parameter P_ENGINE is "current".
-set config:IPU to 500.  // high efficiency (highest: 2000)
+set config:IPU to 1000.  // high efficiency (highest: 2000)
 
 runOncePath("0:/lib/landlib/peg.ks").
 runOncePath("0:/lib/landlib/quadratic.ks").
@@ -100,8 +100,8 @@ function initialize_guidance {
     if add_approach_phase {
         set desRT to 100.
         set desLT to 500.
-        set desVRT to 6.
-        set desVLT to 50.
+        set desVRT to 3.
+        set desVLT to 40.
     }
     else {
         set desRT to 100.
@@ -134,7 +134,7 @@ function print_engines_simple_info {
 
 function set_engine_parameters {
     parameter elist.
-    set enginfo to get_engines_info(elist).
+    local enginfo to get_engines_info(elist).
     if (enginfo:thrust < 1e-7) {
         hudtext("No thrust available", 4, 2, hudtextsize, hudtextcolor, false).
         return.
@@ -267,7 +267,8 @@ function phase_descent {
     print "Aligning to target...                      " AT(0,12).
     set guidance_status to "Aligning to target".
     if P_GUI {gui_update_msg_display("Aligning to target...").}
-    local throttle_target to std_throttle.
+    local throttle_control to initialize_throttle_control(f0, thro_min, std_throttle*f0).
+    local throttle_target to simple_get_throttle(std_throttle, thro_min).
     local steering_target to R(0, 0, 0).
     function update_steering_target {
         parameter tt.
@@ -289,6 +290,11 @@ function phase_descent {
     // inner loop: update axis and steering
     when (guidance_status = "descent") then {
         update_steering_target(lo_tt).
+        set throttle_control["maxthrust"] to f0.
+        set throttle_control["minthrottle"] to thro_min.
+        set throttle_control["throttle"] to throttle.
+        set throttle_control["thrust"] to get_curthrust()*0.25 + throttle_control["thrust"]*0.75.  // moving average
+        set throttle_target to update_throttle_control(throttle_control).
         return true.
     }
     // outer loop: update control and throttle
@@ -309,10 +315,10 @@ function phase_descent {
             gst
         ).
         set _time_begin to __time_begin.
-        set throttle_target to gst["throttle"].
+        set throttle_control["thrust_target"] to gst["throttle"]*f0.
         set num_iter to num_iter + 1.
-        print "Iter: "+ num_iter+", T = " + round(gst["T"]) + ", dv = " + round(__peg_get_dv(throttle_target*f0/ship:mass, ve, gst["T"])) + "     " AT(0,14).
-        print "thro = " + round(throttle_target, 3) + ", E = " + round(gst["vecErr"]:mag/1000, 4) + " km    " AT(0,15).
+        print "Iter: "+ num_iter+", T = " + round(gst["T"]) + ", dv = " + round(__peg_get_dv(throttle_control["thrust_target"]/ship:mass, ve, gst["T"])) + "     " AT(0,14).
+        print "thro = " + round(gst["throttle"], 3) + ", E = " + round(gst["vecErr"]:mag/1000, 4) + " km    " AT(0,15).
         if P_GUI {
             gui_update_status_display(lexicon(
                 "status", "descent",
@@ -323,8 +329,8 @@ function phase_descent {
                 "vspeed", ship:verticalspeed,
                 "hspeed", ship:groundspeed,
                 "T", gst["T"],
-                "dv", __peg_get_dv(throttle_target*f0/ship:mass, ve, gst["T"]),
-                "throttle", throttle_target
+                "dv", __peg_get_dv(throttle_control["thrust_target"]/ship:mass, ve, gst["T"]),
+                "throttle", gst["throttle"]
             )).
         }
         if gst["T"] < 10 and (gst["T"] <= 0 or ship:groundspeed / (abs(ship:verticalspeed) + 0.001) < 1.5 or (ship:groundspeed > _old_ground_speed)) {
@@ -345,7 +351,7 @@ function phase_approach {
     print "Approach phase.                            " AT(0,12).
     set guidance_status to "approach".
     local lock appRT to V(0, 0, target_height).
-    local appVT to V(0, 0, -0.2). // 0.2 m/s downward
+    local appVT to V(0, 0, -0.5). // 0.5 m/s downward
     local appAT to V(0, 0, 0). // no acceleration
     local appJx to 0.  // no Jerk
     local raxis to V(0, 0, 1).
@@ -377,7 +383,7 @@ function phase_approach {
     lock steering to steering_target.
     local throttle_target to __gap_throttle.
     lock throttle to throttle_target.
-    local _af to 0.
+    local _af to V(0,0,0).
 
     // inner loop: update state, steering and throttle
     when (guidance_status = "approach") then {
@@ -385,7 +391,7 @@ function phase_approach {
         update_state().
         set _af to appAT + qJ*_tt + qS*_tt^2/2 + V(0, 0, g0).
         set steering_target to get_target_steering(_af:x*taxis + _af:y*haxis + _af:z*raxis, target_rotation).
-        set throttle_target to max(thro_min, min(1, ship:mass * _af:mag / f0)).
+        set throttle_target to simple_get_throttle(ship:mass*_af:mag/f0, thro_min).
         return true.
     }
 
@@ -413,7 +419,7 @@ function phase_approach {
                 "hspeed", ship:groundspeed,
                 "T", -qT,
                 "dv", __dv,
-                "throttle", throttle_target
+                "throttle", throttle_target*(1-thro_min)+thro_min
             )).
         }
         set numiter to numiter + 1.
@@ -449,7 +455,7 @@ function phase_final {
         }
     }
     lock lo_std_throttle to max(thro_min, min(final_std_throttle, ship:mass * (g0+_extra_g) / f0)).
-    local throttle_target to lo_std_throttle.
+    local throttle_target to simple_get_throttle(lo_std_throttle, thro_min).
     lock throttle to throttle_target.
     set ship:control:fore to 0.
     local _target_attitude to get_target_steering(lo_fvec, target_rotation).
@@ -458,7 +464,7 @@ function phase_final {
         if (break_guidance_cycle) return.
         local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, lo_std_throttle).
         set _target_attitude to get_target_steering(__new_control[0], target_rotation).
-        set throttle_target to __new_control[1].
+        set throttle_target to simple_get_throttle(__new_control[1], thro_min).
         wait 0.  // wait until next physical tick
     }
     lock steering to get_target_steering(up:forevector, target_rotation).

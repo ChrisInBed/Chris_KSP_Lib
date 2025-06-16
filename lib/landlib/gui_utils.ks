@@ -55,8 +55,8 @@ function gui_make_peglandgui {
         if newstate {
             set desRT to 100.
             set desLT to 500.
-            set desVRT to 6.
-            set desVLT to 50.
+            set desVRT to 3.
+            set desVLT to 40.
         }
         else {
             set desRT to 100.

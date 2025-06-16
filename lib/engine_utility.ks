@@ -132,3 +132,49 @@ function engine_work_time {
 	}
 	return _worktime.
 }
+
+function get_curthrust {
+	local elist to get_active_engines().
+	local thrustvec to v(0, 0, 0).
+	for e in elist {
+		set thrustvec to thrustvec + e:thrust * e:facing:vector.
+	}
+	return thrustvec:mag.
+}
+
+function initialize_throttle_control {
+	parameter f0.
+	parameter thro_min.
+	parameter thrust_target.
+	return lexicon(
+		"maxthrust", f0,
+		"minthrottle", thro_min,
+		"throttle", 0,
+		"thrust", 0,
+		"thrust_target", thrust_target,
+		"pid", pidLoop(1, 0.01, 0)
+	).
+}
+
+function update_throttle_control {
+	parameter control_state.
+	if control_state["minthrottle"] > 0.999 {
+		return 1.
+	}
+	local throttle_target to (control_state["thrust_target"]/control_state["maxthrust"]).
+	set throttle_target to simple_get_throttle(throttle_target, control_state["minthrottle"]).
+	// local throttle_target to control_state["throttle"].
+	set throttle_target to throttle_target
+		+ control_state["pid"]:update(time:seconds,
+		(control_state["thrust"]-control_state["thrust_target"])/(control_state["maxthrust"]*(1-control_state["minthrottle"]))).
+	set throttle_target to min(max(throttle_target, 0.01), 1).
+	set control_state["throttle"] to throttle_target.
+	return throttle_target.
+}
+
+function simple_get_throttle {
+	parameter real_thro.
+	parameter min_thro.
+	if (min_thro > 0.999) {return 1.}
+	return max(0.01, min(1, (real_thro - min_thro) / (1 - min_thro))).
+}
