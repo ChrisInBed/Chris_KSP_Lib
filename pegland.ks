@@ -285,7 +285,10 @@ function phase_descent {
     RCS ON.
     update_steering_target(0).
     lock steering to steering_target.
-    wait until time:seconds >= ignition_time - ullage_time.
+    until time:seconds >= ignition_time - ullage_time. {
+        update_steering_target(0).  // response to roll change by user input
+        wait 0.  // wait until next physical tick
+    }
     print "Braking start.                             " AT(0,12).
     set guidance_status to "descent".
     set ship:control:fore to 1.
