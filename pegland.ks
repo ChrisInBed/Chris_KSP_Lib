@@ -219,6 +219,9 @@ function phase_descent {
     ).
     if (gst = 0) {
         hudtext("PEG initialization failed, check your landing orbit parameters", 4, 2, 12, hudtextcolor, false).
+        if P_GUI {
+            gui_update_msg_display("PEG initialization failed, check your landing orbit parameters").
+        }
         set guidance_active to false.
         return.
     }
@@ -322,6 +325,9 @@ function phase_descent {
         if (abs(gst["T"]) < 1e-6 or abs(gst["T"]) > 1e6) {
             print "Descent iteration diverged, aborting guidance" AT(0, 16).
             hudtext("Descent iteration diverged, aborting guidance", 4, 2, 12, hudtextcolor, false).
+            if P_GUI {
+                gui_update_msg_display("Descent iteration diverged, aborting guidance").
+            }
             set guidance_active to false.
             unlock steering.
             unlock throttle.

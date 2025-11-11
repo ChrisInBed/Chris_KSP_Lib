@@ -9,9 +9,10 @@ function gui_make_peglandgui {
     declare global gui_title_box to gui_maingui:addhbox().
     set gui_title_box:style:height to 40.
     set gui_title_box:style:margin:top to 0.
-    declare global gui_title_label to gui_title_box:addlabel("<b><size=20>PEG Landing Guidance</size></b>").
+    declare global gui_title_label to gui_title_box:addlabel("<b><size=20>PEG Landing Guidance v0.8</size></b>").
     set gui_title_label:style:align TO "center".
     declare global gui_title_exit_button to gui_title_box:addbutton("X").
+    set gui_title_exit_button:style:width to 20.
     set gui_title_exit_button:style:align to "right".
     set gui_title_exit_button:onclick to {
         set done to true.
@@ -20,7 +21,7 @@ function gui_make_peglandgui {
     }.
 
     // Display region
-    gui_maingui:addspacing(7).
+    gui_maingui:addspacing(2).
     declare global gui_mainbox to gui_maingui:addscrollbox().
     declare global gui_display_box to gui_mainbox:addhlayout().
     declare global gui_display_box1 to gui_display_box:addvlayout().
@@ -37,7 +38,43 @@ function gui_make_peglandgui {
     declare global gui_display_throttle to gui_display_box2:addlabel("throttle = 0").
     declare global gui_display_msg to gui_mainbox:addlabel("").
 
+    // Orbit analysis region
+    gui_mainbox:addspacing(2).
+    declare global gui_orbitanalysis_box to gui_mainbox:addvlayout().
+    declare global gui_orbitanalysis_button to gui_orbitanalysis_box:addbutton("Analyze Orbit").
+    set gui_orbitanalysis_button:style:width to 100.
+    declare global gui_orbitanalysis_result1 to gui_orbitanalysis_box:addlabel("").
+    declare global gui_orbitanalysis_result2 to gui_orbitanalysis_box:addlabel("").
+    declare global gui_orbitanalysis_result3 to gui_orbitanalysis_box:addlabel("").
+    set gui_orbitanalysis_button:onclick to {
+        local result to analyze_initial_orbit().
+        local distR_text to "".
+        local distR_rmd_max to result["distR_rmd"] * 1.5.
+        local distR_rmd_min to result["distR_rmd"] * 0.5.
+        if result["distR"] > distR_rmd_max or result["distR"] < distR_rmd_min {
+            set distR_text to "<color=red>"+round(result["distR"]*1e-3)+"</color>(" + round(distR_rmd_max*1e-3) + "~" + round(distR_rmd_min*1e-3) + ")".
+        }
+        else {
+            set distR_text to round(result["distR"]*1e-3)+"(" + round(distR_rmd_min*1e-3) + "~" + round(distR_rmd_max*1e-3) + ")".
+        }
+        local distH_text to "".
+        if result["distH"] > result["distH_rmd"] {
+            set distH_text to "<color=red>"+round(result["distH"]*1e-3)+"</color>(<" + round(result["distH_rmd"]*1e-3) + ")".
+        }
+        else {
+            set distH_text to round(result["distH"]*1e-3)+"(<" + round(result["distH_rmd"]*1e-3) + ")".
+        }
+        // local result_text to "T ≈ " + round(result["burntime"]) + " s;"
+        //     + "Height = " + distR_text + " km;"
+        //     + "Lateral distance = " + distH_text + " km".
+        // set gui_orbitanalysis_result:text to result_text.
+        set gui_orbitanalysis_result1:text to "Estimated burn time ≈ " + round(result["burntime"]) + " s".
+        set gui_orbitanalysis_result2:text to "Estimated descent distance = " + distR_text + " km".
+        set gui_orbitanalysis_result3:text to "Estimated lateral distance = " + distH_text + " km".
+    }.
+
     // emergency suppress
+    gui_mainbox:addspacing(2).
     declare global gui_emergency_button to gui_mainbox:addcheckbox("<b><size=16>EMERGENCY SUPPRESS</size></b>").
     set gui_emergency_button:ontoggle to {
         parameter newstate.
@@ -45,7 +82,6 @@ function gui_make_peglandgui {
     }.
 
     // Settings region
-    gui_mainbox:addspacing(7).
     declare global gui_settings_box to gui_mainbox:addvlayout().
     declare global gui_settings_gbox1 to gui_settings_box:addhlayout().
     declare global gui_settings_gbox11 to gui_settings_gbox1:addvlayout().
@@ -319,4 +355,32 @@ on guidance_status {
     set gui_display_gstatus:text to "Status: " + guidance_status.
     if done return false.
     return true.
+}
+
+function analyze_initial_orbit {
+    local vecRL to target_geo:position-ship:body:position.
+    set vecRL to vecRL:normalized * (vecRL:mag + desRT).
+    local distH to abs(vDot(vecRL, unitUy)).
+    local etaL to etaref + __peg_get_angle(unitRref, vecRL, unitUy).
+    local vr_etaL to get_orbit_vr_at_theta(sma, ecc, etaL, mu).
+    local vt_etaL to get_orbit_vt_at_theta(sma, ecc, etaL, mu).
+    local lock v_etaL to sqrt(vr_etaL^2 + vt_etaL^2).
+    local r_etaL to get_orbit_r_at_theta(sma, ecc, etaL).
+    local distR to r_etaL - vecRL:mag.
+
+    local burntime to ship:mass * ve / f0 * (1 - exp(-v_etaL/ve)).
+    // 1 round iteration to calibrate gravity loss
+    set vr_etaL to vr_etaL + g0 * burntime.
+    set burntime to ship:mass * ve / f0 * (1 - exp(-v_etaL/ve)).
+
+    local distR_rmd to 0.125 * g0 * burntime^2.
+    local distH_rmd to 0.06 * vt_etaL * burntime.
+
+    return lexicon(
+        "burntime", burntime,
+        "distR", distR,
+        "distH", distH,
+        "distR_rmd", distR_rmd,
+        "distH_rmd", distH_rmd
+    ).
 }
