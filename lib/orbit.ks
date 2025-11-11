@@ -1,3 +1,12 @@
+runOncePath("0:/lib/chrismath.ks").
+declare global __ORBIT_TIME_N to 11.
+
+function get_orbit_latus_rectum {
+    parameter sma.
+    parameter ecc.
+    return abs(sma * (1 - ecc^2)).
+}
+
 function get_orbit_period {
     parameter sma.
     parameter mu.
@@ -8,7 +17,7 @@ function get_orbit_angular_momentum {
     parameter sma.
     parameter ecc.
     parameter mu.
-    return sqrt(mu * sma * (1 - ecc^2)).
+    return sqrt(mu * get_orbit_latus_rectum(sma, ecc)).
 }
 
 function get_orbit_energy_per_mass {
@@ -28,7 +37,7 @@ function get_orbit_r_at_theta {
     parameter sma.
     parameter ecc.
     parameter theta.
-    return sma * (1 - ecc ^ 2) / (1 + ecc * cos(theta)).
+    return get_orbit_latus_rectum(sma, ecc) / (1 + ecc * cos(theta)).
 }
 
 function get_orbit_v_at_theta {
@@ -36,7 +45,8 @@ function get_orbit_v_at_theta {
     parameter ecc.
     parameter theta.
     parameter mu.
-    return sqrt(mu/(sma*(1-ecc^2)) * (1+2*ecc*cos(theta)+ecc^2)).
+    local _p to get_orbit_latus_rectum(sma, ecc).
+    return sqrt(mu/_p * (1+2*ecc*cos(theta)+ecc^2)).
 }
 
 function get_orbit_vr_at_theta {
@@ -44,7 +54,8 @@ function get_orbit_vr_at_theta {
     parameter ecc.
     parameter theta.
     parameter mu.
-    return sqrt(mu/(sma*(1-ecc^2))) * ecc * sin(theta).
+    local _p to get_orbit_latus_rectum(sma, ecc).
+    return sqrt(mu/_p) * ecc * sin(theta).
 }
 
 function get_orbit_vt_at_theta {
@@ -52,7 +63,8 @@ function get_orbit_vt_at_theta {
     parameter ecc.
     parameter theta.
     parameter mu.
-    return sqrt(mu/(sma*(1-ecc^2))) * (1 + ecc * cos(theta)).
+    local _p to get_orbit_latus_rectum(sma, ecc).
+    return sqrt(mu/_p) * (1 + ecc * cos(theta)).
 }
 
 function get_orbit_omega_at_theta {
@@ -60,7 +72,8 @@ function get_orbit_omega_at_theta {
     parameter ecc.
     parameter theta.
     parameter mu.
-    return sqrt(mu/(sma*(1-ecc^2))^3) * (1 + ecc * cos(theta))^2.
+    local _p to get_orbit_latus_rectum(sma, ecc).
+    return sqrt(mu/_p^3) * (1 + ecc * cos(theta))^2.
 }
 
 function get_orbit_vecVR_at_theta {
@@ -72,10 +85,11 @@ function get_orbit_vecVR_at_theta {
     parameter etaref.
     parameter mu.
 
-    local magR to sma*(1-ecc^2)/(1+ecc*cos(theta)).
+    local _p to get_orbit_latus_rectum(sma, ecc).
+    local magR to _p/(1+ecc*cos(theta)).
     local unitR to angleAxis(-(theta-etaref), unitUy) * unitRref.
     local vecR to unitR * magR.
-    local _f1 to (mu/sma/(1-ecc^2))^0.5.
+    local _f1 to (mu/_p)^0.5.
     local magVR to _f1 * ecc * sin(theta).
     local magVT to _f1 * (1 + ecc * cos(theta)).
     local unitTH to vCrs(unitR, unitUy).
@@ -106,24 +120,15 @@ function get_time_to_theta {
     if (thetaT < theta0) {
         set thetaT to thetaT + 360.
     }
-    local r0 to get_orbit_r_at_theta(sma, ecc, theta0).
-    local dt to get_orbit_period(sma, mu) / 180.  // interval time
-    local coef to sqrt(mu/sma/(1-ecc^2)).
-    local _theta to theta0.
-    local _tt to t0.
-    local rr to r0.
-    local _last_theta to _theta.
-    until (_theta >= thetaT) {
-        local dtheta to dt * coef * (ecc * cos(_theta) + 1) / rr * 180 / constant:pi.
-        local dr to dt * coef * ecc * sin(_theta).
-        set _last_theta to _theta.
-        set _theta to _theta + dtheta.
-        set rr to rr + dr.
-        set _tt to _tt + dt.
-        // print "Integral: dt = " + round(_tt-t0) + ", theta = " + round(_theta) + ", thetaT = " + round(thetaT) + "  " AT(0, 13).
+    // Kepler's second law to calculate time to thetaT from theta0
+    // $T = (\mu p)^{-1/2} \int_{\theta_0}^{\theta_T} r(\theta)^2 d\theta$
+    local dtheta to (thetaT - theta0) / (__ORBIT_TIME_N - 1).
+    local f_arr to list().
+    local _factor to (get_orbit_latus_rectum(sma, ecc)^3/mu)^0.5.
+    from {local i to 0.} until i = __ORBIT_TIME_N step {set i to i+1.} do {
+        f_arr:add(1/(1+ecc*cos(theta0+dtheta*i))^2).
     }
-    // linear interpolation
-    return _tt - (_theta - thetaT) / (_theta - _last_theta) * dt.
+    return mintegral(f_arr, dtheta/180*constant:pi) * _factor + t0.
 }
 
 function get_active_waypoint {

@@ -37,12 +37,19 @@ function gui_make_peglandgui {
     declare global gui_display_throttle to gui_display_box2:addlabel("throttle = 0").
     declare global gui_display_msg to gui_mainbox:addlabel("").
 
+    // emergency suppress
+    declare global gui_emergency_button to gui_mainbox:addcheckbox("<b><size=16>EMERGENCY SUPPRESS</size></b>").
+    set gui_emergency_button:ontoggle to {
+        parameter newstate.
+        set config:suppressautopilot to newstate.
+    }.
+
     // Settings region
     gui_mainbox:addspacing(7).
     declare global gui_settings_box to gui_mainbox:addvlayout().
     declare global gui_settings_gbox1 to gui_settings_box:addhlayout().
     declare global gui_settings_gbox11 to gui_settings_gbox1:addvlayout().
-    declare global gui_settings_active_button to gui_settings_gbox11:addcheckbox("active", false).
+    declare global gui_settings_active_button to gui_settings_gbox11:addcheckbox("Active", false).
     set gui_settings_active_button:ontoggle to {
         parameter newstate.
         set guidance_active to newstate.
@@ -80,7 +87,7 @@ function gui_make_peglandgui {
     declare global gui_settings_finphase_button to gui_settings_phase_box:addradiobutton("final phase", false).
     set gui_settings_finphase_button:ontoggle to {parameter newstate. if newstate {set start_phase to "final".}.}.
     declare global gui_settings_rotation_box to gui_settings_box:addhlayout().
-    declare global gui_settings_rotation_label to gui_settings_rotation_box:addlabel("Rotation ").
+    declare global gui_settings_rotation_label to gui_settings_rotation_box:addlabel("Roll").
     declare global gui_settings_rotation to gui_settings_rotation_box:addtextfield("0").
     set gui_settings_rotation:onconfirm to {parameter newvalue. set target_rotation to newvalue:tonumber.}.
 
@@ -90,6 +97,10 @@ function gui_make_peglandgui {
     declare global gui_settings_target_waypoint_button to gui_settings_target_button_box1:addbutton("current waypoint").
     set gui_settings_target_waypoint_button:onclick to {
         local target_geo to get_target_geo().
+        if (target_geo = 0) {
+            hudtext("No active waypoint found!", 4, 2, 12, hudtextcolor, false).
+            return.
+        }
         set gui_settings_target_lat:text to target_geo:lat:tostring.
         set gui_settings_target_lng:text to target_geo:lng:tostring.
     }.
@@ -238,8 +249,8 @@ function gui_make_peglandgui {
         parameter newvalue.
         if newvalue:tonumber <= 0 {
             hudtext("ISP must be larger than 0", 4, 2, 12, hudtextcolor, false).
+            set gui_settings_engine_isp:text to "100".
         }
-        set gui_settings_engine_isp:text to "100".
     }.
     declare global gui_settings_engine_minthrottle_box to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_minthrottle_label to gui_settings_engine_minthrottle_box:addlabel("Min throttle ").

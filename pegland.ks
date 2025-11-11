@@ -217,6 +217,11 @@ function phase_descent {
         lexicon("sma", sma, "ecc", ecc, "unitUy", __toInertial * unitUy, "unitRref", __toInertial * unitRref, "etaref", etaref),
         lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1)
     ).
+    if (gst = 0) {
+        hudtext("PEG initialization failed, check your landing orbit parameters", 4, 2, 12, hudtextcolor, false).
+        set guidance_active to false.
+        return.
+    }
     // vecDraw({return ship:body:position+gst["vecRF"].}, {return gst["vecRF"]:normalized*30000.}, RGB(255, 0, 0), "RF", 1, true).
     // vecDraw({return ship:body:position+(gst["vecRF"]-gst["vecErr"]).}, {return (gst["vecRF"]-gst["vecErr"]):normalized*30000.}, RGB(0, 255, 0), "RL", 1, true).
     local theta0 to gst["eta0"].
@@ -314,6 +319,14 @@ function phase_descent {
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
+        if (abs(gst["T"]) < 1e-6 or abs(gst["T"]) > 1e6) {
+            print "Descent iteration diverged, aborting guidance" AT(0, 16).
+            hudtext("Descent iteration diverged, aborting guidance", 4, 2, 12, hudtextcolor, false).
+            set guidance_active to false.
+            unlock steering.
+            unlock throttle.
+            return.
+        }
         set _time_begin to __time_begin.
         set throttle_control["thrust_target"] to gst["throttle"]*f0.
         set num_iter to num_iter + 1.
@@ -526,6 +539,8 @@ function main {
             set done to true.
             set guidance_active to false.
         }
+        unlock steering.
+        unlock throttle.
     }
     clearGuis().
 }

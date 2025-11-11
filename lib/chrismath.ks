@@ -110,8 +110,10 @@ function mintegral {
     parameter interval.
     // Simpson 1/3 rule for integral
     local n to xseq:length.
+    local residue to 0.  // To hold last term if n is even
     if mod(n, 2) = 0 {
         set n to n - 1.  // Make sure n is odd
+        set residue to (xseq[n] + xseq[n-1])/2.
     }
     local res to xseq[0] + xseq[n-1].
     from {local i to 1.} until i > n-2 step {set i to i+2.} do {
@@ -120,6 +122,6 @@ function mintegral {
     from {local i to 2.} until i > n-3 step {set i to i+2.} do {
         set res to res + 2 * xseq[i].
     }
-    set res to res * (interval / 3).
+    set res to res * (interval / 3) + residue * interval.
     return res.
 }
