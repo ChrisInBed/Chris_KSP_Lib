@@ -2,7 +2,7 @@ runOncePath("0:/lib/orbit.ks").
 runOncePath("0:/lib/engine_utility.ks").
 
 function gui_make_peglandgui {
-    declare global gui_maingui is GUI(500, 500).
+    declare global gui_maingui is GUI(500, 700).
     set gui_maingui:style:hstretch to true.
 
     // title: PEG Landing Guidance
@@ -212,6 +212,31 @@ function gui_make_peglandgui {
     declare global gui_settings_target_step_box to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_step_label to gui_settings_target_step_box:addlabel("Moving step (m) ").
     declare global gui_settings_target_step to gui_settings_target_step_box:addtextfield("50").
+    declare global gui_settings_target_slope_box to gui_settings_target_box:addhlayout().
+    declare global gui_settings_target_slope_label to gui_settings_target_slope_box:addlabel("").
+    declare global gui_settings_target_slope_sample_button to gui_settings_target_slope_box:addbutton("Find landing site within ").
+    declare global gui_settings_target_slope_sample_dist to gui_settings_target_slope_box:addtextfield("500").
+    declare global gui_settings_target_slope_sample_label1 to gui_settings_target_slope_box:addlabel(" m with ").
+    declare global gui_settings_target_slope_sample_npoints to gui_settings_target_slope_box:addtextfield("10").
+    declare global gui_settings_target_slope_sample_label2 to gui_settings_target_slope_box:addlabel(" points").
+    set gui_settings_target_slope_sample_button:onclick to {
+        // Ramdom search for flattest spot near target
+        local search_dist to gui_settings_target_slope_sample_dist:text:tonumber.
+        local npoints to gui_settings_target_slope_sample_npoints:text:tonumber.
+        local min_slope to get_geo_slope(target_geo).
+        local best_geo to target_geo.
+        from {local i to 0.} until i >= npoints step {set i to i+1.} do {
+            local newgeo to get_geo_sample(target_geo, search_dist).
+            local slope to get_geo_slope(newgeo).
+            if slope < min_slope {
+                set min_slope to slope.
+                set best_geo to newgeo.
+            }
+        }
+        set target_geo to best_geo.
+        gui_update_target_settings_display().
+    }.
+
     declare global gui_settings_target_lat_box to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_lat_label to gui_settings_target_lat_box:addlabel("Latitude ").
     declare global gui_settings_target_lat to gui_settings_target_lat_box:addtextfield("0").
@@ -334,6 +359,7 @@ function gui_update_target_settings_display {
     set gui_settings_target_lat:text to target_geo:lat:tostring.
     set gui_settings_target_lng:text to target_geo:lng:tostring.
     set gui_settings_target_height:text to target_height:tostring.
+    set gui_settings_target_slope_label:text to "Slope = " + round(get_geo_slope(target_geo), 2) + "°".
 }
 
 function gui_update_descent_settings_display {

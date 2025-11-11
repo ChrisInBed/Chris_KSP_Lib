@@ -145,3 +145,28 @@ function get_target_geo {
     }
     return activewp:geoPosition.
 }
+
+function get_geo_slope {
+    parameter geo.
+
+    // calculate gradient (1m resolution)
+    local delta to 1.
+    local rL to (geo:position-geo:body:position):mag.
+    local geo1 to geo:body:geoPositionLATLNG(geo:lat+delta/rL*180/constant:pi, geo:lng).
+    local geo2 to geo:body:geoPositionLATLNG(geo:lat, geo:lng+delta/(rL*cos(geo:lat))*180/constant:pi).
+    local h0 to geo:TERRAINHEIGHT.
+    local dh1 to geo1:TERRAINHEIGHT - h0.
+    local dh2 to geo2:TERRAINHEIGHT - h0.
+    
+    return arcTan(sqrt(dh1^2 + dh2^2)/delta).
+}
+
+function get_geo_sample {
+    parameter geo.
+    parameter xlim.
+
+    local rL to (geo:position-geo:body:position):mag.
+    local deltaX to (RANDOM() - 0.5) * 2 * xlim.
+    local deltaY to (RANDOM() - 0.5) * 2 * xlim.
+    return geo:body:geoPositionLATLNG(geo:lat+deltaY/rL*180/constant:pi, geo:lng+deltaX/(rL*cos(geo:lat))*180/constant:pi).
+}
