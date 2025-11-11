@@ -39,3 +39,10 @@
 - Replace the PEG algorithm with space shuttle launch guidance to allow for large off-axis landings
 - Modify the PEG algorithm to account for celestial body rotation, permitting landings on rapidly rotating bodies
 - Optimize the secondary guidance phase and final landing control
+
+## 2025/11/12 v0.8
+
+- Add analysis of initial landing orbit
+- Add slope prediction of the target landing site, and automatically search for flat place to land
+- Add Emergency Suppress function
+- Add guidance divergence check, so that the program can correctly exit if the iterative calculation diverged

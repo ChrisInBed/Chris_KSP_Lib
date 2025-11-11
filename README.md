@@ -56,19 +56,31 @@ run pegland(0,0,0,V(-50,10,1)).  // Move target: 50m south, 10m east, 1m up
 
 ### PEGLand GUI
 
-In most cases, you can perform guidance settings with one click in the PEGLand GUI and dynamically adjust parameters during landing. Basic settings include:
+Before activating PEGLand guidance and begin iterative calculation, it is highly recommended to run a quick analysis of your initial landing orbit by hitting to `Analyze Orbit` button. This will give you 2 numbers, with recommended value limits to ensure the guidance runs correctly and efficiently. Within a certain range, the fuel requirements for different landing orbits don't vary much, but **an unsuitable landing orbit can lead to significant fuel waste or even guidance divergence**.
 
-- `active`: Activate/stop the guidance program. Activating this button will start the guidance program immediately and execute the landing as planned. Stopping will reset the program to initial state.
+- `descent distance`: i.e. The orbital height over the target landing site. Starting descent from too high an orbit requires the spacecraft to pitch down and accelerate to reach the ground in a limited time; from too low an orbit, it needs to spend extra fuel to maintain altitude.
+- `lateral distance`: The distance of the landing point from the orbital plane. PEGLand needs to control yaw angle to correct normal errors, and a large normal distance increases fuel consumption and may cause guidance divergence.
+
+![](./pictures/gui_analyze_orbit.png)
+
+In most cases, you can perform guidance with just one click in the PEGLand GUI and dynamically adjust parameters during landing. Basic settings include:
+
+- `Active`: Activate/stop the guidance program. Activating this button will start the guidance program immediately and execute the landing as planned. Stopping will reset the program to initial state.
 - `Ignite Now`: Ignite immediately without waiting for coasting to the ignition position.
 - `Add Approach Phase`: Add approach phase for precise landing.
 - `start phase`: Choose which guidance phase to start from. If you are already close to the ground and moving slowly, you can start soft landing from the `final phase`.
-- `Rotation`: Spacecraft roll angle.
+- `Roll`: Spacecraft roll angle.
+- `Emergency Suppress`: Pushing this button will break all steering, throttling and translation autopilot from kOS, so that you can control the ship manually.
 
 ![](./pictures/gui_explained_eng.png)
 
 #### Adjusting the Landing Point
 
 You can click `current waypoint` or manually enter the landing point's latitude and longitude, **and click `update target`** to set the landing point. If you find the original landing point unsuitable during descent, PEGLand provides a convenient visual adjustment feature. Click `show target` to display the landing location on the HUD, then use the adjustment buttons to move the landing point in any direction. The distance moved with each click can be set in `Moving step`.
+
+Another usefull button is the `Find landing site within` button. This will randomly search for the flattest landing site within a certain range of the original target. This function will also give you the slope of the new landing site.
+
+![](./pictures/gui_sample_site.png)
 
 **Note:**
 
@@ -100,49 +112,15 @@ The approach phase duration is approximately $4.5 \times LT/VLT$. A longer appro
 
 1. Ensure the spacecraft meets landing requirements: sufficient Δv. If the final phase thrust-to-weight ratio range includes 1, it's recommended to add an approach phase for a smoother landing.
 
-2. Suitable initial landing orbit and landing point. Within a certain range, the fuel requirements for different landing orbits don't vary much, but **an unsuitable landing orbit can lead to significant fuel waste or even guidance divergence**.
-
-   - **Orbital Altitude**: The orbital altitude above the landing point needs to match the engine's thrust-to-weight ratio. Starting descent from too high an orbit requires the spacecraft to pitch down and accelerate to reach the ground in a limited time; from too low an orbit, it needs to spend fuel to maintain altitude. You can calculate a suitable orbital altitude using the following empirical formula:
-     
-$$\text{Burning Time}\ T\approx \frac{m_0I_{sp}g_{E}}{f}\left[1-\exp \left(-\frac{v}{I_{sp}g_E}\right)\right]$$
-
-$$\text{Orbital Altitude Above Landing Point}\ H\approx \frac{1}{8} gT^2$$
-      
-   where $m_0$ is the initial mass of the spacecraft, $I_{sp}$ is the specific impulse, $g_E=9.81\ \text{m/s}^2$ is Earth's gravitational acceleration, $f$ is thrust, $v$ is orbital speed, and $g$ is the gravitational acceleration at the landing point. For example, for the Apollo LM:
-
-$${m_0=17\ \text{t}}$$
-
-$${f=47\ \text{kN}}$$
-
-$${I_{sp}=305\ \text{s}}$$
-
-$${g=1.62\ \text{m/s}^2}$$
-
-$${v=1700\ \text{m/s}}$$
-
-$${T\approx \frac{m_0I_{sp}g_{E}}{f}\left[1-\exp \left(-\frac{v}{I_{sp}g_E}\right)\right]=470\ \text{s}}$$
-
-$${H\approx \frac{1}{8} gT^2=45\ \text{km}}$$
-
-   Thus, a suitable orbital altitude is around 45 km, but anywhere between 15 and 80 km is feasible.
-
-   - **Normal Distance**: The distance of the landing point from the orbital plane. PEGLand needs to control yaw angle to correct normal errors, and a large normal distance increases fuel consumption and may cause guidance divergence. The allowable normal distance can be estimated using the following empirical formula:
-     
-$$\text{Normal Distance}\ h<0.1\cdot vT$$
-     
-   For example, for the Apollo LM:
-     
-$$h<0.1\cdot vT=80\ \text{km}$$
-
-3. In both GUI and command-line modes, PEGLand will try to read the active waypoint. You can set waypoints using WaypointManager to avoid manually entering latitude and longitude.
+2. In both GUI and command-line modes, PEGLand will try to read the active waypoint. You can set waypoints using WaypointManager to avoid manually entering latitude and longitude.
 
    ![](./pictures/waypointmanager.png)
 
-4. For engines with limited or no throttling, landing precision cannot be guaranteed (neither by the geniuses at NASA). However, you can simulate the landing first, then load a previous save and adjust the landing point based on the error to reduce it to within 100 meters.
+3. For engines with limited or no throttling, landing precision cannot be guaranteed (neither can the geniuses at NASA). However, you can simulate the landing first, then load a previous save and adjust the landing point based on the error to reduce it to within 100 meters.
 
-5. If the thrust-to-weight ratio lower limit is above 2 during final landing, be cautious, this is even more risky than Falcon 9's suicide burn.
+4. If the thrust-to-weight ratio lower limit is too high during final landing, be cautious, this is even more risky than Falcon 9's suicide burn.
 
-6. Currently, PEGLand only supports single-stage rocket landings, but you can switch engines or stages during landing and press the "0" key to update engine parameters. PEGLand will not be optimized for multi-stage rockets in the future, as predicting future stage engine parameters is fxxking hell complicated.
+5. Currently, PEGLand only supports single-stage rocket landings, but you can switch engines or stages during landing and press the "0" key to update engine parameters. PEGLand will not be optimized for multi-stage rockets in the future, as predicting future stage engine parameters is fxxking hell complicated.
 
 ## Executing Maneuver Nodes
 
