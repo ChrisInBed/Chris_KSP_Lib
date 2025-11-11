@@ -14,6 +14,10 @@
 - kOS: Scriptable Autopilot System-1.4.0.0
 - WaypointManager (Recommended for pegland)
 
+## 安装
+
+这不是游戏mod，而是一系列依赖于kOS系统的脚本。下载最新的release，解压后移动到`<游戏根目录>\Ships\Script`文件夹，完成后`<游戏根目录>\Ships\Script\pegland.ks`这个路径是存在的。
+
 ## PEG 着陆
 
 `pegland`是这个脚本包中最精彩的程序，从1980s NASA为航天飞机项目开发的PEG发射制导算法修改而来，实现真空环境下燃料最优的定点着陆。

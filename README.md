@@ -15,6 +15,10 @@ Video:
 - kOS: Scriptable Autopilot System-1.4.0.0
 - WaypointManager (Recommended for pegland)
 
+## Installation
+
+This is not a mod for KSP, instead a bunch of scripts for kOS system. Download the newest release and decompress it, place the files into the `<KSP directory>\Ships\Script` directory. Then `<KSP directory>\Ships\Script\pegland.ks` should be a valid path.
+
 ## PEG Landing
 
 `pegland` is the most exciting part of this script package, adapted from the PEG launch guidance algorithm developed by NASA in the 1980s for the Space Shuttle program. It enables fuel-optimal pinpoint landings in a vacuum environment.
