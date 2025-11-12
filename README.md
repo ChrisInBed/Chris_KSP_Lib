@@ -126,6 +126,8 @@ The approach phase duration is approximately $4.5 \times LT/VLT$. A longer appro
 
 5. Currently, PEGLand only supports single-stage rocket landings, but you can switch engines or stages during landing and press the "0" key to update engine parameters. PEGLand will not be optimized for multi-stage rockets in the future, as predicting future stage engine parameters is fxxking hell complicated.
 
+6. While typing commands into the kOS console, some other mods might be activated, such as **Advanced fly-by-wire (P)**. Those autopilot mods will compete for control with kOS, leading to wobbling of the spacecraft. **Make sure no other program is compete for control with kOS, such as SAS, MechJeb and Advanced fly-by-wire**.
+
 ## Executing Maneuver Nodes
 
 `exe_node` and `exe_pulse_node` are two high-precision maneuver node execution programs for the Principia environment. Maneuver nodes planned in Principia consider the burn process, taking into account changes in burn direction and position, as well as celestial gravitational influences during long maneuvers. Additionally, the thrust of RO engines is not constant, making burn time inaccurate for calculating Δv. `exe_node` and `exe_pulse_node` do not use timing methods; instead, they maintain a Δv integrator to precisely monitor the accumulated Δv during the burn.
