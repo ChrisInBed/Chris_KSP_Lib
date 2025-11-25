@@ -459,39 +459,42 @@ function phase_final {
     print "Final phase.                               " AT(0,12).
     set guidance_status to "final".
     terminal_init().
-    local elist to get_active_engines().
     lock lo_fvec to terminal_get_fvec().
     lock steering to get_target_steering(lo_fvec, target_rotation).
     local bound_box to ship:bounds.
     lock _height to bound_box:bottomaltradar - target_height.
     local vrT to -0.05.  // 5 cm/s downward
     local _extra_g to 0.2.
+    lock lo_final_throttle to max(min(thro_min+0.1, 1), ship:mass*(g0+_extra_g)/f0).
+    lock lo_af1 to final_std_throttle * f0 / ship:mass.
+    lock lo_af2 to lo_final_throttle * f0 / ship:mass.
+    local T2 to 5.
+
     if (not add_approach_phase) {
-        set _extra_g to 0.4.
-        if (not terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, ship:mass, f0, final_std_throttle)) {
+        if (not terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2)) {
             // waiting for ignition
             lock throttle to 0.
-            wait until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, ship:mass, f0, final_std_throttle).
+            wait until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2).
             set ship:control:fore to 1.
-            wait until engine_stability(elist) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime), vrT, ship:mass, f0, final_std_throttle).
+            wait until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime), vrT, lo_af1, lo_af2, T2).
         }
     }
-    lock lo_std_throttle to max(thro_min, min(final_std_throttle, ship:mass * (g0+_extra_g) / f0)).
-    local throttle_target to simple_get_throttle(lo_std_throttle, thro_min).
+    local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).
+    local throttle_target to simple_get_throttle(__new_control[1], thro_min).
     lock throttle to throttle_target.
     set ship:control:fore to 0.
     local _target_attitude to get_target_steering(lo_fvec, target_rotation).
     lock steering to _target_attitude.
-    until (_height < 0.1 or ((not add_approach_phase) and abs(ship:verticalspeed) < 0.1)) {
+    until (_height < 0.2 or ((not add_approach_phase) and ship:verticalspeed > vrT - 0.05)) {
         if (break_guidance_cycle) return.
-        local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, lo_std_throttle).
+        set __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).
         set _target_attitude to get_target_steering(__new_control[0], target_rotation).
         set throttle_target to simple_get_throttle(__new_control[1], thro_min).
         wait 0.  // wait until next physical tick
     }
     lock steering to get_target_steering(up:forevector, target_rotation).
     lock throttle to 0.
-    wait until _height < 0.1 or (break_guidance_cycle).
+    wait until _height < 0.2 or (break_guidance_cycle).
     wait 0.2.
     unlock steering.
     unlock throttle.
