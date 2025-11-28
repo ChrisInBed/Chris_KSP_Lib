@@ -29,10 +29,11 @@ function __terminal_get_deltar {
         local _deltar2 to vrT*T2 - 0.5*af2*T2*T2.
         set vrT to vrT - af2*T2.
         local tc to v0 / __TERMINAL_g0 / (1 - vr0 / (v0+0.001)).
-        local _uc to af2*tc*(1+vr0/v0)/2.
-        local _T to (vrT-vr0+_uc)/(af2-__TERMINAL_g0).
-        set deltar to vr0*_T + (af2-__TERMINAL_g0)*_T^2/2 - _uc*(_T - tc/3) + _deltar2.
+        local _uc to af1*tc*(1+vr0/v0)/2.
+        local _T to (vrT-vr0+_uc)/af1.
+        set deltar to vr0*_T + af1*_T^2/2 - _uc*(_T - tc/3) + _deltar2.
     }
+    // print "deltar=" + round(deltar, 3) + " stage=" + _stage AT(0, 13).
 
     return list(_stage, deltar).
 }
