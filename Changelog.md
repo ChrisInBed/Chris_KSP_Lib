@@ -46,3 +46,9 @@
 - Add slope prediction of the target landing site, and automatically search for flat place to land
 - Add Emergency Suppress function
 - Add guidance divergence check, so that the program can correctly exit if the iterative calculation diverged
+
+## 2025/11/27 v0.8.1
+
+- Optimize GUI interaction logic
+- Add function: search engine by label
+- Fixed bug: cannot modify engine thrust
