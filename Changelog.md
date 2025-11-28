@@ -52,3 +52,8 @@
 - Optimize GUI interaction logic
 - Add function: search engine by label
 - Fixed bug: cannot modify engine thrust
+
+## 2025/11/28 v0.8.2
+
+- Optimize final phase landing strategy to adopt a 2-stage constant thrust approach, achieving fuel optimal. This 
+  version is feasible in non-targeted landing senario when the height or speed is large.
