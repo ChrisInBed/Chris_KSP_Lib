@@ -150,6 +150,10 @@ function peg_get_initial_params {
         set vecVGO to vecVL - vecV0 - vecGAV1*T.
         set unituK to vecVGO:normalized.
         set T to T + (vecVGO:mag - _integrals["Av"]) / (a0/(1-T/tau)*cos(omega*(T-_integrals["K"]) *180/constant:pi)).
+        if (abs(T) < 1e-6 or abs(T) > 1e6) {
+            print "PEG initialization iteration diverged, check your landing orbit parameters" AT(0, 16).
+            return 0.  // 
+        }
         set _integrals to _make_integrals().
         set vecVGO to _integrals["Av"] * unituK.
         set vecRGO to vecRL - vecR0 - vecV0*T - 0.5*vecGAV2*T^2.

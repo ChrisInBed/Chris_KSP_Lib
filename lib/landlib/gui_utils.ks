@@ -2,16 +2,17 @@ runOncePath("0:/lib/orbit.ks").
 runOncePath("0:/lib/engine_utility.ks").
 
 function gui_make_peglandgui {
-    declare global gui_maingui is GUI(500, 500).
+    declare global gui_maingui is GUI(500, 700).
     set gui_maingui:style:hstretch to true.
 
     // title: PEG Landing Guidance
     declare global gui_title_box to gui_maingui:addhbox().
     set gui_title_box:style:height to 40.
     set gui_title_box:style:margin:top to 0.
-    declare global gui_title_label to gui_title_box:addlabel("<b><size=20>PEG Landing Guidance</size></b>").
+    declare global gui_title_label to gui_title_box:addlabel("<b><size=20>PEG Landing Guidance v0.8</size></b>").
     set gui_title_label:style:align TO "center".
     declare global gui_title_exit_button to gui_title_box:addbutton("X").
+    set gui_title_exit_button:style:width to 20.
     set gui_title_exit_button:style:align to "right".
     set gui_title_exit_button:onclick to {
         set done to true.
@@ -20,7 +21,7 @@ function gui_make_peglandgui {
     }.
 
     // Display region
-    gui_maingui:addspacing(7).
+    gui_maingui:addspacing(2).
     declare global gui_mainbox to gui_maingui:addscrollbox().
     declare global gui_display_box to gui_mainbox:addhlayout().
     declare global gui_display_box1 to gui_display_box:addvlayout().
@@ -37,12 +38,54 @@ function gui_make_peglandgui {
     declare global gui_display_throttle to gui_display_box2:addlabel("throttle = 0").
     declare global gui_display_msg to gui_mainbox:addlabel("").
 
+    // Orbit analysis region
+    gui_mainbox:addspacing(2).
+    declare global gui_orbitanalysis_box to gui_mainbox:addvlayout().
+    declare global gui_orbitanalysis_button to gui_orbitanalysis_box:addbutton("Analyze Orbit").
+    set gui_orbitanalysis_button:style:width to 100.
+    declare global gui_orbitanalysis_result1 to gui_orbitanalysis_box:addlabel("").
+    declare global gui_orbitanalysis_result2 to gui_orbitanalysis_box:addlabel("").
+    declare global gui_orbitanalysis_result3 to gui_orbitanalysis_box:addlabel("").
+    set gui_orbitanalysis_button:onclick to {
+        local result to analyze_initial_orbit().
+        local distR_text to "".
+        local distR_rmd_max to result["distR_rmd"] * 1.5.
+        local distR_rmd_min to result["distR_rmd"] * 0.5.
+        if result["distR"] > distR_rmd_max or result["distR"] < distR_rmd_min {
+            set distR_text to "<color=red>"+round(result["distR"]*1e-3)+"</color>(" + round(distR_rmd_max*1e-3) + "~" + round(distR_rmd_min*1e-3) + ")".
+        }
+        else {
+            set distR_text to round(result["distR"]*1e-3)+"(" + round(distR_rmd_min*1e-3) + "~" + round(distR_rmd_max*1e-3) + ")".
+        }
+        local distH_text to "".
+        if result["distH"] > result["distH_rmd"] {
+            set distH_text to "<color=red>"+round(result["distH"]*1e-3)+"</color>(<" + round(result["distH_rmd"]*1e-3) + ")".
+        }
+        else {
+            set distH_text to round(result["distH"]*1e-3)+"(<" + round(result["distH_rmd"]*1e-3) + ")".
+        }
+        // local result_text to "T ≈ " + round(result["burntime"]) + " s;"
+        //     + "Height = " + distR_text + " km;"
+        //     + "Lateral distance = " + distH_text + " km".
+        // set gui_orbitanalysis_result:text to result_text.
+        set gui_orbitanalysis_result1:text to "Estimated burn time ≈ " + round(result["burntime"]) + " s".
+        set gui_orbitanalysis_result2:text to "Estimated descent distance = " + distR_text + " km".
+        set gui_orbitanalysis_result3:text to "Estimated lateral distance = " + distH_text + " km".
+    }.
+
+    // emergency suppress
+    gui_mainbox:addspacing(2).
+    declare global gui_emergency_button to gui_mainbox:addcheckbox("<b><size=16>EMERGENCY SUPPRESS</size></b>").
+    set gui_emergency_button:ontoggle to {
+        parameter newstate.
+        set config:suppressautopilot to newstate.
+    }.
+
     // Settings region
-    gui_mainbox:addspacing(7).
     declare global gui_settings_box to gui_mainbox:addvlayout().
     declare global gui_settings_gbox1 to gui_settings_box:addhlayout().
     declare global gui_settings_gbox11 to gui_settings_gbox1:addvlayout().
-    declare global gui_settings_active_button to gui_settings_gbox11:addcheckbox("active", false).
+    declare global gui_settings_active_button to gui_settings_gbox11:addcheckbox("Active", false).
     set gui_settings_active_button:ontoggle to {
         parameter newstate.
         set guidance_active to newstate.
@@ -67,9 +110,12 @@ function gui_make_peglandgui {
         gui_update_descent_settings_display().
     }.
     declare global gui_settings_phase_box to gui_settings_gbox1:addvbox().
+    declare global gui_settings_phase_box_title to gui_settings_phase_box:addlabel("<b>Start Phase</b>").
     declare global gui_settings_desphase_button to gui_settings_phase_box:addradiobutton("descent phase", true).
+    set gui_settings_desphase_button:style:margin:bottom to 0.
     set gui_settings_desphase_button:ontoggle to {parameter newstate. if newstate {set start_phase to "descent".}.}.
     declare global gui_settings_appphase_button to gui_settings_phase_box:addradiobutton("approach phase", false).
+    set gui_settings_appphase_button:style:margin:bottom to 0.
     set gui_settings_appphase_button:ontoggle to {
         parameter newstate.
         if newstate {
@@ -78,18 +124,24 @@ function gui_make_peglandgui {
         }.
     }.
     declare global gui_settings_finphase_button to gui_settings_phase_box:addradiobutton("final phase", false).
+    // set gui_settings_finphase_button:style:margin:bottom to 0.
     set gui_settings_finphase_button:ontoggle to {parameter newstate. if newstate {set start_phase to "final".}.}.
     declare global gui_settings_rotation_box to gui_settings_box:addhlayout().
-    declare global gui_settings_rotation_label to gui_settings_rotation_box:addlabel("Rotation ").
+    declare global gui_settings_rotation_label to gui_settings_rotation_box:addlabel("Roll").
     declare global gui_settings_rotation to gui_settings_rotation_box:addtextfield("0").
-    set gui_settings_rotation:onconfirm to {parameter newvalue. set target_rotation to newvalue:tonumber.}.
+    declare global gui_settings_rotation_set to gui_settings_rotation_box:addbutton("set").
+    set gui_settings_rotation_set:onclick to {set target_rotation to gui_settings_rotation:text:tonumber.}.
 
     declare global gui_settings_target_box to gui_settings_box:addvlayout().
     declare global gui_settings_target_title to gui_settings_target_box:addlabel("<b>Target settings</b>").
     declare global gui_settings_target_button_box1 to gui_settings_target_box:addhlayout().
-    declare global gui_settings_target_waypoint_button to gui_settings_target_button_box1:addbutton("current waypoint").
+    declare global gui_settings_target_waypoint_button to gui_settings_target_button_box1:addbutton("use current waypoint").
     set gui_settings_target_waypoint_button:onclick to {
         local target_geo to get_target_geo().
+        if (target_geo = 0) {
+            hudtext("No active waypoint found!", 4, 2, 12, hudtextcolor, false).
+            return.
+        }
         set gui_settings_target_lat:text to target_geo:lat:tostring.
         set gui_settings_target_lng:text to target_geo:lng:tostring.
     }.
@@ -106,11 +158,6 @@ function gui_make_peglandgui {
                 unset gui_target_draw.
             }
         }
-    }.
-    declare global gui_settings_target_update_button to gui_settings_target_button_box1:addbutton("update target").
-    set gui_settings_target_update_button:onclick to {
-        set target_geo to latlng(gui_settings_target_lat:text:tonumber, gui_settings_target_lng:text:tonumber).
-        set target_height to gui_settings_target_height:text:tonumber.
     }.
     declare global gui_settings_target_button_box2 to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_left to gui_settings_target_button_box2:addbutton("←").
@@ -165,19 +212,50 @@ function gui_make_peglandgui {
     declare global gui_settings_target_step_box to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_step_label to gui_settings_target_step_box:addlabel("Moving step (m) ").
     declare global gui_settings_target_step to gui_settings_target_step_box:addtextfield("50").
+    declare global gui_settings_target_slope_box to gui_settings_target_box:addhlayout().
+    declare global gui_settings_target_slope_label to gui_settings_target_slope_box:addlabel("").
+    declare global gui_settings_target_slope_sample_button to gui_settings_target_slope_box:addbutton("Find landing site within ").
+    declare global gui_settings_target_slope_sample_dist to gui_settings_target_slope_box:addtextfield("500").
+    declare global gui_settings_target_slope_sample_label1 to gui_settings_target_slope_box:addlabel(" m with ").
+    declare global gui_settings_target_slope_sample_npoints to gui_settings_target_slope_box:addtextfield("10").
+    declare global gui_settings_target_slope_sample_label2 to gui_settings_target_slope_box:addlabel(" points").
+    set gui_settings_target_slope_sample_button:onclick to {
+        // Ramdom search for flattest spot near target
+        local search_dist to gui_settings_target_slope_sample_dist:text:tonumber.
+        local npoints to gui_settings_target_slope_sample_npoints:text:tonumber.
+        local min_slope to get_geo_slope(target_geo).
+        local best_geo to target_geo.
+        from {local i to 0.} until i >= npoints step {set i to i+1.} do {
+            local newgeo to get_geo_sample(target_geo, search_dist).
+            local slope to get_geo_slope(newgeo).
+            if slope < min_slope {
+                set min_slope to slope.
+                set best_geo to newgeo.
+            }
+        }
+        set target_geo to best_geo.
+        gui_update_target_settings_display().
+    }.
+
     declare global gui_settings_target_lat_box to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_lat_label to gui_settings_target_lat_box:addlabel("Latitude ").
     declare global gui_settings_target_lat to gui_settings_target_lat_box:addtextfield("0").
+    declare global gui_settings_target_lat_set to gui_settings_target_lat_box:addbutton("set").
+    set gui_settings_target_lat_set:onclick to {set target_geo to latlng(gui_settings_target_lat:text:tonumber, target_geo:lng).}.
     declare global gui_settings_target_lng_box to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_lng_label to gui_settings_target_lng_box:addlabel("Longitude ").
     declare global gui_settings_target_lng to gui_settings_target_lng_box:addtextfield("0").
+    declare global gui_settings_target_lng_set to gui_settings_target_lng_box:addbutton("set").
+    set gui_settings_target_lng_set:onclick to {set target_geo to latlng(target_geo:lat, gui_settings_target_lng:text:tonumber).}.
     declare global gui_settings_target_height_box to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_height_label to gui_settings_target_height_box:addlabel("Height (m) ").
     declare global gui_settings_target_height to gui_settings_target_height_box:addtextfield("0").
+    declare global gui_settings_target_height_set to gui_settings_target_height_box:addbutton("set").
+    set gui_settings_target_height_set:onclick to {set target_height to gui_settings_target_height:text:tonumber.}.
 
     declare global gui_settings_descent_box to gui_settings_box:addvlayout().
     declare global gui_settings_descent_title to gui_settings_descent_box:addlabel("<b>Descent target</b>").
-    declare global gui_settings_descent_update_button to gui_settings_descent_box:addbutton("update descent").
+    declare global gui_settings_descent_update_button to gui_settings_descent_box:addbutton("update descent target").
     set gui_settings_descent_update_button:onclick to {
         set desRT to gui_settings_descent_RT:text:tonumber.
         set desLT to gui_settings_descent_LT:text:tonumber.
@@ -200,56 +278,75 @@ function gui_make_peglandgui {
     declare global gui_settings_engine_button_box1 to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_current_button to gui_settings_engine_button_box1:addbutton("current engine").
     set gui_settings_engine_current_button:onclick to {
-        local elist to get_active_engines().
-        local enginfo to get_engines_info(elist).
-        set gui_settings_engine_thrust:text to enginfo["thrust"]:tostring.
-        set gui_settings_engine_isp:text to enginfo["ISP"]:tostring.
-        set gui_settings_engine_minthrottle:text to enginfo["minthrottle"]:tostring.
-        set gui_settings_engine_spoolup:text to enginfo["spooluptime"]:tostring.
-        if enginfo["ullage"] {
-            set gui_settings_engine_ullage:text to "2".
-        }
-        else {
-            set gui_settings_engine_ullage:text to "0".
-        }
+        local enginfo to get_engines_info(get_active_engines()).
+        gui_set_engine_info(enginfo).
     }.
-    declare global gui_settings_engine_update_button to gui_settings_engine_button_box1:addbutton("update engine").
-    set gui_settings_engine_update_button:onclick to {
-        set f0 to gui_settings_engine_thrust:text:tonumber.
-        set ve to gui_settings_engine_isp:text:tonumber * 9.81.
-        set thro_min to gui_settings_engine_minthrottle:text:tonumber.
-        set spooluptime to gui_settings_engine_spoolup:text:tonumber.
-        set ullage_time to gui_settings_engine_ullage:text:tonumber.
+    declare global gui_settings_engine_search_engine to gui_settings_engine_button_box1:addbutton("search label ").
+    declare global gui_settings_engine_search_engine_text to gui_settings_engine_button_box1:addtextfield("descent").
+    set gui_settings_engine_search_engine:onclick to {
+        local enginfo to get_engines_info(search_engine(gui_settings_engine_search_engine_text:text)).
+        gui_set_engine_info(enginfo).
     }.
     declare global gui_settings_engine_thrust_box to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_thrust_label to gui_settings_engine_thrust_box:addlabel("Thrust (kN) ").
     declare global gui_settings_engine_thrust to gui_settings_engine_thrust_box:addtextfield("1").
-    set gui_settings_engine_thrust:onconfirm to {
-        parameter newvalue.
-        if newvalue:tonumber <= 1e-7 {
+    declare global gui_settings_engine_thrust_set to gui_settings_engine_thrust_box:addbutton("set").
+    set gui_settings_engine_thrust_set:onclick to {
+        local newvalue to gui_settings_engine_thrust:text:tonumber.
+        if newvalue <= 1e-7 {
             hudtext("Thrust must be larger than 0", 4, 2, 12, hudtextcolor, false).
+            return.
         }
-        set gui_settings_engine_thrust:text to "1".
+        set f0 to newvalue.
     }.
     declare global gui_settings_engine_isp_box to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_isp_label to gui_settings_engine_isp_box:addlabel("ISP (s) ").
     declare global gui_settings_engine_isp to gui_settings_engine_isp_box:addtextfield("100").
-    set gui_settings_engine_isp:onconfirm to {
-        parameter newvalue.
-        if newvalue:tonumber <= 0 {
+    declare global gui_settings_engine_isp_set to gui_settings_engine_isp_box:addbutton("set").
+    set gui_settings_engine_isp_set:onclick to {
+        local newvalue to gui_settings_engine_isp:text:tonumber.
+        if newvalue <= 0 {
             hudtext("ISP must be larger than 0", 4, 2, 12, hudtextcolor, false).
+            return.
         }
-        set gui_settings_engine_isp:text to "100".
+        set ve to newvalue * 9.81.
     }.
     declare global gui_settings_engine_minthrottle_box to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_minthrottle_label to gui_settings_engine_minthrottle_box:addlabel("Min throttle ").
     declare global gui_settings_engine_minthrottle to gui_settings_engine_minthrottle_box:addtextfield("0").
+    declare global gui_settings_engine_minthrottle_set to gui_settings_engine_minthrottle_box:addbutton("set").
+    set gui_settings_engine_minthrottle_set:onclick to {
+        local newvalue to gui_settings_engine_minthrottle:text:tonumber.
+        if newvalue < 0 or newvalue > 1 {
+            hudtext("Min throttle must be between 0 and 1", 4, 2, 12, hudtextcolor, false).
+            return.
+        }
+        set thro_min to newvalue.
+    }.
     declare global gui_settings_engine_spoolup_box to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_spoolup_label to gui_settings_engine_spoolup_box:addlabel("Spool-up time (s) ").
     declare global gui_settings_engine_spoolup to gui_settings_engine_spoolup_box:addtextfield("0").
+    declare global gui_settings_engine_spoolup_set to gui_settings_engine_spoolup_box:addbutton("set").
+    set gui_settings_engine_spoolup_set:onclick to {
+        local newvalue to gui_settings_engine_spoolup:text:tonumber.
+        if newvalue < 0 {
+            hudtext("Spool-up time must be non-negative", 4, 2, 12, hudtextcolor, false).
+            return.
+        }
+        set spooluptime to newvalue.
+    }.
     declare global gui_settings_engine_ullage_box to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_ullage_label to gui_settings_engine_ullage_box:addlabel("Ullage time (s) ").
     declare global gui_settings_engine_ullage to gui_settings_engine_ullage_box:addtextfield("0").
+    declare global gui_settings_engine_ullage_set to gui_settings_engine_ullage_box:addbutton("set").
+    set gui_settings_engine_ullage_set:onclick to {
+        local newvalue to gui_settings_engine_ullage:text:tonumber.
+        if newvalue < 0 {
+            hudtext("Ullage time must be non-negative", 4, 2, 12, hudtextcolor, false).
+            return.
+        }
+        set ullage_time to newvalue.
+    }.
 
     gui_maingui:show().
 }
@@ -287,6 +384,7 @@ function gui_update_target_settings_display {
     set gui_settings_target_lat:text to target_geo:lat:tostring.
     set gui_settings_target_lng:text to target_geo:lng:tostring.
     set gui_settings_target_height:text to target_height:tostring.
+    set gui_settings_target_slope_label:text to "Slope = " + round(get_geo_slope(target_geo), 2) + "°".
 }
 
 function gui_update_descent_settings_display {
@@ -308,4 +406,47 @@ on guidance_status {
     set gui_display_gstatus:text to "Status: " + guidance_status.
     if done return false.
     return true.
+}
+
+function analyze_initial_orbit {
+    local vecRL to target_geo:position-ship:body:position.
+    set vecRL to vecRL:normalized * (vecRL:mag + desRT).
+    local distH to abs(vDot(vecRL, unitUy)).
+    local etaL to etaref + __peg_get_angle(unitRref, vecRL, unitUy).
+    local vr_etaL to get_orbit_vr_at_theta(sma, ecc, etaL, mu).
+    local vt_etaL to get_orbit_vt_at_theta(sma, ecc, etaL, mu).
+    local lock v_etaL to sqrt(vr_etaL^2 + vt_etaL^2).
+    local r_etaL to get_orbit_r_at_theta(sma, ecc, etaL).
+    local distR to r_etaL - vecRL:mag.
+
+    local burntime to ship:mass * ve / f0 * (1 - exp(-v_etaL/ve)).
+    // 1 round iteration to calibrate gravity loss
+    set vr_etaL to vr_etaL + g0 * burntime.
+    set burntime to ship:mass * ve / f0 * (1 - exp(-v_etaL/ve)).
+
+    local distR_rmd to 0.125 * g0 * burntime^2.
+    local distH_rmd to 0.06 * vt_etaL * burntime.
+
+    return lexicon(
+        "burntime", burntime,
+        "distR", distR,
+        "distH", distH,
+        "distR_rmd", distR_rmd,
+        "distH_rmd", distH_rmd
+    ).
+}
+
+function gui_set_engine_info {
+    parameter enginfo.
+
+    set gui_settings_engine_thrust:text to enginfo["thrust"]:tostring.
+    set gui_settings_engine_isp:text to enginfo["ISP"]:tostring.
+    set gui_settings_engine_minthrottle:text to enginfo["minthrottle"]:tostring.
+    set gui_settings_engine_spoolup:text to enginfo["spooluptime"]:tostring.
+    if enginfo["ullage"] {
+        set gui_settings_engine_ullage:text to "2".
+    }
+    else {
+        set gui_settings_engine_ullage:text to "0".
+    }
 }

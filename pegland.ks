@@ -217,6 +217,14 @@ function phase_descent {
         lexicon("sma", sma, "ecc", ecc, "unitUy", __toInertial * unitUy, "unitRref", __toInertial * unitRref, "etaref", etaref),
         lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1)
     ).
+    if (gst = 0) {
+        hudtext("PEG initialization failed, check your landing orbit parameters", 4, 2, 12, hudtextcolor, false).
+        if P_GUI {
+            gui_update_msg_display("PEG initialization failed, check your landing orbit parameters").
+        }
+        set guidance_active to false.
+        return.
+    }
     // vecDraw({return ship:body:position+gst["vecRF"].}, {return gst["vecRF"]:normalized*30000.}, RGB(255, 0, 0), "RF", 1, true).
     // vecDraw({return ship:body:position+(gst["vecRF"]-gst["vecErr"]).}, {return (gst["vecRF"]-gst["vecErr"]):normalized*30000.}, RGB(0, 255, 0), "RL", 1, true).
     local theta0 to gst["eta0"].
@@ -277,7 +285,10 @@ function phase_descent {
     RCS ON.
     update_steering_target(0).
     lock steering to steering_target.
-    wait until time:seconds >= ignition_time - ullage_time.
+    until time:seconds >= ignition_time - ullage_time. {
+        update_steering_target(0).  // response to roll change by user input
+        wait 0.  // wait until next physical tick
+    }
     print "Braking start.                             " AT(0,12).
     set guidance_status to "descent".
     set ship:control:fore to 1.
@@ -314,6 +325,17 @@ function phase_descent {
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
+        if (abs(gst["T"]) < 1e-6 or abs(gst["T"]) > 1e6) {
+            print "Descent iteration diverged, aborting guidance" AT(0, 16).
+            hudtext("Descent iteration diverged, aborting guidance", 4, 2, 12, hudtextcolor, false).
+            if P_GUI {
+                gui_update_msg_display("Descent iteration diverged, aborting guidance").
+            }
+            set guidance_active to false.
+            unlock steering.
+            unlock throttle.
+            return.
+        }
         set _time_begin to __time_begin.
         set throttle_control["thrust_target"] to gst["throttle"]*f0.
         set num_iter to num_iter + 1.
@@ -437,39 +459,42 @@ function phase_final {
     print "Final phase.                               " AT(0,12).
     set guidance_status to "final".
     terminal_init().
-    local elist to get_active_engines().
     lock lo_fvec to terminal_get_fvec().
     lock steering to get_target_steering(lo_fvec, target_rotation).
     local bound_box to ship:bounds.
     lock _height to bound_box:bottomaltradar - target_height.
     local vrT to -0.05.  // 5 cm/s downward
     local _extra_g to 0.2.
+    lock lo_final_throttle to max(min(thro_min+0.1, 1), ship:mass*(g0+_extra_g)/f0).
+    lock lo_af1 to final_std_throttle * f0 / ship:mass.
+    lock lo_af2 to lo_final_throttle * f0 / ship:mass.
+    local T2 to 5.
+
     if (not add_approach_phase) {
-        set _extra_g to 0.4.
-        if (not terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, ship:mass, f0, final_std_throttle)) {
+        if (not terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2)) {
             // waiting for ignition
             lock throttle to 0.
-            wait until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, ship:mass, f0, final_std_throttle).
+            until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2) {wait 0.}
             set ship:control:fore to 1.
-            wait until engine_stability(elist) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime), vrT, ship:mass, f0, final_std_throttle).
+            until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime), vrT, lo_af1, lo_af2, T2) {wait 0.}
         }
     }
-    lock lo_std_throttle to max(thro_min, min(final_std_throttle, ship:mass * (g0+_extra_g) / f0)).
-    local throttle_target to simple_get_throttle(lo_std_throttle, thro_min).
+    local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).
+    local throttle_target to simple_get_throttle(__new_control[1], thro_min).
     lock throttle to throttle_target.
     set ship:control:fore to 0.
     local _target_attitude to get_target_steering(lo_fvec, target_rotation).
     lock steering to _target_attitude.
-    until (_height < 0.1 or ((not add_approach_phase) and abs(ship:verticalspeed) < 0.1)) {
+    until (_height < 0.2 or ((not add_approach_phase) and ship:verticalspeed > vrT - 0.05)) {
         if (break_guidance_cycle) return.
-        local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, lo_std_throttle).
+        set __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).
         set _target_attitude to get_target_steering(__new_control[0], target_rotation).
         set throttle_target to simple_get_throttle(__new_control[1], thro_min).
         wait 0.  // wait until next physical tick
     }
     lock steering to get_target_steering(up:forevector, target_rotation).
     lock throttle to 0.
-    wait until _height < 0.1 or (break_guidance_cycle).
+    wait until _height < 0.2 or (break_guidance_cycle).
     wait 0.2.
     unlock steering.
     unlock throttle.
@@ -526,6 +551,8 @@ function main {
             set done to true.
             set guidance_active to false.
         }
+        unlock steering.
+        unlock throttle.
     }
     clearGuis().
 }
