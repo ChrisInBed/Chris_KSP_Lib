@@ -125,3 +125,27 @@ function mintegral {
     set res to res * (interval / 3) + residue * interval.
     return res.
 }
+
+function mheadingangle {
+    parameter lat1, lon1.
+    parameter lat2, lon2.
+
+    local dlon to lon2 - lon1.
+    return arcTan2(
+        sin(dlon) * cos(lat2),
+        cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dlon)
+    ).
+}
+
+function mlinearInterpolation {
+    parameter xseq.
+    parameter yseq.
+    parameter xx.
+
+    local n to xseq:length.
+    if (xx <= xseq[0]) return yseq[0].
+    from {local i to 1.} until i = n step {set i to i+1.} do {
+        if (xx < xseq[i]) return yseq[i-1] + (yseq[i] - yseq[i-1]) * (xx - xseq[i-1]) / (xseq[i] - xseq[i-1]).
+    }
+    return yseq[n-1].
+}

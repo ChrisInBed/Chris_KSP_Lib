@@ -21,10 +21,22 @@ function atm_get_LD_at {
     parameter _speed.
     parameter _altitude.
 
-    local unitV to (R(_AOA, 0, 0)*ship:facing):forevector.
-    local unitL to (R(_AOA-90, 0, 0)*ship:facing):forevector.
+    local unitV to angleAxis(_AOA, ship:facing:starvector)*ship:facing:forevector.
+    local unitL to angleAxis(_AOA-90, ship:facing:starvector)*ship:facing:forevector.
     local forcevec to addons:far:aeroforceat(_altitude, unitV * _speed).
     local Lforce to vdot(forcevec, unitL).
     local Dforce to -vdot(forcevec, unitV).
     return list(Lforce, Dforce).
+}
+
+function atm_get_CLD_at {
+    parameter _AOA.
+    parameter _speed.
+    parameter _altitude.
+
+    local LD to atm_get_LD_at(_AOA, _speed, _altitude).
+    local area to addons:far:REFAREA.
+    local rho to atm_get_density_at_altitude(_altitude).
+    local _factor to 0.5 * rho * area * _speed * _speed * 1e-3.
+    return list(LD[0]/_factor, LD[1]/_factor).
 }

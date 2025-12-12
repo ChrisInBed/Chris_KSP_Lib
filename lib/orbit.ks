@@ -97,6 +97,31 @@ function get_orbit_vecVR_at_theta {
     return list(vecV, vecR).
 }
 
+function get_orbit_element_from_VR {
+    parameter vecR.
+    parameter vecV.
+    parameter mu.
+
+    local rr to vecR:mag.
+    local vv to vecV:mag.
+    local vecH to vCrs(vecV, vecR).
+    local vecE to vCrs(vecH, vecV)/mu - vecR / rr.
+    local ecc to vecE:mag.
+    local erg to 0.5*vv^2 - mu/rr.
+    local sma to -mu/erg*0.5.
+    local inc to arcCos(-vecH:z / vecH:mag).
+    local TA to arcCos(vDot(vecE, vecR) / (ecc * rr)).
+    if (vDot(vecR, vecV) < 0) {
+        set TA to 360 - TA.
+    }
+    return lexicon(
+        "sma", sma,
+        "ecc", ecc,
+        "inc", inc,
+        "TA", TA
+    ).
+}
+
 function get_ground_vecR_at_time {
     parameter tt.
     parameter vecRref.
