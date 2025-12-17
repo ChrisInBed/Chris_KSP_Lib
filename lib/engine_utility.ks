@@ -7,6 +7,7 @@ function get_engines_info {
 	local _ullage to false.
 	local _number to 0.
 	local _spooluptime to 0.
+	local _facing to ship:facing.
 	for e in elist {
 		set _number to _number + 1.
 		set _thrustvec to _thrustvec + e:possiblethrust * e:facing:vector.
@@ -22,9 +23,17 @@ function get_engines_info {
 		}
 	}
 	local _thrust to _thrustvec:mag.
-	if _thrust < 1e-4 return lexicon("thrust", _thrust, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", false, "spooluptime", 0.0).
+	// get rotation from ship facing to thrust vector
+	local _topvector to vCrs(_thrustvec, _facing:starvector):normalized.
+	local _RotT to lookDirUp(_thrustvec, _topvector).
+	local _RotT2S to _facing * _RotT:inverse.
+	local T2S to {
+		parameter _T.
+		return _T*_RotT:inverse*_RotT2S*_RotT.
+	}.
+	if _thrust < 1e-4 return lexicon("number", _number, "T2S", T2S, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", false, "spooluptime", 0.0).
 	set _Isp to _thrust / _Isp.
-	return lexicon("number", _number, "thrust", _thrust, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", _ullage, "spooluptime", _spooluptime).
+	return lexicon("number", _number, "T2S", T2S, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", _ullage, "spooluptime", _spooluptime).
 }
 
 function need_ullage {
