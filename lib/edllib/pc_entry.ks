@@ -301,6 +301,7 @@ function entry_predictor {
         "msg", "Prediction did not end at terminal condition, status: " + predRes["status"]
     ).
     local yf to predRes["finalState"].
+    set yf[1] to yf[1] * sin(entry_heading_tol) / (entry_heading_tol/180*constant:pi + 1e-6).  // correction for crossrange
     local unitRf to angleAxis(yf[1], -unitUy) * unitRref.
     local vecRf to unitRf * yf[0].
     local vrf to yf[2] * sin(yf[3]).
