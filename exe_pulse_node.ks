@@ -44,7 +44,7 @@ set mymaxthrust to enginfo:thrust.
 set Isp to enginfo:ISP.
 set minthrottle to enginfo:minthrottle.
 set ullage to enginfo:ullage.
-set T2S to enginfo:T2S.
+set TiS to enginfo:TiS.
 
 if ullage {
 	set ullage_time to 1.
@@ -77,7 +77,7 @@ print "acceleration time = " + burntime.
 
 function get_target_attitude {
 	parameter vecT.
-	return T2S(lookDirUp(vecT, vXcl(vecT, prograde:upvector)+vCrs(vecT, prograde:starvector))).
+	return lookDirUp(vecT, vXcl(vecT, prograde:upvector)+vCrs(vecT, prograde:starvector)) * TiS.
 }
 
 if P_guidance {
@@ -110,7 +110,7 @@ when true then {
 	return _IntFlag.
 }
 print "Fire".
-activate_engines(elist).
+activate_engines(elist, ullage_time).
 wait until _VI >= _targetVI - _maxacc * 0.1.
 // a mini P-loop
 set _VI0 to _VI.

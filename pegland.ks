@@ -31,6 +31,7 @@ declare global desRT to 0.
 declare global desLT to 0.
 declare global desVRT to 0.
 declare global desVLT to 0.
+declare global TiS to R(0,0,0).  // Engine:facing:inverse * Ship:facing, default to be I matrix
 declare global f0 to 0.
 declare global ve to 0.
 declare global thro_min to 0.
@@ -52,6 +53,7 @@ declare global unitUy to V(0, 0, 0).
 declare global etaref to 0.
 declare global hudtextsize to 15.
 declare global hudtextcolor to RGB(22/255, 255/255, 22/255).
+set steeringManager:showfacingvectors to true.
 
 function init_print {
     // line 1~10: target position
@@ -139,6 +141,7 @@ function set_engine_parameters {
         hudtext("No thrust available", 4, 2, hudtextsize, hudtextcolor, false).
         return.
     }
+    set TiS to enginfo:TiS.
     set f0 to enginfo:thrust.
     set ve to enginfo:ISP * 9.81.
     set thro_min to enginfo:minthrottle.
@@ -175,7 +178,7 @@ function get_target_steering {
     parameter target_rotation.
     local topvec to vCrs(burnvec, unitUy):normalized.
     set topvec to angleAxis(target_rotation, burnvec) * topvec.
-    return lookDirUp(burnvec, topvec).
+    return lookDirUp(burnvec, topvec) * TiS.
 }
 
 // action group 10 is for reset engine and target information
@@ -291,10 +294,10 @@ function phase_descent {
     }
     print "Braking start.                             " AT(0,12).
     set guidance_status to "descent".
-    set ship:control:fore to 1.
+    set ship:control:translation to TiS:inverse * V(0, 0, 1).  // ullage control
     wait ullage_time.
     lock throttle to throttle_target.
-    set ship:control:fore to 0.
+    set ship:control:translation to V(0,0,0).  // disable ullage control
     local _time_begin to time:seconds.
     lock lo_tt to time:seconds - _time_begin.
 
@@ -475,14 +478,14 @@ function phase_final {
             // waiting for ignition
             lock throttle to 0.
             until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2) {wait 0.}
-            set ship:control:fore to 1.
+            set ship:control:translation to TiS:inverse * V(0, 0, 1).  // ullage control
             until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime), vrT, lo_af1, lo_af2, T2) {wait 0.}
         }
     }
     local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).
     local throttle_target to simple_get_throttle(__new_control[1], thro_min).
     lock throttle to throttle_target.
-    set ship:control:fore to 0.
+    set ship:control:translation to V(0,0,0).  // disable ullage control
     local _target_attitude to get_target_steering(lo_fvec, target_rotation).
     lock steering to _target_attitude.
     until (_height < 0.2 or ((not add_approach_phase) and ship:verticalspeed > vrT - 0.05)) {

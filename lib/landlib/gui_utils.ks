@@ -278,14 +278,18 @@ function gui_make_peglandgui {
     declare global gui_settings_engine_button_box1 to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_current_button to gui_settings_engine_button_box1:addbutton("current engine").
     set gui_settings_engine_current_button:onclick to {
-        local enginfo to get_engines_info(get_active_engines()).
+        local elist to get_active_engines().
+        local enginfo to get_engines_info(elist).
         gui_set_engine_info(enginfo).
+        set_engine_parameters(elist).
     }.
     declare global gui_settings_engine_search_engine to gui_settings_engine_button_box1:addbutton("search label ").
     declare global gui_settings_engine_search_engine_text to gui_settings_engine_button_box1:addtextfield("descent").
     set gui_settings_engine_search_engine:onclick to {
-        local enginfo to get_engines_info(search_engine(gui_settings_engine_search_engine_text:text)).
+        local elist to search_engine(gui_settings_engine_search_engine_text:text).
+        local enginfo to get_engines_info(elist).
         gui_set_engine_info(enginfo).
+        set_engine_parameters(elist).
     }.
     declare global gui_settings_engine_thrust_box to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_thrust_label to gui_settings_engine_thrust_box:addlabel("Thrust (kN) ").

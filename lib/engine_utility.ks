@@ -26,14 +26,10 @@ function get_engines_info {
 	// get rotation from ship facing to thrust vector
 	local _topvector to vCrs(_thrustvec, _facing:starvector):normalized.
 	local _RotT to lookDirUp(_thrustvec, _topvector).
-	local _RotT2S to _facing * _RotT:inverse.
-	local T2S to {
-		parameter _T.
-		return _T*_RotT:inverse*_RotT2S*_RotT.
-	}.
-	if _thrust < 1e-4 return lexicon("number", _number, "T2S", T2S, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", false, "spooluptime", 0.0).
+	local TiS to _RotT:inverse * _facing.
+	if _thrust < 1e-4 return lexicon("number", _number, "TiS", TiS, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", false, "spooluptime", 0.0).
 	set _Isp to _thrust / _Isp.
-	return lexicon("number", _number, "T2S", T2S, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", _ullage, "spooluptime", _spooluptime).
+	return lexicon("number", _number, "TiS", TiS, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", _ullage, "spooluptime", _spooluptime).
 }
 
 function need_ullage {
@@ -67,16 +63,20 @@ function print_engines_info {
 
 function activate_engines {
 	parameter _engs.
-	if need_ullage(_engs) {
+	parameter ullage_time to 0.
+	parameter no_ullage_check is false.
+	if (not no_ullage_check) and need_ullage(_engs) {
 		RCS ON.
-		set ship:control:fore to 1.
+		local vecT to get_engines_info(_engs):thrustVec.
+		activate_RCS_ullage(_engs, 1.0).
+		wait ullage_time.
 		wait until engine_stability(_engs) > 0.999.
 	}
 	lock throttle to 1.
 	for e in _engs {
 		e:activate().
 	}
-	set ship:control:fore to 0.
+	deactivate_RCS_ullage().
 }
 
 function deactivate_engines {
@@ -89,6 +89,7 @@ function deactivate_engines {
 function search_engine {
 	// return the engine list that contains the target name tag
 	parameter P_ENGINE_TAG.
+	local elist to list().
 	list engines in elist.
 	local matched_engines to list().
 	for e in elist {
@@ -98,6 +99,7 @@ function search_engine {
 }
 
 function get_active_engines {
+	local elist to list().
 	list engines in elist.
 	local matched_engines to list().
 	for e in elist {
@@ -122,6 +124,7 @@ function get_burn_time {
 
 function engine_stage_check {
 	if not stage:ready { return false. }
+	local elist to list().
 	list engines in elist.
 	if elist:length = 0 { return false. }
 	for e in elist {
@@ -186,4 +189,17 @@ function simple_get_throttle {
 	parameter min_thro.
 	if (min_thro > 0.999) {return 1.}
 	return max(0.01, min(1, (real_thro - min_thro) / (1 - min_thro))).
+}
+
+function activate_RCS_ullage {
+	parameter elist.
+	parameter strength.  // ullage strength 0~1
+	RCS ON.
+	local TiS to get_engines_info(elist):TiS.
+	set ship:control:translation to TiS:inverse * V(0, 0, strength).
+}
+
+function deactivate_RCS_ullage {
+	RCS OFF.
+	set ship:control:translation to V(0,0,0).
 }
