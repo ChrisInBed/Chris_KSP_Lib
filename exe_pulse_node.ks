@@ -44,6 +44,7 @@ set mymaxthrust to enginfo:thrust.
 set Isp to enginfo:ISP.
 set minthrottle to enginfo:minthrottle.
 set ullage to enginfo:ullage.
+set TiS to enginfo:TiS.
 
 if ullage {
 	set ullage_time to 1.
@@ -54,6 +55,7 @@ else {
 
 set nd to nextNode.
 set _targetVI to nd:deltav:mag.
+print "deltaV = " + _targetVI.
 if P_burntime > 0 {
 	set burntime to P_burntime.
 }
@@ -73,13 +75,18 @@ print nd.
 print "deltaV = " + _targetVI.
 print "acceleration time = " + burntime.
 
+function get_target_attitude {
+	parameter vecT.
+	return lookDirUp(vecT, vXcl(vecT, prograde:upvector)+vCrs(vecT, prograde:starvector)) * TiS.
+}
+
 if P_guidance {
 	wait until nd:eta <= 40 + burntime/2 + ullage_time.
 	SAS OFF.
 	RCS ON.
 	print "Aligning pose".
-	lock steering to nd:deltav.
-	wait until vAng(ship:facing:vector, nd:deltav) < 0.5.
+	lock steering to get_target_attitude(nd:deltav).
+	wait until steeringManager:angleerror < 0.5.
 	print "Pose aligned".
 }
 wait until nd:eta <= burntime/2 + ullage_time.
@@ -103,12 +110,12 @@ when true then {
 	return _IntFlag.
 }
 print "Fire".
-activate_engines(elist).
+activate_engines(elist, ullage_time).
 wait until _VI >= _targetVI - _maxacc * 0.1.
 // a mini P-loop
 set _VI0 to _VI.
 if _VI0 < _targetVI {
-	lock throttle to max(minthrottle+0.001, min(1,  (_targetVI - _VI) / (_targetVI - _VI0))).
+	lock throttle to max(0.01, min(1,  (_targetVI - _VI) / (_targetVI - _VI0))).
 	wait until _VI >= _targetVI.
 }
 lock throttle to 0.

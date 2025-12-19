@@ -57,3 +57,11 @@
 
 - Optimize final phase landing strategy to adopt a 2-stage constant thrust approach, achieving fuel optimal. This 
   version is feasible in non-targeted landing senario when the height or speed is large.
+
+## 2025/12/19 v0.8.3
+
+- Optimized flight control, aligning engine thrust vector rather than ship facing to maneuver direction. Influenced
+  scripts:
+  - `exe_node.ks`
+  - `exe_pulse_node.ks`
+  - `pegland.ks`

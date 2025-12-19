@@ -1,5 +1,6 @@
 function engine_stage_check {
 	if not stage:ready { return false. }
+	local elist to list().
 	list engines in elist.
 	if elist:length = 0 { return false. }
 	for e in elist {
