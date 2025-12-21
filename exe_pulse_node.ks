@@ -86,7 +86,7 @@ if P_guidance {
 	RCS ON.
 	print "Aligning pose".
 	lock steering to get_target_attitude(nd:deltav).
-	wait until steeringManager:angleerror < 0.5.
+	wait until vAng(nd:deltav, (ship:facing * TiS:inverse):forevector) < 0.5.
 	print "Pose aligned".
 }
 wait until nd:eta <= burntime/2 + ullage_time.
