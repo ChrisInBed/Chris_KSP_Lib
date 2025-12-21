@@ -1,194 +1,101 @@
-parameter P_VF to 650.
-parameter P_HF to 25000.
-parameter P_DIST to 20000.
-parameter P_BANKF to 0.
-
-runOncePath("0:/lib/atm_utils.ks").
-runOncePath("0:/lib/edllib/pc_entry.ks").
-runOncePath("0:/lib/edllib/flightcontrol.ks").
-runOncePath("0:/lib/orbit.ks").
+// flight controller test
+declare global FAR to addons:FAR.
 set config:IPU to 1000.
-// global varibables
-declare global guidance_stage to "inactive".
-// declare global g0 to body:mu / body:radius^2.
-declare global target_geo to get_target_geo().
-declare global entry_vf to P_VF.
-declare global entry_hf to P_HF.
-declare global entry_dist to P_DIST.
-declare global entry_bank_f to P_BANKF.
 
-// Flight controller
-declare global kclcontroller to KCLController_Init().
-declare global enable_pitch_torque to true.
-declare global enable_yaw_torque to true.
-declare global enable_roll_torque to true.
-
-function init_print {
-    // line 1~10: target position
-    // line 11~20: guidance state
-    clearScreen.
-    print "Entry guidance" AT(0,0).
-    print "============= Configuration ============" AT(0,1).
-    print "================ State =================" AT(0,11).
-    print "================ Result ================" AT(0,21).
-}
-
-function initialize_guidance {
-    // set all state variables to initial values
-    entry_initialize().
-    entry_set_target(entry_hf, entry_vf, entry_dist, target_geo).
-    entry_set_profile(
-        list(15e3, 40e3, 70e3, 90e3), // altitude profile in meters
-        list(400, 2000, 6000, 8000), // speed profile in m/s
-        list(13, 13, 25, 32) // AOA profile in degrees
+// Kinetic Control Low attitude controller for high AOA atmospheric flight
+// Input target Bank, AOA, Sideslip angles
+// Output torque commands (roll, pitch, yaw)
+function KCLController_Init {
+    return lexicon(
+        "RotationRateController", RotationRateController_Init(
+            1, 10, 0.3,    // AOA
+            1, 15, 0.3,    // Bank
+            1, 10, 0.3     // Sideslip
+        ),
+        "RollTorqueController", TorqueController_Init(0.2, 0.0005, 0.05, 1, 0),
+        "PitchTorqueController", TorqueController_Init(0.2, 0.0005, 0.1, 1, 0),
+        "YawTorqueController", TorqueController_Init(0.2, 0.0005, 0.05, 1, 0)
     ).
-    print "CL profile: " + arr2str(AFS:Clsamples) AT(0,3).
-    print "CD profile: " +  arr2str(AFS:Cdsamples) AT(0,4).
-    set AFS:mu to body:mu.
-    set AFS:R to body:radius.
-    set AFS:rho0 to atm_get_sealevel_density().
-    set AFS:hs to atm_get_scale_height().
-    set AFS:mass to ship:mass.
-    set AFS:area to FAR:REFAREA.
-    set AFS:bank_max to 90.  // Maximum stable bank angle
-
-    set AFS:Qdot_max to 6e5.
-    set AFS:acc_max to 25.
-    set AFS:dynp_max to 10e3.
-    set entry_heading_tol to 10.
-
-    set AFS:L_min to 0.5.
-    set AFS:k_QEGC to 1.
-    set AFS:k_C to 5.
-    set AFS:t_reg to 90.
 }
 
-function arr2str {
-    parameter arr.
-    parameter rounding to 1.
-    local str to "".
-    from {local i to 0.} until i = arr:length() step {set i to i+1.} do {
-        set str to str + round(arr[i], rounding).
-        if (i < arr:length() - 1) {
-            set str to str + ", ".
-        }
-    }
-    return str.
+function KCLController_GetControl {
+    parameter this.
+    parameter angleTarget.  // vector: (Bank, AOA, Sideslip)
+
+    local rateCmd to RotationRateController_GetControll(this["RotationRateController"], angleTarget).
+    // Calculate current roll, pitch, yaw rate
+    local rateCurrent to ship:angularvel * 180/constant:pi.
+    set rateCurrent to ship:facing:inverse * rateCurrent.
+    local rollRate to -rateCurrent:z.
+    local pitchRate to -rateCurrent:x.
+    local yawRate to rateCurrent:y.
+    // Get torque commands
+    local rollTorqueCmd to TorqueController_GetControl(this["RollTorqueController"], rateCmd:x, rollRate).
+    local pitchTorqueCmd to TorqueController_GetControl(this["PitchTorqueController"], rateCmd:y, pitchRate).
+    local yawTorqueCmd to TorqueController_GetControl(this["YawTorqueController"], rateCmd:z, yawRate).
+    return V(rollTorqueCmd, pitchTorqueCmd, yawTorqueCmd).
 }
 
-function entry_phase {
-    set guidance_stage to "preparation".
-    // initialize guidance
-    print "Preparing entry guidance.         " AT(0, 12).
-    local startTime to time:seconds.
-    local initInfo to entry_initialize_guidance(0, -body:position, ship:velocity:orbit, 20, entry_bank_f).
-    if (not initInfo["ok"]) {
-        print "Error: (" + initInfo["status"] + ")" + initInfo["msg"] AT(0, 30).
-        return.
-    }
-    local gst to initInfo["gst"].
-    // glide to entry interface
-    set guidance_stage to "gliding".
-    when (true) then {
-        local _cd to startTime+initInfo["time_entry"]-time:seconds.
-        local msg to "Time to entry = " + round(_cd) + " s.      ".
-        print msg AT(0, 13).
-        return _cd >= 0.
-    } 
-    wait until time:seconds - startTime > initInfo["time_entry"] - 60 or ship:altitude < body:atm:height.
-    // wait until ship:altitude < body:atm:height.
-    set guidance_stage to "entry".
-    RCS ON.
-    local _control to entry_get_control(-body:position, ship:velocity:surface, gst).
-    // Inner loop
-    when (guidance_stage = "entry") then {
-        set _control to entry_get_control(-body:position, ship:velocity:surface, gst).
-        local _torqueCmd to KCLController_GetControl(kclcontroller, V(_control["bank"], _control["AOA"], 0)).
-        if (enable_roll_torque) set ship:control:pilotrolltrim to _torqueCmd:x.
-        if (enable_pitch_torque) set ship:control:pilotpitchtrim to _torqueCmd:y.
-        if (enable_yaw_torque) set ship:control:pilotyawtrim to _torqueCmd:z.
-        print "Bank = " + round(_control["bank"]) + " deg; " +
-                "AOA = " + round(_control["AOA"]) + " deg; " AT(0, 16).
-        return true.
-    }
-
-    // Outer loop: update guidance state
-    local lock ee to entry_get_spercific_energy(body:position:mag, ship:velocity:surface:mag).
-    local lock ef to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
-    // step once before entering the loop
-    until (ee < ef) {
-        local stepInfo to entry_step_guidance(0, -body:position, ship:velocity:surface, gst).
-        if (not stepInfo["ok"]) {
-            print "Error: (" + stepInfo["status"] + ")" + stepInfo["msg"] AT(0, 30).
-        }
-        else {
-            print "bank_i = " + round(gst["bank_i"]) + " deg; " + "T = " + round(stepInfo["time_final"]) + " s    " AT(0, 13).
-            print "range error = " + round(body:radius*stepInfo["error"]/180*constant:pi) + " m    " AT(0, 14).
-            print "vf = " + round(stepInfo["vf"]) + " m/s; " + "hf = " + round(stepInfo["rf"] - body:radius) + " m    " AT(0, 15).
-            print "Max Qdot = " + round(stepInfo["maxQdot"]/1e3, 1) + " kW/m^2 @" + round(stepInfo["maxQdotTime"]) + " s    " AT(0, 17).
-            print "Max acc = " + round(stepInfo["maxAcc"]/9.81, 2) + " g @" + round(stepInfo["maxAccTime"]) + " s    " AT(0, 18).
-            print "Max dynp = " + round(stepInfo["maxDynP"]/1e3, 1) + " kPa @" + round(stepInfo["maxDynPTime"]) + " s    " AT(0, 19).
-            draw_vecR_final(stepInfo["vecR_final"], vecRtgt).
-            if (stepInfo["time_final"] < 20) break.  // Stop updating guidance parameters
-        }
-        wait 0.2.
-    }
-    until ee < ef {
-        print "Left Energy = " + round((ee - ef)*1e-3) + " kJ         " AT(0, 13).
-        wait 0.2.
-    }
-    fc_deactivate().
-}
-
-function main {
-    // initialize the guidance system
-    init_print().
-    initialize_guidance().
-    local _gui to gui_make_entrylandgui().
-    // start entry phase
-    entry_phase().
-    _gui:hide().
-    // print result
-    print "Entry guidance completed." AT(0, 21).
-    print "Final position: " + ship:position AT(0, 22).
-    print "Final velocity: " + ship:velocity AT(0, 23).
-}
-
-main().
-
-function __attitude_from_AOA_Bank {
-    parameter _AOA.
-    parameter _Bank.
-    // AOS = 0
-    local target_attitude to angleAxis(-_Bank, srfprograde:forevector) * srfPrograde.
-    set target_attitude to angleAxis(-_AOA, target_attitude:starvector) * target_attitude.
-    return target_attitude.
-}
-
-function draw_vecR_final {
-    parameter vecRf.
-    parameter vecRtgt.
-
-    set _vecRfDraw to vecDraw(
-        {return body:position+vecRf:normalized*body:radius.},
-        {return body:position + vecRf.},
-        RGB(0, 255, 0), "Final", 1.0, true
+// Rate controller: input (Bank, AOA, Sideslip), output body rotation rate (roll, pitch, yaw)
+function RotationRateController_Init {
+    parameter KAOA, UpperAOA, EpAOA.
+    parameter KBank, UpperBank, EpBank.
+    parameter KSideslip, UpperSideslip, EpSideslip.
+    return lexicon(
+        "KAOA", KAOA, "UpperAOA", UpperAOA, "EpAOA", EpAOA,
+        "KBank", KBank, "UpperBank", UpperBank, "EpBank", EpBank,
+        "KSideslip", KSideslip, "UpperSideslip", UpperSideslip, "EpSideslip", EpSideslip
     ).
-    set _vecRtgtDraw to vecDraw(
-        {return body:position + vecRtgt:normalized * body:radius.},
-        {return body:position + vecRtgt.},
-        RGB(255, 0, 0), "Target", 1.0, true
+}
+
+function RotationRateController_GetControll {
+    parameter this.
+    parameter angleTarget.  // vector: (Bank, AOA, Sideslip)
+
+    // Get current angles
+    local _facing to ship:facing.
+    local _prog to srfPrograde.
+    local _up to up.
+    local BankErr to arcTan2(-vDot(_up:forevector, _facing:starvector), vDot(_up:forevector, _facing:upvector)) - angleTarget:x.
+    if (abs(BankErr) < this["EpBank"]) set BankErr to 0.
+    // local AOACurrent to arcTan2(-vDot(_prog:forevector, _facing:upvector), vDot(_prog:forevector, _facing:forevector)).
+    local AOACurrent to FAR:AOA.
+    local AOAErr to AOACurrent - angleTarget:y.
+    if (abs(AOAErr) < this["EpAOA"]) set AOAErr to 0.
+    // local SideslipErr to arcSin(vDot(_prog:forevector, _facing:starvector)) - angleTarget:z.
+    local SideslipErr to FAR:AOS - angleTarget:z.
+    if (abs(SideslipErr) < this["EpSideslip"]) set SideslipErr to 0.
+
+    // Rotation rates (wind frame)
+    local pitchRateCmd to max(-this["UpperAOA"], min(this["UpperAOA"], -AOAErr*this["KAOA"])).
+    local bankRateCmd to max(-this["UpperBank"], min(this["UpperBank"], -BankErr*this["KBank"])).
+    local sideslipRateCmd to max(-this["UpperSideslip"], min(this["UpperSideslip"], -SideslipErr*this["KSideslip"])).
+    print "Rate(airflow): Bank = " + round(bankRateCmd, 2) + " AOA = " + round(pitchRateCmd, 2) + " Side = " + round(sideslipRateCmd, 2) AT(0, 6).
+
+    // transform to body frame
+    local cosAOA to cos(AOACurrent).
+    local sinAOA to sin(AOACurrent).
+    // local rollRateCmd to bankRateCmd * cosAOA + sideslipRateCmd * sinAOA.
+    local rollRateCmd to bankRateCmd * cosAOA.
+    local yawRateCmd to bankRateCmd * sinAOA - sideslipRateCmd * cosAOA.
+    print "Rate(body): Roll = " + round(rollRateCmd, 2) + " Pitch = " + round(pitchRateCmd, 2) + " Yaw = " + round(yawRateCmd, 2) AT(0, 7).
+
+    return V(rollRateCmd, pitchRateCmd, yawRateCmd).
+}
+
+// Roll, Pitch, Yaw torque controllers: Input target rotation rate, output torque command
+function TorqueController_Init {
+    parameter Kp, Ki, Kd, Upper, Ep.
+    return lexicon(
+        "PID", pidLoop(Kp, Ki, Kd, -Upper, Upper, Ep)
     ).
-    // set _vecRfDraw to vecDraw(
-    //     {return body:position.},
-    //     {return body:position + vecRf.},
-    //     RGB(0, 255, 0), "Final", 1.0, true
-    // ).
-    // set _vecRtgtDraw to vecDraw(
-    //     {return body:position + vecRtgt:normalized * body:radius.},
-    //     {return body:position + vecRtgt.},
-    //     RGB(255, 0, 0), "Target", 1.0, true
-    // ).
+}
+
+function TorqueController_GetControl {
+    parameter this.
+    parameter rateTarget, rateCurrent.
+    set this["PID"]:setpoint to rateTarget.
+    return this["PID"]:update(time:seconds, rateCurrent).
 }
 
 function get_bank {
@@ -199,7 +106,7 @@ function get_bank {
     ).
 }
 
-function gui_make_entrylandgui {
+function make_gui {
     declare global gui_maingui is GUI(600, 800).
     set gui_maingui:style:hstretch to true.
 
@@ -217,14 +124,46 @@ function gui_make_entrylandgui {
         set done to true.
     }.
 
+    // Target angles section
+    gui_maingui:addlabel("<b>Target Angles</b>").
+    
+    // AOA target
+    declare global gui_aoa_box to gui_maingui:addhbox().
+    declare global gui_aoa_label to gui_aoa_box:addlabel("AOA Target (deg):").
+    set gui_aoa_label:style:width to 150.
+    declare global gui_aoa_input to gui_aoa_box:addtextfield(AOAtarget:tostring).
+    set gui_aoa_input:onconfirm to {
+        parameter newval.
+        set AOAtarget to newval:tonumber.
+    }.
+
+    // Bank target
+    declare global gui_bank_box to gui_maingui:addhbox().
+    declare global gui_bank_label to gui_bank_box:addlabel("Bank Target (deg):").
+    set gui_bank_label:style:width to 150.
+    declare global gui_bank_input to gui_bank_box:addtextfield(Banktarget:tostring).
+    set gui_bank_input:onconfirm to {
+        parameter newval.
+        set Banktarget to newval:tonumber.
+    }.
+
+    // AOS target
+    declare global gui_aos_box to gui_maingui:addhbox().
+    declare global gui_aos_label to gui_aos_box:addlabel("AOS Target (deg):").
+    set gui_aos_label:style:width to 150.
+    declare global gui_aos_input to gui_aos_box:addtextfield(AOStarget:tostring).
+    set gui_aos_input:onconfirm to {
+        parameter newval.
+        set AOStarget to newval:tonumber.
+    }.
+
     gui_maingui:addspacing(10).
 
     // Rotation Rate Controller Parameters
     gui_maingui:addlabel("<b>Rotation Rate Controller</b>").
 
     declare global gui_enable_box to gui_maingui:addvbox().
-    declare global gui_enable_pitch_box to gui_enable_box:addhbox().
-    declare global gui_enable_pitch_button to gui_enable_pitch_box:addcheckbox("Enable Pitch Control", true).
+    declare global gui_enable_pitch_button to gui_enable_box:addcheckbox("Enable Pitch Control", true).
     set gui_enable_pitch_button:ontoggle to {
         parameter newval.
         set enable_pitch_torque to newval.
@@ -232,13 +171,7 @@ function gui_make_entrylandgui {
             set ship:control:pilotpitchtrim to 0.
         }
     }.
-    // declare global gui_enable_pitchRCS_button to gui_enable_pitch_box:addcheckbox("Use RCS", true).
-    // set gui_enable_pitchRCS_button:ontoggle to {
-    //     parameter newval.
-    //     set RCS:pitchenabled to newval.
-    // }.
-    declare global gui_enable_roll_box to gui_enable_box:addhbox().
-    declare global gui_enable_yaw_button to gui_enable_roll_box:addcheckbox("Enable Yaw Control", true).
+    declare global gui_enable_yaw_button to gui_enable_box:addcheckbox("Enable Yaw Control", true).
     set gui_enable_yaw_button:ontoggle to {
         parameter newval.
         set enable_yaw_torque to newval.
@@ -246,13 +179,7 @@ function gui_make_entrylandgui {
             set ship:control:pilotyawtrim to 0.
         }
     }.
-    // declare global gui_enable_yawRCS_button to gui_enable_roll_box:addcheckbox("Use RCS", true).
-    // set gui_enable_yawRCS_button:ontoggle to {
-    //     parameter newval.
-    //     set RCS:yawenabled to newval.
-    // }.
-    declare global gui_enable_roll_box to gui_enable_box:addhbox().
-    declare global gui_enable_roll_button to gui_enable_roll_box:addcheckbox("Enable Roll Control", true).
+    declare global gui_enable_roll_button to gui_enable_box:addcheckbox("Enable Roll Control", true).
     set gui_enable_roll_button:ontoggle to {
         parameter newval.
         set enable_roll_torque to newval.
@@ -260,11 +187,6 @@ function gui_make_entrylandgui {
             set ship:control:pilotrolltrim to 0.
         }
     }.
-    // declare global gui_enable_rollRCS_button to gui_enable_roll_box:addcheckbox("Use RCS", true).
-    // set gui_enable_rollRCS_button:ontoggle to {
-    //     parameter newval.
-    //     set RCS:rollenabled to newval.
-    // }.
     
     // AOA rate controller
     gui_maingui:addlabel("AOA Rate").
@@ -404,5 +326,37 @@ function gui_make_entrylandgui {
     }.
 
     gui_maingui:show().
-    return gui_maingui.
 }
+
+clearScreen.
+declare global AOAtarget to 0.
+declare global Banktarget to 0.
+declare global AOStarget to 0.
+lock steering to srfprograde.
+wait until abs(steeringManager:angleerror) < 0.1 and abs(steeringManager:rollerror) < 0.1 and abs(ship:angularvel:mag) < 0.005.
+wait 5.
+print "Switch to KCL attitude control" AT(0, 1).
+declare global kclcontroller to KCLController_Init().
+declare done to false.
+make_gui().
+unlock steering.
+
+declare global enable_pitch_torque to true.
+declare global enable_yaw_torque to true.
+declare global enable_roll_torque to true.
+until done {
+    local torqueCmd to KCLController_GetControl(kclcontroller, V(Banktarget, AOAtarget, AOStarget)).
+    if (enable_roll_torque) set ship:control:pilotrolltrim to torqueCmd:x.
+    if (enable_pitch_torque) set ship:control:pilotpitchtrim to torqueCmd:y.
+    if (enable_yaw_torque) set ship:control:pilotyawtrim to torqueCmd:z.
+    print "       Target      Current    " AT(0, 2).
+    print "Bank  " + round(Banktarget, 1) + "   " + round(get_bank(), 1) + "    " AT(0, 3).
+    print "AOA   " + round(AOAtarget, 1) + "   " + round(FAR:AOA, 1) + "    " AT(0, 4).
+    print "AOS   " + round(AOStarget, 1) + "   " + round(FAR:AOS, 1) + "    " AT(0, 5).
+}
+
+unlock steering.
+set ship:control:pilotrolltrim to 0.
+set ship:control:pilotpitchtrim to 0.
+set ship:control:pilotyawtrim to 0.
+set ship:control:neutralize to true.

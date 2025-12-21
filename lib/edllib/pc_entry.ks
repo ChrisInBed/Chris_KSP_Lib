@@ -19,6 +19,7 @@ function entry_initialize {
     set AFS:hs to atm_get_scale_height().
     set AFS:mass to ship:mass.
     set AFS:area to FAR:REFAREA.
+    set AFS:bank_max to 40.  // Maximum stable bank angle
     // AOA profile and Cl, Cd profiles
     set AFS:speedsamples to list(200, 1000, 5000, 7000).
     declare global AOAProfile to list(160, 160, 160, 160).
@@ -102,7 +103,7 @@ function entry_get_control {
     )).
 
     // bank reversal
-    if (abs(psi) > entry_heading_tol) set entry_bank_reversal to (psi < 0).
+    if (abs(psi) > entry_heading_tol or abs(bank_cmd) < 0.1) set entry_bank_reversal to (psi < 0).
     if (entry_bank_reversal) set bank_cmd to -bank_cmd.
 
     // linear interpolation for AOA command
@@ -152,11 +153,11 @@ function entry_initialize_guidance {
         if (not result1["ok"]) {
             print "Entry predictor error: (" + result1["status"] + ") "
                 + result1["msg"] AT(0, 15).
-            if (result1["status"] = "TIMEOUT" and bank_i <= 89.9) {
+            if (result1["status"] = "TIMEOUT" and bank_i <= AFS:bank_max - 0.1) {
                 // This case arise when simulation time is too short
                 // or trajectory is too shallo.
                 // Here we increase bank_i and try again
-                set bank_i to 90.
+                set bank_i to AFS:bank_max.
             }
             else return lexicon("ok", false, "status", result1["status"], "msg", result1["msg"]).
         }
@@ -171,8 +172,8 @@ function entry_initialize_guidance {
             set thetaErr to result1["thetaf"] - theta_target.
             local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
             local bank_i_old to bank_i.
-            set bank_i to bank_i - thetaErr / (thetaErrDBank+1e-6).
-            set bank_i to max(0, min(90, bank_i)).
+            set bank_i to bank_i - max(-5, min(5, thetaErr / (thetaErrDBank+1e-6))).
+            set bank_i to max(0, min(AFS:bank_max, bank_i)).
             print "Iteration " + (numiter+1) + ": bank_i = "
                 + round(bank_i, 2) + " deg; theta error = "
                 + round(thetaErr, 4) + " deg." AT(0, 15).
@@ -231,8 +232,8 @@ function entry_step_guidance {
     local thetaErr to result1["thetaf"] - theta_target.
     local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
     // update gst
-    set bank_now to bank_now - thetaErr / (thetaErrDBank+1e-6).
-    set bank_now to max(0, min(90, bank_now)).
+    set bank_now to bank_now - max(-5, min(5, thetaErr / (thetaErrDBank+1e-6))).
+    set bank_now to max(0, min(AFS:bank_max, bank_now)).
     set gst["bank_i"] to bank_now.
     set gst["energy_i"] to energy_now.
 

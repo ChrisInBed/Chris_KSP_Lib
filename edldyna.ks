@@ -40,7 +40,7 @@ function initialize_guidance {
     entry_set_profile(
         list(15e3, 40e3, 70e3, 90e3), // altitude profile in meters
         list(400, 2000, 6000, 8000), // speed profile in m/s
-        list(13, 13, 25, 32) // AOA profile in degrees
+        list(10, 25, 28, 28) // AOA profile in degrees
     ).
     print "CL profile: " + arr2str(AFS:Clsamples) AT(0,3).
     print "CD profile: " +  arr2str(AFS:Cdsamples) AT(0,4).
@@ -144,10 +144,9 @@ function main {
     // initialize the guidance system
     init_print().
     initialize_guidance().
-    local _gui to gui_make_entrylandgui().
+    gui_make_entrylandgui().
     // start entry phase
     entry_phase().
-    _gui:hide().
     // print result
     print "Entry guidance completed." AT(0, 21).
     print "Final position: " + ship:position AT(0, 22).
@@ -404,5 +403,4 @@ function gui_make_entrylandgui {
     }.
 
     gui_maingui:show().
-    return gui_maingui.
 }
