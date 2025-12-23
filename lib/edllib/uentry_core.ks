@@ -59,7 +59,6 @@ function entry_set_target {
     local unitRtgt to angleAxis(-dtheta, -unitH) * unitRtarget.
     set vecRtgt to unitRtgt * (body:radius + hf).
     set AFS:target_energy to entry_get_spercific_energy(body:radius+hf, vf).
-    print "target distance = " + round((new_target_geo:position-body:position-vecRtgt):mag*1e-3, 1) + " km." AT(0, 19).
 }
 
 function entry_set_profile {

@@ -1,3 +1,7 @@
+declare global enable_roll_torque is true.
+declare global enable_pitch_torque is true.
+declare global enable_yaw_torque is true.
+declare global kclcontroller is KCLController_Init().
 // Kinetic Control Low attitude controller for high AOA atmospheric flight
 // Input target Bank, AOA, Sideslip angles
 // Output torque commands (roll, pitch, yaw)
@@ -8,9 +12,9 @@ function KCLController_Init {
             0.5, 5, 0.3,    // Bank
             0.5, 5, 0.05     // Sideslip
         ),
-        "RollTorqueController", TorqueController_Init(0.2, 0, 0.05, 1, 0),
-        "PitchTorqueController", TorqueController_Init(0.2, 0.002, 0.1, 1, 0),
-        "YawTorqueController", TorqueController_Init(0.8, 0, 0.05, 1, 0)
+        "RollTorqueController", TorqueController_Init(0.2, 0, 0.02, 1, 0),
+        "PitchTorqueController", TorqueController_Init(0.2, 0.002, 0.05, 1, 0),
+        "YawTorqueController", TorqueController_Init(0.8, 0, 0.02, 1, 0)
     ).
 }
 
@@ -30,6 +34,16 @@ function KCLController_GetControl {
     local pitchTorqueCmd to TorqueController_GetControl(this["PitchTorqueController"], rateCmd:y, pitchRate).
     local yawTorqueCmd to TorqueController_GetControl(this["YawTorqueController"], rateCmd:z, yawRate).
     return V(rollTorqueCmd, pitchTorqueCmd, yawTorqueCmd).
+}
+
+function KCLController_ApplyControl {
+    parameter this.
+    parameter angleTarget.  // vector: (Bank, AOA, Sideslip)
+    local torqueCmd to KCLController_GetControl(this, angleTarget).
+    // Apply torque commands
+    if (enable_roll_torque) set ship:control:pilotrolltrim to torqueCmd:x.
+    if (enable_pitch_torque) set ship:control:pilotpitchtrim to torqueCmd:y.
+    if (enable_yaw_torque) set ship:control:pilotyawtrim to torqueCmd:z.
 }
 
 // Rate controller: input (Bank, AOA, Sideslip), output body rotation rate (roll, pitch, yaw)
@@ -94,7 +108,7 @@ function TorqueController_GetControl {
     return this["PID"]:update(time:seconds, rateCurrent).
 }
 
-function fc_deactivate {
+function fc_DeactiveControl {
     set ship:control:neutralize to true.
     set ship:control:pilotpitchtrim to 0.
     set ship:control:pilotrolltrim to 0.
