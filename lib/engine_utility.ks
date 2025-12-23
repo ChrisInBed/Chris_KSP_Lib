@@ -200,6 +200,5 @@ function activate_RCS_ullage {
 }
 
 function deactivate_RCS_ullage {
-	RCS OFF.
 	set ship:control:translation to V(0,0,0).
 }
