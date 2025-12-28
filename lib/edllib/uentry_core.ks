@@ -171,7 +171,7 @@ function entry_initialize_guidance {
             set thetaErr to result1["thetaf"] - theta_target.
             local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
             local bank_i_old to bank_i.
-            set bank_i to bank_i - max(-5, min(5, thetaErr / (thetaErrDBank+1e-6))).
+            set bank_i to bank_i - max(-5, min(5, thetaErr / thetaErrDBank)).
             set bank_i to max(0, min(AFS:bank_max, bank_i)).
             print "Iteration " + (numiter+1) + ": bank_i = "
                 + round(bank_i, 2) + " deg; theta error = "
@@ -231,7 +231,7 @@ function entry_step_guidance {
     local thetaErr to result1["thetaf"] - theta_target.
     local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
     // update gst
-    set bank_now to bank_now - max(-5, min(5, thetaErr / (thetaErrDBank+1e-6))).
+    set bank_now to bank_now - max(-5, min(5, thetaErr / thetaErrDBank)).
     set bank_now to max(0, min(AFS:bank_max, bank_now)).
     set gst["bank_i"] to bank_now.
     set gst["energy_i"] to energy_now.

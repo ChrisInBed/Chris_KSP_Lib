@@ -111,7 +111,7 @@ function entry_phase {
             print "Max acc = " + round(stepInfo["maxAcc"]/9.81, 2) + " g @" + round(stepInfo["maxAccTime"]) + " s    " AT(0, 18).
             print "Max dynp = " + round(stepInfo["maxDynP"]/1e3, 1) + " kPa @" + round(stepInfo["maxDynPTime"]) + " s    " AT(0, 19).
             // draw_vecR_final(stepInfo["vecR_final"], vecRtgt).
-            if (stepInfo["time_final"] < 20) break.  // Stop updating guidance parameters
+            if (stepInfo["time_final"] < 60) break.  // Stop updating guidance parameters
         }
         wait 0.2.
     }
