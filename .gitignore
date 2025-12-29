@@ -1,0 +1,11 @@
+.vscode/
+**/.vs
+**/bin
+**/obj
+**/GameData
+**/packages
+**/Resources
+.local/
+
+*.pdb
+*.dll
