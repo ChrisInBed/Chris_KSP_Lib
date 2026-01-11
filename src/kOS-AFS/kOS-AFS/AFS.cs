@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Mathematics;
 
@@ -6,11 +8,12 @@ namespace AFS
 {    
     internal class SimAtmTrajArgs
     {
-        public double mu, R, rho0, hs, mass, area, bank_max;
-        public double[] speedsamples, Cdsamples, Clsamples;
+        public double mu, R, rho0, hs, mass, area, atmHeight, bank_max;
+        public double[] Energysamples, Cdsamples, Clsamples, AOAsamples;
         public double k_QEGC, k_C, t_reg, Qdot_max, acc_max, dynp_max;
         public double L_min, target_energy;
         public double predict_max_step, predict_min_step, predict_tmax;
+        public double predict_traj_dSqrtE;
         public SimAtmTrajArgs()
         {
             // initialize defaults (CEV configuration)
@@ -20,21 +23,24 @@ namespace AFS
             hs = 8500;
             mass = 6000;
             area = 12;
+            atmHeight = 140e3;
             bank_max = 40.0 *Math.PI/180.0;
-            speedsamples = new double[] { 600, 8000 };
+            Energysamples = new double[] { AFSCore.GetSpecificEnergy(mu, R+23e3, 600), AFSCore.GetSpecificEnergy(mu, R+140e3, 8000) };
             Cdsamples = new double[] { 1.28, 1.28 };
             Clsamples = new double[] { 0.39, 0.39 };
+            AOAsamples = new double[] { 15.0*Math.PI/180.0, 15.0*Math.PI/180.0 };
             k_QEGC = 1.0;
-            k_C = 1.0;
-            t_reg = 120;
+            k_C = 5.0;
+            t_reg = 90;
             Qdot_max = 5e6;
             acc_max = 3 * 9.81;
             dynp_max = 15e3;
             L_min = 0.5;
             target_energy = AFSCore.GetSpecificEnergy(mu, R+10e3, 300);
             predict_min_step = 0;
-            predict_max_step = 0.5;
-            predict_tmax = 2500;
+            predict_max_step = 1;
+            predict_tmax = 3600;
+            predict_traj_dSqrtE = 300.0;
         }
     }
     internal class BankPlanArgs
@@ -56,31 +62,37 @@ namespace AFS
             this.energy_f = energy_f;
         }
     }
-    internal class PhyState
+    internal struct PhyState
     {
         public double4 values;
-        public double r { get => values[0]; }
-		public double theta { get => values[1]; }
-        public double v { get => values[2]; }
-        public double gamma { get => values[3]; }
-        public PhyState()
-        {
-            // Initialize defaults (CEV configuration)
-            values = new double4(
-                (6371 + 140) * 1e3,
-                0,
-                8000,
-                -5.0 * Math.PI / 180.0
-            );
-        }
+
+        public double r => values[0];
+        public double theta => values[1];
+        public double v => values[2];
+        public double gamma => values[3];
+
+        // Initialize defaults (CEV configuration)
+        public static PhyState Default => new PhyState(
+            (6371 + 140) * 1e3,
+            0,
+            8000,
+            -5.0 * Math.PI / 180.0
+        );
+
         public PhyState(double r, double theta, double v, double gamma)
         {
             values = new double4(r, theta, v, gamma);
         }
+
         public PhyState(double4 newValues)
         {
             values = newValues;
         }
+    }
+    internal class PhyTraj
+    {
+        public double[] Eseq;
+        public PhyState[] states;
     }
     internal enum PredictStatus
     {
@@ -91,6 +103,7 @@ namespace AFS
         public int nsteps;
         public double t;
         public PhyState finalState;
+        public PhyTraj traj;
         public PredictStatus status;
         public double maxQdot, maxQdotTime;
         public double maxAcc, maxAccTime;
@@ -119,11 +132,22 @@ namespace AFS
 		public class Context {
             public double G, L, D, Qdot, acc, dynp;
         }
-        public static double GetBankCommand(PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
+        public static void GetAOABankCommand(PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context, out double AOA, out double Bank)
         {
             double r = state.r;
             double v = SafeValue(Math.Abs(state.v));
             double gamma = state.gamma;
+            double erg = GetSpecificEnergy(args.mu, r, v);
+
+            // Interpolate for AOA command
+            int idx = FindUpperBound(args.Energysamples, erg);
+            if (idx == 0) AOA = args.AOAsamples[0];
+            else if (idx == args.Energysamples.Length) AOA = args.AOAsamples[args.AOAsamples.Length - 1];
+            else
+            {
+                double t = (v - args.Energysamples[idx - 1]) / (args.Energysamples[idx] - args.Energysamples[idx - 1]);
+                AOA = args.AOAsamples[idx - 1] + t * (args.AOAsamples[idx] - args.AOAsamples[idx - 1]);
+            }
 
             double energy = GetSpecificEnergy(args.mu, r, v);
             double bankBase = bargs.bank_f + (bargs.bank_i - bargs.bank_f) * (energy - bargs.energy_f) / (bargs.energy_i - bargs.energy_f);
@@ -131,15 +155,13 @@ namespace AFS
 
             double rho = ComputeDensity(r, args);
             double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
-            (double Cd, double Cl) = GetAeroCoefficients(args, v);
+            GetAeroCoefficients(args, v, out double Cd, out double Cl);
             double D = aeroCoef * Cd;
             double L = aeroCoef * Cl;
 
             context.G = G;
             context.L = L;
             context.D = D;
-
-            double bankCommand;
 
             if (L > args.L_min)
             {
@@ -160,10 +182,10 @@ namespace AFS
                 double hdotDynP = -(args.dynp_max / Math.Max(q, 1e-6) - 1.0 + 2.0 * D * args.t_reg / v) / denomAcc / args.t_reg;
 
                 double hdotC = Math.Max(Math.Max(hdot, hdotQdot), Math.Max(hdotAcc, hdotDynP));
-                double tNorm = Math.Sqrt(Math.Pow(args.R, 3) / args.mu);
-                double cosArg = Math.Cos(bankBase) - args.k_QEGC / tNorm * (hdot - hdotQEGC) - args.k_C / tNorm * (hdot - hdotC);
+                double vNorm = args.hs / 10;
+                double cosArg = Math.Cos(bankBase) - args.k_QEGC / vNorm * (hdot - hdotQEGC) - args.k_C / vNorm * (hdot - hdotC);
                 cosArg = Clamp(cosArg, Math.Cos(args.bank_max), 1.0);
-                bankCommand = Math.Acos(cosArg);
+                Bank = Math.Acos(cosArg);
 
                 context.Qdot = Qdot;
                 context.acc = a;
@@ -171,21 +193,26 @@ namespace AFS
             }
             else
             {
-                bankCommand = Clamp(bankBase, 0.0, args.bank_max);
+                Bank = Clamp(bankBase, 0.0, args.bank_max);
 
                 context.Qdot = 0;
                 context.acc = 0;
                 context.dynp = 0;
             }
 
-            return bankCommand;
+            return;
         }
 
         public static PredictResult PredictTrajectory(double t, PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs)
         {
             int nsteps = 0;
+            double E = GetSpecificEnergy(args.mu, state.r, state.v);
+            double Eold = E;
             double tmax = t + args.predict_tmax;
             double told = t;
+            List<double> Eseq = new List<double>(); Eseq.Add(E);
+            List<PhyState> stateSeq = new List<PhyState>(); stateSeq.Add(state);
+
             PhyState stateold = state;
             double maxQdot=-1, maxQdotTime=-1;
             double maxAcc=-1, maxAccTime=-1;
@@ -195,7 +222,6 @@ namespace AFS
             while (t < tmax)
             {
                 ++nsteps;
-                //Console.WriteLine("tstep = " + tstep);
                 result = RK45Step(t, state, tstep, args, bargs);
                 while (!result.isValid)
                 {
@@ -219,7 +245,14 @@ namespace AFS
                 tstep = result.newStep;
                 told = t; stateold = state;
                 t = result.t; state = result.nextState;
-                if (GetSpecificEnergy(args.mu, state.r, state.v) < args.target_energy) break;
+                E = GetSpecificEnergy(args.mu, state.r, state.v);
+                if (E < args.target_energy) break;
+                if (Math.Abs(Math.Sqrt(E-args.target_energy) - Math.Sqrt(Eold-args.target_energy)) > args.predict_traj_dSqrtE)
+                {
+                    Eseq.Add(E);
+                    stateSeq.Add(state);
+                    Eold = E;
+                }
             }
             if (t >= tmax)
             {
@@ -245,7 +278,7 @@ namespace AFS
 				double G = args.mu / (r * r);
 				double rho = ComputeDensity(r, args);
 				double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
-				(double Cd, _) = GetAeroCoefficients(args, v);
+				GetAeroCoefficients(args, v, out double Cd, out _);
 				double D = aeroCoef * Cd;
 
                 double rdot = v * Math.Sin(state.gamma);
@@ -258,6 +291,15 @@ namespace AFS
 
                 ++numiter;
             }
+            E = GetSpecificEnergy(args.mu, state.r, state.v);
+            if (E < Eold)
+            {
+                Eseq.Add(E);
+                stateSeq.Add(state);
+            }
+            PhyTraj traj = new PhyTraj();
+            traj.Eseq = Eseq.ToArray();
+
             return new PredictResult
             {
                 nsteps = nsteps,
@@ -278,28 +320,35 @@ namespace AFS
             return args.rho0 * Math.Exp(-(r - args.R) / args.hs);
         }
 
-        private static (double Cd, double Cl) GetAeroCoefficients(SimAtmTrajArgs args, double speed)
+        private static void GetAeroCoefficients(SimAtmTrajArgs args, double energy, out double Cd, out double Cl)
         {
-            int idx = FindUpperBound(args.speedsamples, speed);
-            if (idx == 0) return (args.Cdsamples[0], args.Clsamples[0]);
-            if (idx == args.speedsamples.Length) return (args.Cdsamples[args.speedsamples.Length - 1], args.Clsamples[args.speedsamples.Length - 1]);
-            double t = (speed - args.speedsamples[idx - 1]) / (args.speedsamples[idx] - args.speedsamples[idx - 1]);
-            double cd = args.Cdsamples[idx - 1] + t * (args.Cdsamples[idx] - args.Cdsamples[idx - 1]);
-            double cl = args.Clsamples[idx - 1] + t * (args.Clsamples[idx] - args.Clsamples[idx - 1]);
-            return (cd, cl);
+            int idx = FindUpperBound(args.Energysamples, energy);
+            if (idx == 0)
+            {
+                Cd = args.Cdsamples[0];
+                Cl = args.Clsamples[0];
+                return;
+            }
+            if (idx == args.Energysamples.Length)
+            {
+                Cd = args.Cdsamples[args.Cdsamples.Length - 1];
+                Cl = args.Clsamples[args.Clsamples.Length - 1];
+                return;
+            }
+            double t = (energy - args.Energysamples[idx - 1]) / (args.Energysamples[idx] - args.Energysamples[idx - 1]);
+            Cd = args.Cdsamples[idx - 1] + t * (args.Cdsamples[idx] - args.Cdsamples[idx - 1]);
+            Cl = args.Clsamples[idx - 1] + t * (args.Clsamples[idx] - args.Clsamples[idx - 1]);
+            return;
         }
 
         private static int FindUpperBound(double[] xs, double x)
         {
             if (xs == null || xs.Length == 0) return 0;
-            // Assume xs is sorted and very short, so no need to take binary search.
-            if (x < xs[0]) return 0;
-            for (int i = 1; i < xs.Length; i++) {
-                if (x < xs[i]) {
-                    return i;
-                }
-            }
-            return xs.Length;
+            // Assume xs is sorted: binary search
+            int idx = Array.BinarySearch(xs, x);
+            if (idx >= 0) ++idx;
+            else idx = ~idx;
+            return idx;
         }
 
         private static double SafeValue(double value, double minAbs = 1e-6)
@@ -340,7 +389,7 @@ namespace AFS
                 context = new Context();
             }
 
-			double bank = GetBankCommand(state, args, bargs, context);
+			GetAOABankCommand(state, args, bargs, context, out _, out double bank);
             double safeR = SafeValue(r);
             double safeV = SafeValue(v);
 
