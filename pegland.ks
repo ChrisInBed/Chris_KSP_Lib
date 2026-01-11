@@ -53,7 +53,7 @@ declare global unitUy to V(0, 0, 0).
 declare global etaref to 0.
 declare global hudtextsize to 15.
 declare global hudtextcolor to RGB(22/255, 255/255, 22/255).
-set steeringManager:showfacingvectors to true.
+// set steeringManager:showfacingvectors to true.
 
 function init_print {
     // line 1~10: target position
