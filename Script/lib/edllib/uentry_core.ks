@@ -6,36 +6,38 @@ function entry_initialize {
         print "AFS addon is not installed. Please install the AFS addon to use this script.".
         print 1/0.
     }
-    if (not addons:hasaddon("FAR")) {
-        print "FAR addon is not installed. Please install the FAR addon to use this script.".
-        print 1/0.
-    }
     declare global AFS to addons:AFS.
-    declare global FAR to addons:FAR.
+
+    // Initialize atmosphere density model
+    // Note that in FAR model, geoposition and time are counted in temperature and pressure calculation
+    // But here we assume density only depends on altitude, this lead to ~5% error on Earth
+    // This will be improved in future versions
+    AFS:InitAtmModel().
+    // set AFS:mu to body:mu.
+    // set AFS:R to body:radius.
+    // set AFS:molar_mass to body:atm:molarmass.
+    // set AFS:atm_height to body:atm:height.
     // set basic ship parameters
-    set AFS:mu to body:mu.
-    set AFS:R to body:radius.
-    set AFS:rho0 to atm_get_sealevel_density().
-    set AFS:hs to atm_get_scale_height().
     set AFS:mass to ship:mass.
-    set AFS:area to FAR:REFAREA.
-    set AFS:bank_max to 40.  // Maximum stable bank angle
-    // AOA profile and Cl, Cd profiles
-    set AFS:speedsamples to list(200, 1000, 5000, 7000).
-    declare global AOAProfile to list(160, 160, 160, 160).
-    declare global HProfile to list(5e3, 25e3, 50e3, 80e3).
-    entry_set_profile(
-        HProfile,
+    set AFS:area to AFS:REFAREA.
+    set AFS:bank_max to 70.  // Maximum stable bank angle
+    entry_set_AOAprofile(
+        list(400, 2000, 6000, 8000),
+        list(10, 25, 28, 28)
+    ).
+    declare global HProfile to list(20e3, 40e3, 70e3, 90e3).
+    entry_set_aeroprofile(
         AFS:speedsamples,
-        AOAProfile
+        HProfile,
+        AFS:AOAsamples
     ).
     // target geo and path contraints
     declare global vecRtgt to V(0, 0, 0).
     set AFS:Qdot_max to 5e6.
     set AFS:acc_max to 30.
     set AFS:dynp_max to 15e3.
-    set AFS:target_energy to entry_get_spercific_energy(body:radius+HProfile[0], AFS:speedsamples[0]).
-    declare global entry_heading_tol to 5.
+    set AFS:target_energy to AFS:energysamples[0].
+    declare global entry_heading_tol to 10.
     declare global entry_bank_reversal to false.
     // prediction parameters
     set AFS:predict_min_step to 0.
@@ -43,9 +45,12 @@ function entry_initialize {
     set AFS:predict_tmax to 3600.
     // control parameters
     set AFS:L_min to 0.5.
-    // set AFS:k_QEGC to 1.
-    // set AFS:k_C to 1.
-    // set AFS:t_reg to 60.
+    set AFS:k_QEGC to 0.5.
+    set AFS:k_C to 2.
+    set AFS:t_reg to 90.
+    // Trajectory sampling parameters
+    set AFS:predict_traj_dSqrtE to 300.
+    set AFS:predict_traj_dH to 10e3.
 }
 
 function entry_set_target {
@@ -61,21 +66,48 @@ function entry_set_target {
     set AFS:target_energy to entry_get_spercific_energy(body:radius+hf, vf).
 }
 
-function entry_set_profile {
-    parameter newHProfile.
+function entry_set_AOAprofile {
     parameter newSpeedsamples.
     parameter newAOAProfile.
 
     set AFS:speedsamples to newSpeedsamples.
-    set AOAProfile to newAOAProfile.
-    set HProfile to newHProfile.
+    set AFS:AOAsamples to newAOAProfile.
+}
+
+function entry_set_aeroprofile {
+    parameter newSpeedsamples.
+    parameter newHProfile.
+    parameter newAOAProfile.
+
+    local EProfile to list().
     local ClProfile to list().
     local CdProfile to list().
-    from {local i to 0.} until i = AOAProfile:length step {set i to i+1.} do {
-        local CLD to atm_get_CLD_at(AOAProfile[i], AFS:speedsamples[i], HProfile[i]).
-        ClProfile:add(CLD[0]).
-        CdProfile:add(CLD[1]).
+    from {local i to 0.} until i = newAOAProfile:length step {set i to i+1.} do {
+        EProfile:add(entry_get_spercific_energy(AFS:R+newHProfile[i], newSpeedsamples[i])).
+        local CLD to atm_get_CLD_at(newAOAProfile[i], newSpeedsamples[i], newHProfile[i]).
+        ClProfile:add(CLD["Cl"]).
+        CdProfile:add(CLD["Cd"]).
     }
+    set AFS:energysamples to EProfile.
+    set AFS:Clsamples to ClProfile.
+    set AFS:Cdsamples to CdProfile.
+}
+
+function entry_set_aeroprofile_ontraj {
+    parameter trajV.
+    parameter trajR.
+    parameter trajAOA.
+
+    local EProfile to list().
+    local ClProfile to list().
+    local CdProfile to list().
+    from {local i to trajAOA:length-1.} until i = -1 step {set i to i-1.} do {
+        EProfile:add(entry_get_spercific_energy(trajR[i], trajV[i])).
+        local CLD to atm_get_CLD_at(trajAOA[i], trajV[i], trajR[i]-AFS:R).
+        ClProfile:add(CLD["Cl"]).
+        CdProfile:add(CLD["Cd"]).
+    }
+    set AFS:energysamples to EProfile.
     set AFS:Clsamples to ClProfile.
     set AFS:Cdsamples to CdProfile.
 }
@@ -95,18 +127,19 @@ function entry_get_control {
     local psi to entry_get_angle(vCrs(unitR, unitH), vecV, unitR).
 
     // unsigned bank command
+    local y4 to list(rr, theta, vv, gamma).
     local bank_cmd to AFS:GetBankCmd(lexicon(
-        "y4", list(rr, theta, vv, gamma),
+        "y4", y4,
         "bank_i", gst["bank_i"], "bank_f", gst["bank_f"],
         "energy_i", gst["energy_i"], "energy_f", gst["energy_f"]
-    )).
+    ))["Bank"].
 
     // bank reversal
     if (abs(psi) > entry_heading_tol or abs(bank_cmd) < 0.1) set entry_bank_reversal to (psi < 0).
     if (entry_bank_reversal) set bank_cmd to -bank_cmd.
 
     // linear interpolation for AOA command
-    local AOA_cmd to mlinearInterpolation(AFS:speedsamples, AOAProfile, vv).
+    local AOA_cmd to AFS:GetAOACmd(lexicon("y4", y4))["AOA"].
 
     return lexicon("bank", bank_cmd, "AOA", AOA_cmd).
 }
@@ -181,6 +214,12 @@ function entry_initialize_guidance {
             }
         }
         set numiter to numiter + 1.
+        // update aerodynamic profile based on predicted trajectory
+        entry_set_aeroprofile_ontraj(
+            result1["trajV"],
+            result1["trajR"],
+            result1["trajAOA"]
+        ).
     }
 
     local gst to lexicon(
@@ -235,6 +274,13 @@ function entry_step_guidance {
     set bank_now to max(0, min(AFS:bank_max, bank_now)).
     set gst["bank_i"] to bank_now.
     set gst["energy_i"] to energy_now.
+
+    // update aerodynamic profile based on predicted trajectory
+    entry_set_aeroprofile_ontraj(
+        result1["trajV"],
+        result1["trajR"],
+        result1["trajAOA"]
+    ).
 
     return lexicon(
         "ok", true, "status", "COMPLETED",
@@ -312,6 +358,10 @@ function entry_predictor {
         "time_entry", tt, "vecR_entry", vecR, "vecV_entry", vecV,
         "time_final", predRes["t"], "vecR_final", vecRf, "vecV_final", vecVf,
         "rf", yf[0], "thetaf", yf[1], "vf", yf[2], "gammaf", yf[3],
+        "trajE", predRes["trajE"],
+        "trajR", predRes["trajR"], "trajTheta", predRes["trajTheta"],
+        "trajV", predRes["trajV"], "trajGamma", predRes["trajGamma"],
+        "trajBank", predRes["trajBank"], "trajAOA", predRes["trajAOA"],
         "nsteps", predRes["nsteps"],
         "maxQdot", predRes["maxQdot"], "maxQdotTime", predRes["maxQdotTime"],
         "maxAcc", predRes["maxAcc"], "maxAccTime", predRes["maxAccTime"],

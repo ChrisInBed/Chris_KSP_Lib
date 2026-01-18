@@ -1,8 +1,6 @@
 function atm_get_density_at_altitude {
     parameter _altitude.
-    return body:atm:ALTITUDEPRESSURE(_altitude) * 101325
-      * body:atm:MOLARMASS
-      / (8.314 * body:atm:ALTITUDETEMPERATURE(_altitude)).
+    return addons:AFS:GetDensityAt(_altitude).
 }
 
 function atm_get_sealevel_density {
@@ -16,27 +14,21 @@ function atm_get_scale_height {
     return halfheight/ln(rho0/rho1).
 }
 
-function atm_get_LD_at {
-    parameter _AOA.
-    parameter _speed.
-    parameter _altitude.
-
-    local unitV to angleAxis(_AOA, ship:facing:starvector)*ship:facing:forevector.
-    local unitL to angleAxis(_AOA-90, ship:facing:starvector)*ship:facing:forevector.
-    local forcevec to addons:far:aeroforceat(_altitude, unitV * _speed).
-    local Lforce to vdot(forcevec, unitL).
-    local Dforce to -vdot(forcevec, unitV).
-    return list(Lforce, Dforce).
-}
-
 function atm_get_CLD_at {
     parameter _AOA.
     parameter _speed.
     parameter _altitude.
+    // Return a lexicon with keys: Cl, Cd
 
-    local LD to atm_get_LD_at(_AOA, _speed, _altitude).
-    local area to addons:far:REFAREA.
-    local rho to atm_get_density_at_altitude(_altitude).
-    local _factor to 0.5 * rho * area * _speed * _speed * 1e-3.
-    return list(LD[0]/_factor, LD[1]/_factor).
+    // weired values will be acquired near atomosphere edge, clamp altitude
+    local hs to atm_get_scale_height().
+    if (_altitude > body:atm:height - hs) {
+        set _altitude to body:atm:height - hs.
+    }
+
+    return addons:AFS:GetFARAeroCoefs(lexicon(
+        "AOA", _AOA,
+        "speed", _speed,
+        "altitude", _altitude
+    )).
 }

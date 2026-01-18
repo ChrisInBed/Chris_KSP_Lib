@@ -1,26 +1,28 @@
-﻿using System;
-using System.Linq;
+﻿using FerramAerospaceResearch;
+using System;
 using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace AFS
 {    
     internal class SimAtmTrajArgs
     {
-        public double mu, R, rho0, hs, mass, area, atmHeight, bank_max;
-        public double[] Energysamples, Cdsamples, Clsamples, AOAsamples;
+        public double mu, R, mass, molarMass, area, atmHeight, bank_max;
+        public double[] Speedsamples, AOAsamples;
+        public double[] Energysamples, Cdsamples, Clsamples;
+        public double[] Altsamples, Tempsamples, LogDensitysamples;
         public double k_QEGC, k_C, t_reg, Qdot_max, acc_max, dynp_max;
         public double L_min, target_energy;
         public double predict_max_step, predict_min_step, predict_tmax;
-        public double predict_traj_dSqrtE;
+        public double predict_traj_dSqrtE, predict_traj_dH;
         public SimAtmTrajArgs()
         {
             // initialize defaults (CEV configuration)
             mu = 3.98589e14;  // Earth
             R = 6.371e6;
-            rho0 = 1.225;
-            hs = 8500;
+            molarMass = 0.02897;
             mass = 6000;
             area = 12;
             atmHeight = 140e3;
@@ -28,7 +30,11 @@ namespace AFS
             Energysamples = new double[] { AFSCore.GetSpecificEnergy(mu, R+23e3, 600), AFSCore.GetSpecificEnergy(mu, R+140e3, 8000) };
             Cdsamples = new double[] { 1.28, 1.28 };
             Clsamples = new double[] { 0.39, 0.39 };
+            Speedsamples = new double[] { 600, 8000 };
             AOAsamples = new double[] { 15.0*Math.PI/180.0, 15.0*Math.PI/180.0 };
+            Altsamples = new double[] { 0e3, 140e3 };
+            Tempsamples = new double[] { 296.0, 220.0 };
+            LogDensitysamples = new double[] { Math.Log(1.2250), Math.Log(1.2250) - 140.0 / 8.5 };
             k_QEGC = 1.0;
             k_C = 5.0;
             t_reg = 90;
@@ -41,6 +47,11 @@ namespace AFS
             predict_max_step = 1;
             predict_tmax = 3600;
             predict_traj_dSqrtE = 300.0;
+            predict_traj_dH = 10e3;
+
+            AFSCore.InitAtmModel(this);
+            mass = FlightGlobals.ActiveVessel.GetTotalMass() * 1000;
+            area = FARAPI.ActiveVesselRefArea();
         }
     }
     internal class BankPlanArgs
@@ -93,6 +104,8 @@ namespace AFS
     {
         public double[] Eseq;
         public PhyState[] states;
+        public double[] AOAseq;
+        public double[] Bankseq;
     }
     internal enum PredictStatus
     {
@@ -127,80 +140,96 @@ namespace AFS
         private const double S5=1.0/2.0, Beta50=-8.0/27.0, Beta51=2.0, Beta52=-3544.0/2565.0, Beta53=1859.0/4104.0, Beta54=-11.0/40.0, C54=0.0, C55=2.0/55.0;
         // Simulation constants
         private const double ENERGY_ERR_TOL = 1;
+        // Atmospheric model constants
+        private const double GAS_CONSTANT = 8.314462618; // J/(mol·K)
 
-
-		public class Context {
+        public class Context {
             public double G, L, D, Qdot, acc, dynp;
         }
-        public static void GetAOABankCommand(PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context, out double AOA, out double Bank)
+        public static double GetBankCommand(PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
         {
             double r = state.r;
             double v = SafeValue(Math.Abs(state.v));
             double gamma = state.gamma;
             double erg = GetSpecificEnergy(args.mu, r, v);
 
-            // Interpolate for AOA command
-            int idx = FindUpperBound(args.Energysamples, erg);
-            if (idx == 0) AOA = args.AOAsamples[0];
-            else if (idx == args.Energysamples.Length) AOA = args.AOAsamples[args.AOAsamples.Length - 1];
-            else
-            {
-                double t = (v - args.Energysamples[idx - 1]) / (args.Energysamples[idx] - args.Energysamples[idx - 1]);
-                AOA = args.AOAsamples[idx - 1] + t * (args.AOAsamples[idx] - args.AOAsamples[idx - 1]);
-            }
-
             double energy = GetSpecificEnergy(args.mu, r, v);
             double bankBase = bargs.bank_f + (bargs.bank_i - bargs.bank_f) * (energy - bargs.energy_f) / (bargs.energy_i - bargs.energy_f);
             double G = args.mu / r / r;
 
-            double rho = ComputeDensity(r, args);
+            double rho = GetDensityEst(args, r - args.R);
             double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
-            GetAeroCoefficients(args, v, out double Cd, out double Cl);
+            GetAeroCoefficients(args, erg, out double Cd, out double Cl);
             double D = aeroCoef * Cd;
             double L = aeroCoef * Cl;
 
-            context.G = G;
-            context.L = L;
-            context.D = D;
+            if (context != null)
+            {
+                context.G = G;
+                context.L = L;
+                context.D = D;
+            }
 
+            double Bank;
             if (L > args.L_min)
             {
+                double hs = GetScaleHeightEst(args, r - args.R);
                 // QEGC correction
                 double hdot = v * Math.Sin(gamma);
-                double hdotQEGC = -2.0 * G / SafeValue(v/args.hs * Math.Cos(bankBase)) * (Cd / SafeValue(Cl));
+                double hdotQEGC = -2.0 * G / SafeValue(v/hs * Math.Cos(bankBase)) * (Cd / SafeValue(Cl));
                 // Constraints correction
                 double Qdot = HeatFluxCoefficient * Math.Pow(v, 3.15) * Math.Sqrt(rho);
                 double v2 = v * v;
-                double denomQdot = Math.Max(0.5 / args.hs + 3.15 * G / v2, 1e-6);
+                double denomQdot = Math.Max(0.5 / hs + 3.15 * G / v2, 1e-6);
                 double hdotQdot = -(args.Qdot_max / Math.Max(Qdot, 1e-6) - 1.0 + 3.15 * D * args.t_reg / v) / denomQdot / args.t_reg;
 
                 double a = Math.Sqrt(L * L + D * D);
-                double denomAcc = Math.Max(1.0 / args.hs + 2.0 * G / v2, 1e-6);
+                double denomAcc = Math.Max(1.0 / hs + 2.0 * G / v2, 1e-6);
                 double hdotAcc = -(args.acc_max / Math.Max(a, 1e-6) - 1.0 + 2.0 * D * args.t_reg / v) / denomAcc / args.t_reg;
 
                 double q = rho * v * v / 2.0;
                 double hdotDynP = -(args.dynp_max / Math.Max(q, 1e-6) - 1.0 + 2.0 * D * args.t_reg / v) / denomAcc / args.t_reg;
 
                 double hdotC = Math.Max(Math.Max(hdot, hdotQdot), Math.Max(hdotAcc, hdotDynP));
-                double vNorm = args.hs / 10;
+                double vNorm = hs / 10;
                 double cosArg = Math.Cos(bankBase) - args.k_QEGC / vNorm * (hdot - hdotQEGC) - args.k_C / vNorm * (hdot - hdotC);
                 cosArg = Clamp(cosArg, Math.Cos(args.bank_max), 1.0);
                 Bank = Math.Acos(cosArg);
 
-                context.Qdot = Qdot;
-                context.acc = a;
-                context.dynp = q;
+                if (context != null)
+                {
+                    context.Qdot = Qdot;
+                    context.acc = a;
+                    context.dynp = q;
+                }
             }
             else
             {
                 Bank = Clamp(bankBase, 0.0, args.bank_max);
 
-                context.Qdot = 0;
-                context.acc = 0;
-                context.dynp = 0;
+                if (context != null)
+                {
+                    context.Qdot = 0;
+                    context.acc = 0;
+                    context.dynp = 0;
+                }
             }
 
-            return;
+            return Bank;
+        }
+
+        public static double GetAOACommand(PhyState state, SimAtmTrajArgs args)
+        {
+            double v = state.v;
+            // Interpolate for AOA command
+            int idx = FindUpperBound(args.Speedsamples, v);
+            if (idx == 0) return args.AOAsamples[0];
+            else if (idx == args.Speedsamples.Length) return args.AOAsamples[args.AOAsamples.Length - 1];
+            else
+            {
+                double t = (v - args.Speedsamples[idx - 1]) / (args.Speedsamples[idx] - args.Speedsamples[idx - 1]);
+                return args.AOAsamples[idx - 1] + t * (args.AOAsamples[idx] - args.AOAsamples[idx - 1]);
+            }
         }
 
         public static PredictResult PredictTrajectory(double t, PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs)
@@ -208,10 +237,17 @@ namespace AFS
             int nsteps = 0;
             double E = GetSpecificEnergy(args.mu, state.r, state.v);
             double Eold = E;
+            double Rold = state.r;
             double tmax = t + args.predict_tmax;
             double told = t;
             List<double> Eseq = new List<double>(); Eseq.Add(E);
             List<PhyState> stateSeq = new List<PhyState>(); stateSeq.Add(state);
+            List<double> AOAseq = new List<double>();
+            List<double> Bankseq = new List<double>();
+            double AOA = GetAOACommand(state, args);
+            double Bank = GetBankCommand(state, args, bargs, null);
+            AOAseq.Add(AOA);
+            Bankseq.Add(Bank);
 
             PhyState stateold = state;
             double maxQdot=-1, maxQdotTime=-1;
@@ -247,11 +283,16 @@ namespace AFS
                 t = result.t; state = result.nextState;
                 E = GetSpecificEnergy(args.mu, state.r, state.v);
                 if (E < args.target_energy) break;
-                if (Math.Abs(Math.Sqrt(E-args.target_energy) - Math.Sqrt(Eold-args.target_energy)) > args.predict_traj_dSqrtE)
+                if (Math.Abs(Math.Sqrt(E-args.target_energy) - Math.Sqrt(Eold-args.target_energy)) > args.predict_traj_dSqrtE || Math.Abs(state.r - Rold) > args.predict_traj_dH)
                 {
                     Eseq.Add(E);
                     stateSeq.Add(state);
+                    AOA = GetAOACommand(state, args);
+                    Bank = GetBankCommand(state, args, bargs, null);
+                    AOAseq.Add(AOA);
+                    Bankseq.Add(Bank);
                     Eold = E;
+                    Rold = state.r;
                 }
             }
             if (t >= tmax)
@@ -260,7 +301,9 @@ namespace AFS
                 return new PredictResult
                 {
                     nsteps = nsteps,
-                    t = t, finalState = state, status = PredictStatus.TIMEOUT,
+                    t = t, finalState = state,
+                    traj = new PhyTraj { Eseq = Eseq.ToArray(), states = stateSeq.ToArray(), AOAseq = AOAseq.ToArray(), Bankseq = Bankseq.ToArray() },
+                    status = PredictStatus.TIMEOUT,
                     maxQdot = maxQdot, maxQdotTime = maxQdotTime,
                     maxAcc = maxAcc, maxAccTime = maxAccTime,
                     maxDynP = maxDynP, maxDynPTime = maxDynPTime
@@ -276,7 +319,7 @@ namespace AFS
                 if (Math.Abs(Err) < ENERGY_ERR_TOL) break;
 
 				double G = args.mu / (r * r);
-				double rho = ComputeDensity(r, args);
+				double rho = GetDensityEst(args, r - args.R);
 				double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
 				GetAeroCoefficients(args, v, out double Cd, out _);
 				double D = aeroCoef * Cd;
@@ -296,15 +339,18 @@ namespace AFS
             {
                 Eseq.Add(E);
                 stateSeq.Add(state);
+                AOA = GetAOACommand(state, args);
+                Bank = GetBankCommand(state, args, bargs, null);
+                AOAseq.Add(AOA);
+                Bankseq.Add(Bank);
             }
-            PhyTraj traj = new PhyTraj();
-            traj.Eseq = Eseq.ToArray();
-
             return new PredictResult
             {
                 nsteps = nsteps,
-                t = t, finalState = state, status = PredictStatus.COMPLETED,
-				maxQdot = maxQdot, maxQdotTime = maxQdotTime,
+                t = t, finalState = state,
+                traj = new PhyTraj { Eseq = Eseq.ToArray(), states = stateSeq.ToArray(), AOAseq = AOAseq.ToArray(), Bankseq = Bankseq.ToArray() },
+                status = PredictStatus.COMPLETED,
+                maxQdot = maxQdot, maxQdotTime = maxQdotTime,
 				maxAcc = maxAcc, maxAccTime = maxAccTime,
 				maxDynP = maxDynP, maxDynPTime = maxDynPTime
 			};
@@ -313,11 +359,6 @@ namespace AFS
         public static double GetSpecificEnergy(double mu, double r, double v)
         {
             return -mu / r + 0.5 * v * v;
-        }
-
-        private static double ComputeDensity(double r, SimAtmTrajArgs args)
-        {
-            return args.rho0 * Math.Exp(-(r - args.R) / args.hs);
         }
 
         private static void GetAeroCoefficients(SimAtmTrajArgs args, double energy, out double Cd, out double Cl)
@@ -389,7 +430,7 @@ namespace AFS
                 context = new Context();
             }
 
-			GetAOABankCommand(state, args, bargs, context, out _, out double bank);
+            double bank = GetBankCommand(state, args, bargs, context);
             double safeR = SafeValue(r);
             double safeV = SafeValue(v);
 
@@ -433,6 +474,119 @@ namespace AFS
         private static double Clamp(double value, double min, double max)
         {
             return Math.Max(min, Math.Min(max, value));
+        }
+
+        public static void GetFARAeroCoefs(double altitude, double AOA, double speed, out double Cd, out double Cl)
+        {
+            double atmHeight = FlightGlobals.ActiveVessel.mainBody.atmosphereDepth;
+            double hs = GetScaleHeightAt(0);
+            double area = FARAPI.ActiveVesselRefArea();
+            if (altitude > atmHeight - hs) altitude = atmHeight - hs;
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            Quaternion facing = vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0);
+            Vector3 unitV = facing * Quaternion.Euler((float)(AOA * 180.0 / Math.PI), 0, 0) * Vector3.forward;
+            Vector3 unitL = facing * Quaternion.Euler((float)(AOA * 180.0 / Math.PI - 90), 0, 0) * Vector3.forward;
+            FARAPI.CalculateVesselAeroForces(vessel, out Vector3 forceVec, out _, unitV * (float)speed, altitude);
+            double _factor = 0.5 * GetDensityAt(altitude) * speed * speed * area * 1e-3;
+            Cd = -Vector3.Dot(forceVec, unitV) / _factor;
+            Cl = Vector3.Dot(forceVec, unitL) / _factor;
+            //Debug.Log($"[kOS-AFS] altitude={altitude * 1e-3:F2}km; AOA={AOA * 180 / Math.PI:F2}d; V={speed * 1e-3:F3}km/s; Cd={Cd:F3}; Cl={Cl:F3}");
+            return;
+        }
+
+        public static double GetPressureAt(double altitude) { return FlightGlobals.ActiveVessel.mainBody.GetPressure(altitude) * 1e3; }
+        public static double GetTemperatureAt(double altitude) { return FlightGlobals.ActiveVessel.mainBody.GetTemperature(altitude); }
+        public static double GetDensityAt(double altitude)
+        {
+            if (altitude > FlightGlobals.ActiveVessel.mainBody.atmosphereDepth) return 0;
+            double P = GetPressureAt(altitude);
+            double T = GetTemperatureAt(altitude);
+            if (T < 1e-3) T = 1e-3;
+            double MW = FlightGlobals.ActiveVessel.mainBody.atmosphereMolarMass;
+            return P * MW / (GAS_CONSTANT * T);
+        }
+        public static double GetScaleHeightAt(double altitude)
+        {
+            double r = altitude + FlightGlobals.ActiveVessel.mainBody.Radius;
+            double g = FlightGlobals.ActiveVessel.mainBody.gravParameter / r / r;
+            double T = GetTemperatureAt(altitude);
+            double MW = FlightGlobals.ActiveVessel.mainBody.atmosphereMolarMass;
+            return (GAS_CONSTANT * T)/(MW * g);
+        }
+
+        public static void InitAtmModel(SimAtmTrajArgs args)
+        {
+            // Set basic parameters
+            args.R = FlightGlobals.ActiveVessel.mainBody.Radius;
+            args.mu = FlightGlobals.ActiveVessel.mainBody.gravParameter;
+            args.molarMass = FlightGlobals.ActiveVessel.mainBody.atmosphereMolarMass;
+            args.atmHeight = FlightGlobals.ActiveVessel.mainBody.atmosphereDepth;
+            // Sampling altitude, get density and temperatures
+            const int nSamples = 21;
+            double[] altSamples = new double[nSamples];
+            double[] tempSamples = new double[nSamples];
+            double[] logDensitySamples = new double[nSamples];
+            double dAlt = (args.atmHeight - 1000) / (nSamples - 1);
+            double P, T, D;
+            for (int i = 0; i < nSamples; ++i)
+            {
+                altSamples[i] = i * dAlt;
+                T = GetTemperatureAt(altSamples[i]);
+                P = GetPressureAt(altSamples[i]);
+                D = P * args.molarMass / (GAS_CONSTANT * T);
+                tempSamples[i] = T;
+                logDensitySamples[i] = Math.Log(D);
+            }
+            args.Altsamples = altSamples;
+            args.Tempsamples = tempSamples;
+            args.LogDensitysamples = logDensitySamples;
+        }
+
+        public static double GetTemperatureEst(SimAtmTrajArgs args, double altitude)
+        {
+            int idx = FindUpperBound(args.Altsamples, altitude);
+            if (idx == 0)
+            {
+                return args.Tempsamples[0];
+            }
+            else if (idx == args.Altsamples.Length)
+            {
+                return args.Tempsamples[args.Tempsamples.Length - 1];
+            }
+            else
+            {
+                double t = (altitude - args.Altsamples[idx - 1]) / (args.Altsamples[idx] - args.Altsamples[idx - 1]);
+                return args.Tempsamples[idx - 1] + t * (args.Tempsamples[idx] - args.Tempsamples[idx - 1]);
+            }
+        }
+
+        public static double GetDensityEst(SimAtmTrajArgs args, double altitude)
+        {
+            if (altitude > args.atmHeight) return 0;
+            int idx = FindUpperBound(args.Altsamples, altitude);
+            if (idx == 0)
+            {
+                double hs = GetScaleHeightEst(args, Math.Exp(args.LogDensitysamples[0]), args.Tempsamples[0]);
+                return Math.Exp(args.LogDensitysamples[0] - (args.Altsamples[0] - altitude) / hs);
+            }
+            else if (idx == args.Altsamples.Length)
+            {
+                double hs = GetScaleHeightEst(args, Math.Exp(args.LogDensitysamples[args.Altsamples.Length - 1]), args.Tempsamples[args.Altsamples.Length - 1]);
+                return Math.Exp(args.LogDensitysamples[args.Altsamples.Length - 1] - (args.Altsamples[args.Altsamples.Length - 1] - altitude) / hs);
+            }
+            else
+            {
+                double t = (altitude - args.Altsamples[idx - 1]) / (args.Altsamples[idx] - args.Altsamples[idx - 1]);
+                return Math.Exp(args.LogDensitysamples[idx - 1] + t * (args.LogDensitysamples[idx] - args.LogDensitysamples[idx - 1]));
+            }
+        }
+
+        public static double GetScaleHeightEst(SimAtmTrajArgs args, double altitude, double? temperature = null)
+        {
+            if (temperature == null) temperature = GetTemperatureEst(args, altitude);
+            double r = altitude + args.R;
+            double g = args.mu / (r * r);
+            return GAS_CONSTANT * (double)temperature / (args.molarMass * g);
         }
     }
 }

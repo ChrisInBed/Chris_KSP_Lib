@@ -69,11 +69,11 @@ function RotationRateController_GetControll {
     local BankErr to arcTan2(-vDot(_up:forevector, _facing:starvector), vDot(_up:forevector, _facing:upvector)) - angleTarget:x.
     if (abs(BankErr) < this["EpBank"]) set BankErr to 0.
     // local AOACurrent to arcTan2(-vDot(_prog:forevector, _facing:upvector), vDot(_prog:forevector, _facing:forevector)).
-    local AOACurrent to FAR:AOA.
+    local AOACurrent to AFS:AOA.
     local AOAErr to AOACurrent - angleTarget:y.
     if (abs(AOAErr) < this["EpAOA"]) set AOAErr to 0.
     // local SideslipErr to arcSin(vDot(_prog:forevector, _facing:starvector)) - angleTarget:z.
-    local SideslipErr to FAR:AOS - angleTarget:z.
+    local SideslipErr to AFS:AOS - angleTarget:z.
     if (abs(SideslipErr) < this["EpSideslip"]) set SideslipErr to 0.
 
     // Rotation rates (wind frame)

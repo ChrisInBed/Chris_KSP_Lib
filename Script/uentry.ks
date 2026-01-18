@@ -30,20 +30,17 @@ function initialize_guidance {
     // set all state variables to initial values
     entry_initialize().
     entry_set_target(entry_hf, entry_vf, entry_dist, target_geo).
-    entry_set_profile(
-        list(15e3, 40e3, 70e3, 90e3), // altitude profile in meters
+    entry_set_AOAprofile(
         list(400, 2000, 6000, 8000), // speed profile in m/s
         list(10, 25, 28, 28) // AOA profile in degrees
     ).
+    entry_set_aeroprofile(
+        AFS:speedsamples,
+        list(15e3, 40e3, 70e3, 90e3), // altitude profile in meters
+        AFS:AOAsamples
+    ).
     print "CL profile: " + arr2str(AFS:Clsamples) AT(0,3).
     print "CD profile: " +  arr2str(AFS:Cdsamples) AT(0,4).
-    set AFS:mu to body:mu.
-    set AFS:R to body:radius.
-    set AFS:rho0 to atm_get_sealevel_density().
-    set AFS:hs to atm_get_scale_height().
-    set AFS:mass to ship:mass.
-    set AFS:area to FAR:REFAREA.
-    set AFS:bank_max to 90.  // Maximum stable bank angle
 
     set AFS:Qdot_max to 6e5.
     set AFS:acc_max to 25.
@@ -51,9 +48,9 @@ function initialize_guidance {
     set entry_heading_tol to 10.
 
     set AFS:L_min to 0.5.
-    set AFS:k_QEGC to 1.
-    set AFS:k_C to 5.
-    set AFS:t_reg to 100.
+    set AFS:k_QEGC to 0.5.
+    set AFS:k_C to 2.
+    set AFS:t_reg to 90.
 }
 
 function entry_phase {
@@ -72,7 +69,7 @@ function entry_phase {
     when (true) then {
         local _cd to startTime+initInfo["time_entry"]-time:seconds.
         local msg to "Time to entry = " + round(_cd) + " s.      ".
-        print msg AT(0, 13).
+        print msg AT(0, 2).
         return _cd >= 0.
     } 
     wait until time:seconds - startTime > initInfo["time_entry"] - 60 or ship:altitude < body:atm:height.
@@ -98,7 +95,7 @@ function entry_phase {
     // step once before entering the loop
     until (ee < ef) {
         set AFS:mass to ship:mass.
-        set AFS:area to FAR:REFAREA.
+        set AFS:area to AFS:REFAREA.
         local stepInfo to entry_step_guidance(0, -body:position, ship:velocity:surface, gst).
         if (not stepInfo["ok"]) {
             print "Error: (" + stepInfo["status"] + ")" + stepInfo["msg"] AT(0, 30).
