@@ -16,7 +16,7 @@ function __terminal_get_deltar {
     set af2 to af2 - __TERMINAL_g0.
     local v0 to ship:velocity:surface:mag.
     local vr0 to ship:verticalspeed.
-    if (vr0 >= 0) return 0.  // start only in falling
+    if (vr0 >= 0) return list(0, 0).  // start only in falling
     local deltar to 0.
     local _stage to 0.
     // judge stage 1 or stage 2
@@ -52,6 +52,7 @@ function terminal_time_to_fire {
     parameter height.
     parameter vrT.
     parameter af1, af2, T2.
+    if (ship:verticalspeed >= 0) return false.  // start only in falling
     return height + __terminal_get_deltar(vrT, af1, af2, T2)[1] < 0.
 }
 
