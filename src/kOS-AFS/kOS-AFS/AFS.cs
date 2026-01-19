@@ -161,7 +161,7 @@ namespace AFS
 
             double rho = GetDensityEst(args, r - args.R);
             double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
-            GetAeroCoefficients(args, v, r - args.atmHeight, out double Cd, out double Cl);
+            GetAeroCoefficients(args, v, r - args.R, out double Cd, out double Cl);
             double D = aeroCoef * Cd;
             double L = aeroCoef * Cl;
 
@@ -323,7 +323,7 @@ namespace AFS
 				double G = args.mu / (r * r);
 				double rho = GetDensityEst(args, r - args.R);
 				double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
-				GetAeroCoefficients(args, v, r - args.atmHeight, out double Cd, out _);
+				GetAeroCoefficients(args, v, r - args.R, out double Cd, out _);
 				double D = aeroCoef * Cd;
 
                 double rdot = v * Math.Sin(state.gamma);

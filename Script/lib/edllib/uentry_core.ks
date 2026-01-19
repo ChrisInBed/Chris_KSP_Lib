@@ -83,11 +83,13 @@ function entry_initialize {
     set AFS:AeroCdSamples to list(list(1.5)).
     set AFS:AeroClSamples to list(list(0.3)).
     // target geo and path contraints
-    declare global vecRtgt to V(0, 0, 0).
+    declare global entry_hf to 25000.
+    declare global entry_vf to 650.
+    declare global entry_target_geo to body:geopositionlatlng(0, 0).
     set AFS:Qdot_max to 5e6.
     set AFS:acc_max to 30.
     set AFS:dynp_max to 15e3.
-    set AFS:target_energy to entry_get_spercific_energy(body:radius+AFS:AeroAltSamples[0], CtrlSpeedSamples[0]).
+    set AFS:target_energy to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
     declare global entry_heading_tol to 10.
     declare global entry_bank_reversal to false.
     // prediction parameters
@@ -105,16 +107,15 @@ function entry_initialize {
 }
 
 function entry_set_target {
-    parameter hf, vf, df.
+    parameter new_hf, new_vf, new_df, new_headingf.
     parameter new_target_geo.
 
-    local unitRtarget to (new_target_geo:position - body:position):normalized.
-    local unitRref to -body:position:normalized.
-    local unitH to -vCrs(unitRref, unitRtarget):normalized.
-    local dtheta to df / body:radius /constant:pi*180.
-    local unitRtgt to angleAxis(-dtheta, -unitH) * unitRtarget.
-    set vecRtgt to unitRtgt * (body:radius + hf).
-    set AFS:target_energy to entry_get_spercific_energy(body:radius+hf, vf).
+    set entry_hf to new_hf.
+    set entry_vf to new_vf.
+
+    local dlat to new_df * cos(new_headingf) / body:radius /constant:pi*180.
+    local dlon to new_df / cos(new_target_geo:lat) * sin(new_headingf) / body:radius /constant:pi*180.
+    set entry_target_geo to body:geopositionlatlng(new_target_geo:lat + dlat, new_target_geo:lng + dlon).
 }
 
 function entry_set_AOAprofile {
@@ -131,7 +132,7 @@ function entry_get_control {
     parameter gst.
     
     local unitR to vecR:normalized.
-    local unitRtgt to vecRtgt:normalized.
+    local unitRtgt to (entry_target_geo:position - body:position):normalized.
     local rr to vecR:mag.
     local theta to -vAng(unitR, unitRtgt).
     local vv to vecV:mag.
@@ -163,6 +164,7 @@ function entry_initialize_guidance {
     parameter vecV.  // orbital velocity
     parameter bank_i, bank_f.
 
+    local vecRtgt to entry_target_geo:position - body:position.
     if (vecR:mag > body:radius + body:atm:height) {
         // propagate to entry interface
         local _result to entry_propagate_to_entry(tt, vecR, vecV).
@@ -259,6 +261,7 @@ function entry_step_guidance {
     local bank_now to gst["bank_i"]
         + (gst["bank_f"] - gst["bank_i"]) * (energy_now - gst["energy_i"]) / (gst["energy_f"] - gst["energy_i"]).
     // prediction and get derivatives
+    local vecRtgt to entry_target_geo:position - body:position.
     local theta_target to vAng(vecR, vecRtgt).
     local result1 to entry_predictor(tt, vecR, vecV, lexicon(
         "bank_i", bank_now,

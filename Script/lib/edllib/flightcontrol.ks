@@ -8,13 +8,13 @@ declare global kclcontroller is KCLController_Init().
 function KCLController_Init {
     return lexicon(
         "RotationRateController", RotationRateController_Init(
-            0.5, 5, 0.3,    // AOA
-            0.5, 5, 0.3,    // Bank
+            0.5, 5, 0.05,    // AOA
+            0.5, 5, 0.05,    // Bank
             0.5, 5, 0.05     // Sideslip
         ),
-        "RollTorqueController", TorqueController_Init(0.2, 0, 0.02, 1, 0),
-        "PitchTorqueController", TorqueController_Init(0.2, 0.002, 0.05, 1, 0),
-        "YawTorqueController", TorqueController_Init(0.8, 0, 0.02, 1, 0)
+        "RollTorqueController", TorqueController_Init(0.4, 0, 0.02, 1, 0),
+        "PitchTorqueController", TorqueController_Init(0.4, 0.004, 0.02, 1, 0),
+        "YawTorqueController", TorqueController_Init(0.4, 0, 0.02, 1, 0)
     ).
 }
 

@@ -9,10 +9,6 @@ set config:IPU to 1000.
 declare global done to false.
 declare global guidance_active to false.
 declare global guidance_stage to "inactive".
-declare global target_geo to get_target_geo().
-declare global entry_vf to 650.
-declare global entry_hf to 25000.
-declare global entry_dist to 20000.
 declare global entry_bank_i to 20.
 declare global entry_bank_f to 10.
 
@@ -29,7 +25,12 @@ function init_print {
 function initialize_guidance {
     // set all state variables to initial values
     entry_initialize().
-    entry_set_target(entry_hf, entry_vf, entry_dist, target_geo).
+    entry_set_target(25e3, 650, 30e3, 0, get_target_geo()).
+    set _vecRtgtDraw to vecDraw(
+        {return body:position.},
+        {return entry_target_geo:position - body:position.},
+        RGB(255, 0, 0), "Target", 1.0, true
+    ).
     entry_set_AOAprofile(
         list(400, 2000, 6000, 8000), // speed profile in m/s
         list(13, 20, 32, 33) // AOA profile in degrees
@@ -110,7 +111,7 @@ function entry_phase {
             print "Max Qdot = " + round(stepInfo["maxQdot"]/1e3, 1) + " kW/m^2 @" + round(stepInfo["maxQdotTime"]) + " s    " AT(0, 17).
             print "Max acc = " + round(stepInfo["maxAcc"]/9.81, 2) + " g @" + round(stepInfo["maxAccTime"]) + " s    " AT(0, 18).
             print "Max dynp = " + round(stepInfo["maxDynP"]/1e3, 1) + " kPa @" + round(stepInfo["maxDynPTime"]) + " s    " AT(0, 19).
-            // draw_vecR_final(stepInfo["vecR_final"], vecRtgt).
+            draw_vecR_final(stepInfo["vecR_final"], entry_target_geo:position - body:position).
             if (stepInfo["time_final"] < 60) break.  // Stop updating guidance parameters
         }
         wait 0.2.
@@ -143,25 +144,15 @@ function draw_vecR_final {
     parameter vecRtgt.
 
     set _vecRfDraw to vecDraw(
-        {return body:position+vecRf:normalized*body:radius.},
-        {return body:position + vecRf.},
+        {return body:position.},
+        {return vecRf.},
         RGB(0, 255, 0), "Final", 1.0, true
     ).
     set _vecRtgtDraw to vecDraw(
-        {return body:position + vecRtgt:normalized * body:radius.},
-        {return body:position + vecRtgt.},
+        {return body:position.},
+        {return vecRtgt.},
         RGB(255, 0, 0), "Target", 1.0, true
     ).
-    // set _vecRfDraw to vecDraw(
-    //     {return body:position.},
-    //     {return body:position + vecRf.},
-    //     RGB(0, 255, 0), "Final", 1.0, true
-    // ).
-    // set _vecRtgtDraw to vecDraw(
-    //     {return body:position + vecRtgt:normalized * body:radius.},
-    //     {return body:position + vecRtgt.},
-    //     RGB(255, 0, 0), "Target", 1.0, true
-    // ).
 }
 
 // function get_bank {

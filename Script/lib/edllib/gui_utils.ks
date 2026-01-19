@@ -105,10 +105,11 @@ function edl_MakeEDLGUI {
     gui_edlmain:addlabel("<b>Target</b>").
     declare global gui_edl_target_button to gui_edlmain:addbutton("Update Target").
     set gui_edl_target_button:onclick to {
-        set entry_vf to gui_edl_entry_vf_input:text:tonumber.
-        set entry_hf to gui_edl_entry_hf_input:text:tonumber * 1e3.  // convert to m
-        set entry_dist to gui_edl_entry_dist_input:text:tonumber * 1e3.  // convert to m
-        entry_set_target(entry_hf, entry_vf, entry_dist, get_target_geo()).
+        local entry_vf to gui_edl_entry_vf_input:text:tonumber.
+        local entry_hf to gui_edl_entry_hf_input:text:tonumber * 1e3.  // convert to m
+        local entry_dist to gui_edl_entry_dist_input:text:tonumber * 1e3.  // convert to m
+        local entry_headingf to gui_edl_entry_headingf_input:text:tonumber.
+        entry_set_target(entry_hf, entry_vf, entry_dist, entry_headingf, get_target_geo()).
     }.
 
     declare global gui_edl_target_box1 to gui_edlmain:addhbox().  // line 1
@@ -122,9 +123,16 @@ function edl_MakeEDLGUI {
     set gui_edl_entry_vf_label:style:width to 150.
     declare global gui_edl_entry_vf_input to gui_edl_target_box1:addtextfield(round(entry_vf, 1):tostring).
 
+    local active_geo to get_target_geo().
+    local entry_dist to (active_geo:position - entry_target_geo:position):mag.
     declare global gui_edl_entry_dist_label to gui_edl_target_box2:addlabel("Distance (km):").
     set gui_edl_entry_dist_label:style:width to 150.
     declare global gui_edl_entry_dist_input to gui_edl_target_box2:addtextfield(round(entry_dist*1e-3, 1):tostring).
+
+    local entry_headingf to mheadingangle(active_geo:lat, active_geo:lng, entry_target_geo:lat, entry_target_geo:lng).
+    declare global gui_edl_entry_headingf_label to gui_edl_target_box2:addlabel("Heading (°):").
+    set gui_edl_entry_headingf_label:style:width to 150.
+    declare global gui_edl_entry_headingf_input to gui_edl_target_box2:addtextfield(round(entry_headingf, 1):tostring).
 
     // Guidance Parameters
     gui_edlmain:addlabel("<b>Guidance Parameters</b>").
