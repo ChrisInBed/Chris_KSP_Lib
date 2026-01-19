@@ -54,52 +54,52 @@ function edl_MakeEDLGUI {
 
     gui_edlmain:addspacing(10).
 
-    // Aerodynamic Parameters
-    gui_edlmain:addlabel("<b>Aerodynamic Profile</b>").
-    declare global gui_edl_aeroprofile_box to gui_edlmain:addvbox().
-    declare global gui_edl_aeroprofile_update_button to gui_edl_aeroprofile_box:addbutton("Update Profiles").
-    set gui_edl_aeroprofile_update_button:onclick to {
-        local speedsamples to str2arr(gui_edl_speedsamples_input:text).
-        mscalarmul(speedsamples, 1e3).  // convert to m/s
-        local AOAProfile to str2arr(gui_edl_aoaprofile_input:text).
-        entry_set_AOAprofile(speedsamples, AOAProfile).
-        local _HProfile to str2arr(gui_edl_hprofile_input:text).
-        mscalarmul(_HProfile, 1e3).  // convert to m
-        entry_set_aeroprofile(AFS:speedsamples, _HProfile, AOAProfile).
-        set gui_edl_Cdprofile_input:text to arr2str(AFS:Cdsamples, 2).
-        set gui_edl_Clprofile_input:text to arr2str(AFS:Clsamples, 2).
-    }.
+    // // Aerodynamic Parameters
+    // gui_edlmain:addlabel("<b>Aerodynamic Profile</b>").
+    // declare global gui_edl_aeroprofile_box to gui_edlmain:addvbox().
+    // declare global gui_edl_aeroprofile_update_button to gui_edl_aeroprofile_box:addbutton("Update Profiles").
+    // set gui_edl_aeroprofile_update_button:onclick to {
+    //     local speedsamples to str2arr(gui_edl_speedsamples_input:text).
+    //     mscalarmul(speedsamples, 1e3).  // convert to m/s
+    //     local AOAProfile to str2arr(gui_edl_aoaprofile_input:text).
+    //     entry_set_AOAprofile(speedsamples, AOAProfile).
+    //     local _HProfile to str2arr(gui_edl_hprofile_input:text).
+    //     mscalarmul(_HProfile, 1e3).  // convert to m
+    //     entry_set_aeroprofile(AFS:speedsamples, _HProfile, AOAProfile).
+    //     set gui_edl_Cdprofile_input:text to arr2str(AFS:Cdsamples, 2).
+    //     set gui_edl_Clprofile_input:text to arr2str(AFS:Clsamples, 2).
+    // }.
 
-    declare global gui_edl_speedsamples_box to gui_edl_aeroprofile_box:addhbox().
-    declare global gui_edl_speedsamples_label to gui_edl_speedsamples_box:addlabel("Speed Profile (km/s):").
-    set gui_edl_speedsamples_label:style:width to 150.
-    local speedsamples to AFS:speedsamples:copy.
-    mscalarmul(speedsamples, 1e-3).  // convert to km/s
-    declare global gui_edl_speedsamples_input to gui_edl_speedsamples_box:addtextfield(arr2str(speedsamples, 1)).
+    // declare global gui_edl_speedsamples_box to gui_edl_aeroprofile_box:addhbox().
+    // declare global gui_edl_speedsamples_label to gui_edl_speedsamples_box:addlabel("Speed Profile (km/s):").
+    // set gui_edl_speedsamples_label:style:width to 150.
+    // local speedsamples to AFS:speedsamples:copy.
+    // mscalarmul(speedsamples, 1e-3).  // convert to km/s
+    // declare global gui_edl_speedsamples_input to gui_edl_speedsamples_box:addtextfield(arr2str(speedsamples, 1)).
 
-    declare global gui_edl_hprofile_box to gui_edl_aeroprofile_box:addhbox().
-    declare global gui_edl_hprofile_label to gui_edl_hprofile_box:addlabel("(Guess)Alt Profile (km):").
-    set gui_edl_hprofile_label:style:width to 150.
-    local _HProfile to HProfile:copy.
-    mscalarmul(_HProfile, 1e-3).  // convert to km
-    declare global gui_edl_hprofile_input to gui_edl_hprofile_box:addtextfield(arr2str(_HProfile, 1)).
+    // declare global gui_edl_hprofile_box to gui_edl_aeroprofile_box:addhbox().
+    // declare global gui_edl_hprofile_label to gui_edl_hprofile_box:addlabel("(Guess)Alt Profile (km):").
+    // set gui_edl_hprofile_label:style:width to 150.
+    // local _HProfile to HProfile:copy.
+    // mscalarmul(_HProfile, 1e-3).  // convert to km
+    // declare global gui_edl_hprofile_input to gui_edl_hprofile_box:addtextfield(arr2str(_HProfile, 1)).
 
-    declare global gui_edl_aoaprofile_box to gui_edl_aeroprofile_box:addhbox().
-    declare global gui_edl_aoaprofile_label to gui_edl_aoaprofile_box:addlabel("AOA Profile (°):").
-    set gui_edl_aoaprofile_label:style:width to 150.
-    declare global gui_edl_aoaprofile_input to gui_edl_aoaprofile_box:addtextfield(arr2str(AFS:AOAsamples, 1)).
+    // declare global gui_edl_aoaprofile_box to gui_edl_aeroprofile_box:addhbox().
+    // declare global gui_edl_aoaprofile_label to gui_edl_aoaprofile_box:addlabel("AOA Profile (°):").
+    // set gui_edl_aoaprofile_label:style:width to 150.
+    // declare global gui_edl_aoaprofile_input to gui_edl_aoaprofile_box:addtextfield(arr2str(AFS:AOAsamples, 1)).
 
-    declare global gui_edl_Cdprofile_box to gui_edl_aeroprofile_box:addhbox().
-    declare global gui_edl_Cdprofile_label to gui_edl_Cdprofile_box:addlabel("Cd Profile:").
-    set gui_edl_Cdprofile_label:style:width to 150.
-    declare global gui_edl_Cdprofile_input to gui_edl_Cdprofile_box:addtextfield(arr2str(AFS:Cdsamples, 2)).
+    // declare global gui_edl_Cdprofile_box to gui_edl_aeroprofile_box:addhbox().
+    // declare global gui_edl_Cdprofile_label to gui_edl_Cdprofile_box:addlabel("Cd Profile:").
+    // set gui_edl_Cdprofile_label:style:width to 150.
+    // declare global gui_edl_Cdprofile_input to gui_edl_Cdprofile_box:addtextfield(arr2str(AFS:Cdsamples, 2)).
 
-    declare global gui_edl_Clprofile_box to gui_edl_aeroprofile_box:addhbox().
-    declare global gui_edl_Clprofile_label to gui_edl_Clprofile_box:addlabel("Cl Profile:").
-    set gui_edl_Clprofile_label:style:width to 150.
-    declare global gui_edl_Clprofile_input to gui_edl_Clprofile_box:addtextfield(arr2str(AFS:Clsamples, 2)).
+    // declare global gui_edl_Clprofile_box to gui_edl_aeroprofile_box:addhbox().
+    // declare global gui_edl_Clprofile_label to gui_edl_Clprofile_box:addlabel("Cl Profile:").
+    // set gui_edl_Clprofile_label:style:width to 150.
+    // declare global gui_edl_Clprofile_input to gui_edl_Clprofile_box:addtextfield(arr2str(AFS:Clsamples, 2)).
 
-    gui_edlmain:addspacing(10).
+    // gui_edlmain:addspacing(10).
 
     // Target Parameters
     gui_edlmain:addlabel("<b>Target</b>").

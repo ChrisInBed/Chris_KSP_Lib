@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FerramAerospaceResearch;
+using System.Linq;
 
 namespace kOS.AddOns.AFSAddon
 {
@@ -66,16 +67,17 @@ namespace kOS.AddOns.AFSAddon
 
             // Arrays (as List)
             // Aerodynamic coefficient profiles
-            AddSuffix(new string[] { "energysamples" }, new SetSuffix<ListValue>(GetEnergysamples, SetEnergysamples, "Energy samples (For aerodynamic profile"));
-            AddSuffix(new string[] { "Cdsamples" }, new SetSuffix<ListValue>(GetCdsamples, SetCdsamples, "Drag coefficient samples"));
-            AddSuffix(new string[] { "Clsamples" }, new SetSuffix<ListValue>(GetClsamples, SetClsamples, "Lift coefficient samples"));
+            AddSuffix(new string[] { "AeroSpeedSamples" }, new SetSuffix<ListValue>(GetAeroSpeedSamples, SetAeroSpeedSamples, "Speed samples (For aerodynamic profile"));
+            AddSuffix(new string[] { "AeroAltSamples" }, new SetSuffix<ListValue>(GetAeroAltSamples, SetAeroAltSamples, "Altitude samples (For aerodynamic profile"));
+            AddSuffix(new string[] { "AeroCdSamples" }, new SetSuffix<ListValue>(GetAeroCdSamples, SetAeroCdSamples, "2D matrix of drag coefficient samples"));
+            AddSuffix(new string[] { "AeroClSamples" }, new SetSuffix<ListValue>(GetAeroClSamples, SetAeroClSamples, "2D matrix of lift coefficient samples"));
             // AOA profiles
-            AddSuffix(new string[] { "speedsamples" }, new SetSuffix<ListValue>(GetSpeedsamples, SetSpeedsamples, "Speed samples (For AOA profile)"));
-            AddSuffix(new string[] { "AOAsamples" }, new SetSuffix<ListValue>(GetAOAsamples, SetAOAsamples, "AOA samples"));
+            AddSuffix(new string[] { "CtrlSpeedSamples" }, new SetSuffix<ListValue>(GetCtrlSpeedSamples, SetCtrlSpeedSamples, "Speed samples (For AOA profile)"));
+            AddSuffix(new string[] { "CtrlAOAsamples" }, new SetSuffix<ListValue>(GetCtrlAOASamples, SetCtrlAOASamples, "AOA samples"));
             // Atmosphere density and temperature profile
-            AddSuffix(new string[] { "altsamples" }, new SetSuffix<ListValue>(GetAltsamples, SetAltsamples, "Altitude samples (For density profile)"));
-            AddSuffix(new string[] { "logdensitysamples" }, new SetSuffix<ListValue>(GetLogDensitysamples, SetLogDensitysamples, "Log Density samples"));
-            AddSuffix(new string[] { "temperaturesamples" }, new SetSuffix<ListValue>(GetTemperaturesamples, SetTemperaturesamples, "Temperature samples"));
+            AddSuffix(new string[] { "AtmAltSamples" }, new SetSuffix<ListValue>(GetAtmAltSamples, SetAtmAltSamples, "Altitude samples (For density profile)"));
+            AddSuffix(new string[] { "AtmLogDensitySamples" }, new SetSuffix<ListValue>(GetAtmLogDensitySamples, SetAtmLogDensitySamples, "Log Density samples"));
+            AddSuffix(new string[] { "AtmTempSamples" }, new SetSuffix<ListValue>(GetAtmTempSamples, SetAtmTempSamples, "Temperature samples"));
 
             // Sync operations
             AddSuffix(new string[] { "GetBankCmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetBankCmd, "Takes y4 state and guidance parameters, output Bank command"));
@@ -163,12 +165,13 @@ namespace kOS.AddOns.AFSAddon
 
         private ListValue ListFromDoubleArray(double[] arr)
         {
-            var list = new ListValue();
+            ListValue list = new ListValue();
             if (arr != null)
                 foreach (var d in arr)
                     list.Add(new ScalarDoubleValue(d));
             return list;
         }
+
         private double[] ExtractDoubleArray(ListValue list, string name)
         {
             if (list == null) return new double[0];
@@ -185,6 +188,52 @@ namespace kOS.AddOns.AFSAddon
             }
             return result;
         }
+
+        private ListValue ListFromDoubleArray2D(double[,] arr)
+        {
+            ListValue list = new ListValue();
+            if (arr == null) return list;
+            int dim0 = arr.GetLength(0), dim1 = arr.GetLength(1);
+            for (int i = 0; i < dim0; i++)
+            {
+                ListValue sublist = new ListValue();
+                for (int j = 0; j < dim1; j++)
+                {
+                    sublist.Add(new ScalarDoubleValue(arr[i, j]));
+                }
+                list.Add(sublist);
+            }
+            return list;
+        }
+
+        private double[,] ExtractDoubleArray2D(ListValue list, string name)
+        {
+            int dim0 = list.Count;
+            if (dim0 == 0) return null;
+            if (!(list[0] is ListValue sublist0))
+                throw new KOSException($"All elements of '{name}' must be List of Scalar numbers");
+            int dim1 = sublist0.Count;
+            double[,] result = new double[dim0, dim1];
+            for (int i = 0; i < dim0; i++)
+            {
+                if (!(list[i] is ListValue sublist))
+                    throw new KOSException($"All elements of '{name}' must be List of Scalar numbers");
+                if (sublist.Count != dim1)
+                    throw new KOSException($"All sublists of '{name}' must have the same length");
+                for (int j = 0; j < dim1; j++)
+                {
+                    var item = sublist[j];
+                    if (!(item is ScalarValue scalar))
+                        throw new KOSException($"All elements of sublists of '{name}' must be Scalar numbers");
+                    double d = scalar.GetDoubleValue();
+                    if (double.IsNaN(d) || double.IsInfinity(d))
+                        throw new KOSException($"All elements of sublists of '{name}' must be finite numbers");
+                    result[i, j] = d;
+                }
+            }
+            return result;
+        }
+
         private PhyState RequirePhyState(Lexicon args, string key = "y4")
         {
             double[] _y4 = RequireDoubleArrayArg(args, "y4");
@@ -208,32 +257,36 @@ namespace kOS.AddOns.AFSAddon
             );
             return bargs;
         }
-        private ListValue GetEnergysamples() { return ListFromDoubleArray(simArgs.Energysamples); }
-        private void SetEnergysamples(ListValue val) { simArgs.Energysamples = ExtractDoubleArray(val, "energysamples"); }
 
-        private ListValue GetCdsamples() { return ListFromDoubleArray(simArgs.Cdsamples); }
-        private void SetCdsamples(ListValue val) { simArgs.Cdsamples = ExtractDoubleArray(val, "Cdsamples"); }
+        private ListValue GetAeroSpeedSamples() { return ListFromDoubleArray(simArgs.AeroSpeedSamples); }
+        private void SetAeroSpeedSamples(ListValue val) { simArgs.AeroSpeedSamples = ExtractDoubleArray(val, "AeroSpeedSamples"); }
 
-        private ListValue GetClsamples() { return ListFromDoubleArray(simArgs.Clsamples); }
-        private void SetClsamples(ListValue val) { simArgs.Clsamples = ExtractDoubleArray(val, "Clsamples"); }
+        private ListValue GetAeroAltSamples() { return ListFromDoubleArray(simArgs.AeroAltSamples); }
+        private void SetAeroAltSamples(ListValue val) { simArgs.AeroAltSamples = ExtractDoubleArray(val, "AeroAltSamples"); }
 
-        private ListValue GetSpeedsamples() { return ListFromDoubleArray(simArgs.Speedsamples); }
-        private void SetSpeedsamples(ListValue val) { simArgs.Speedsamples = ExtractDoubleArray(val, "speedsamples"); }
+        private ListValue GetAeroCdSamples() { return ListFromDoubleArray2D(simArgs.AeroCdSamples); }
+        private void SetAeroCdSamples(ListValue val) { simArgs.AeroCdSamples = ExtractDoubleArray2D(val, "AeroCdSamples"); }
 
-        private ListValue GetAOAsamples()
+        private ListValue GetAeroClSamples() { return ListFromDoubleArray2D(simArgs.AeroClSamples); }
+        private void SetAeroClSamples(ListValue val) { simArgs.AeroClSamples = ExtractDoubleArray2D(val, "AeroClSamples"); }
+
+        private ListValue GetCtrlSpeedSamples() { return ListFromDoubleArray(simArgs.CtrlSpeedSamples); }
+        private void SetCtrlSpeedSamples(ListValue val) { simArgs.CtrlSpeedSamples = ExtractDoubleArray(val, "speedsamples"); }
+
+        private ListValue GetCtrlAOASamples()
         {
             ListValue list = new ListValue();
-            foreach (double AOA in simArgs.AOAsamples)
+            foreach (double AOA in simArgs.CtrlAOAsamples)
             {
                 list.Add(new ScalarDoubleValue(AOA / Math.PI * 180));
             }
             return list;
         }
-        private void SetAOAsamples(ListValue val)
+        private void SetCtrlAOASamples(ListValue val)
         {
             if (val == null)
             {
-                simArgs.AOAsamples = new double[0];
+                simArgs.CtrlAOAsamples = new double[0];
                 return;
             }
             double[] result = new double[val.Count];
@@ -247,17 +300,17 @@ namespace kOS.AddOns.AFSAddon
                     throw new KOSException($"All elements of AOAsamples must be finite numbers");
                 result[i] = d / 180.0 * Math.PI;
             }
-            simArgs.AOAsamples = result;
+            simArgs.CtrlAOAsamples = result;
         }
 
-        private ListValue GetAltsamples() { return ListFromDoubleArray(simArgs.Altsamples); }
-        private void SetAltsamples(ListValue val) { simArgs.Altsamples = ExtractDoubleArray(val, "altsamples"); }
+        private ListValue GetAtmAltSamples() { return ListFromDoubleArray(simArgs.AtmAltSamples); }
+        private void SetAtmAltSamples(ListValue val) { simArgs.AtmAltSamples = ExtractDoubleArray(val, "altsamples"); }
 
-        private ListValue GetLogDensitysamples() { return ListFromDoubleArray(simArgs.LogDensitysamples); }
-        private void SetLogDensitysamples(ListValue val) { simArgs.LogDensitysamples = ExtractDoubleArray(val, "logdensitysamples"); }
+        private ListValue GetAtmLogDensitySamples() { return ListFromDoubleArray(simArgs.AtmLogDensitySamples); }
+        private void SetAtmLogDensitySamples(ListValue val) { simArgs.AtmLogDensitySamples = ExtractDoubleArray(val, "logdensitysamples"); }
 
-        private ListValue GetTemperaturesamples() { return ListFromDoubleArray(simArgs.Tempsamples); }
-        private void SetTemperaturesamples(ListValue val) { simArgs.Tempsamples = ExtractDoubleArray(val, "temperaturesamples"); }
+        private ListValue GetAtmTempSamples() { return ListFromDoubleArray(simArgs.AltTempSamples); }
+        private void SetAtmTempSamples(ListValue val) { simArgs.AltTempSamples = ExtractDoubleArray(val, "temperaturesamples"); }
 
         private Lexicon GetBankCmd(Lexicon args)
         {

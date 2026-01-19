@@ -1,12 +1,64 @@
+runOncePath("0:/lib/chrismath.ks").
 runOncePath("0:/lib/orbit.ks").
 runOncePath("0:/lib/atm_utils.ks").
+
+declare global AFS to addons:AFS.
+declare global entry_aeroprofile_process to lexicon(
+    "idle", true,
+    "speedSamples", list(), "altSamples", list(),
+    "batchsize", 20, "curIndex", 0,
+    "Cdlist", list(), "Cllist", list()
+).
+function entry_async_set_aeroprofile {
+    parameter speedSamples.
+    parameter altSamples.
+    parameter batchsize is 20.
+
+    set entry_aeroprofile_process["idle"] to false.
+    set entry_aeroprofile_process["speedSamples"] to speedSamples.
+    set entry_aeroprofile_process["altSamples"] to altSamples.
+    set entry_aeroprofile_process["batchsize"] to batchsize.
+    set entry_aeroprofile_process["Cdlist"] to list().
+    set entry_aeroprofile_process["Cllist"] to list().
+    set entry_aeroprofile_process["curIndex"] to 0.
+    when (true) then {
+        local speedSamples to entry_aeroprofile_process["speedSamples"].
+        local altSamples to entry_aeroprofile_process["altSamples"].
+        local batchsize to entry_aeroprofile_process["batchsize"].
+        local nV to speedSamples:length.
+        local nH to altSamples:length.
+        local curIndex to entry_aeroprofile_process["curIndex"].
+        local curEnd to min(curIndex + batchsize, nV * nH).
+        from {local i to curIndex.} until i = curEnd step {set i to i+1.} do {
+            local iv to floor(i/nH+1e-3).
+            local ih to mod(i, nH).
+            if (ih = 0) {
+                entry_aeroprofile_process["Cdlist"]:add(list()).
+                entry_aeroprofile_process["Cllist"]:add(list()).
+            }
+            local AOAcmd to AFS:GetAOACmd(lexicon("y4", list(10e3, 0, speedSamples[iv], 0)))["AOA"].
+            local CLD to atm_get_CLD_at(AOAcmd, speedSamples[iv], altSamples[ih]).
+            entry_aeroprofile_process["Cdlist"][iv]:add(CLD["Cd"]).
+            entry_aeroprofile_process["Cllist"][iv]:add(CLD["Cl"]).
+        }
+        if (curEnd = nV * nH) {
+            set AFS:AeroSpeedSamples to speedSamples.
+            set AFS:AeroAltSamples to altSamples.
+            set AFS:AeroCdSamples to entry_aeroprofile_process["Cdlist"].
+            set AFS:AeroClSamples to entry_aeroprofile_process["Cllist"].
+            set entry_aeroprofile_process["idle"] to true.
+            return false.
+        }
+        set entry_aeroprofile_process["curIndex"] to curEnd.
+        return true.
+    }
+}
 
 function entry_initialize {
     if (not addons:hasaddon("AFS")) {
         print "AFS addon is not installed. Please install the AFS addon to use this script.".
         print 1/0.
     }
-    declare global AFS to addons:AFS.
 
     // Initialize atmosphere density model
     // Note that in FAR model, geoposition and time are counted in temperature and pressure calculation
@@ -21,22 +73,21 @@ function entry_initialize {
     set AFS:mass to ship:mass.
     set AFS:area to AFS:REFAREA.
     set AFS:bank_max to 70.  // Maximum stable bank angle
+    local CtrlSpeedSamples to list(400, 2000, 6000, 8000).
     entry_set_AOAprofile(
-        list(400, 2000, 6000, 8000),
+        CtrlSpeedSamples,
         list(10, 25, 28, 28)
     ).
-    declare global HProfile to list(20e3, 40e3, 70e3, 90e3).
-    entry_set_aeroprofile(
-        AFS:speedsamples,
-        HProfile,
-        AFS:AOAsamples
-    ).
+    set AFS:AeroSpeedSamples to list(5000).
+    set AFS:AeroAltSamples to list(0).
+    set AFS:AeroCdSamples to list(list(1.5)).
+    set AFS:AeroClSamples to list(list(0.3)).
     // target geo and path contraints
     declare global vecRtgt to V(0, 0, 0).
     set AFS:Qdot_max to 5e6.
     set AFS:acc_max to 30.
     set AFS:dynp_max to 15e3.
-    set AFS:target_energy to AFS:energysamples[0].
+    set AFS:target_energy to entry_get_spercific_energy(body:radius+AFS:AeroAltSamples[0], CtrlSpeedSamples[0]).
     declare global entry_heading_tol to 10.
     declare global entry_bank_reversal to false.
     // prediction parameters
@@ -67,49 +118,11 @@ function entry_set_target {
 }
 
 function entry_set_AOAprofile {
-    parameter newSpeedsamples.
-    parameter newAOAProfile.
+    parameter speedSamples.
+    parameter AOASamples.
 
-    set AFS:speedsamples to newSpeedsamples.
-    set AFS:AOAsamples to newAOAProfile.
-}
-
-function entry_set_aeroprofile {
-    parameter newSpeedsamples.
-    parameter newHProfile.
-    parameter newAOAProfile.
-
-    local EProfile to list().
-    local ClProfile to list().
-    local CdProfile to list().
-    from {local i to 0.} until i = newAOAProfile:length step {set i to i+1.} do {
-        EProfile:add(entry_get_spercific_energy(AFS:R+newHProfile[i], newSpeedsamples[i])).
-        local CLD to atm_get_CLD_at(newAOAProfile[i], newSpeedsamples[i], newHProfile[i]).
-        ClProfile:add(CLD["Cl"]).
-        CdProfile:add(CLD["Cd"]).
-    }
-    set AFS:energysamples to EProfile.
-    set AFS:Clsamples to ClProfile.
-    set AFS:Cdsamples to CdProfile.
-}
-
-function entry_set_aeroprofile_ontraj {
-    parameter trajV.
-    parameter trajR.
-    parameter trajAOA.
-
-    local EProfile to list().
-    local ClProfile to list().
-    local CdProfile to list().
-    from {local i to trajAOA:length-1.} until i = -1 step {set i to i-1.} do {
-        EProfile:add(entry_get_spercific_energy(trajR[i], trajV[i])).
-        local CLD to atm_get_CLD_at(trajAOA[i], trajV[i], trajR[i]-AFS:R).
-        ClProfile:add(CLD["Cl"]).
-        CdProfile:add(CLD["Cd"]).
-    }
-    set AFS:energysamples to EProfile.
-    set AFS:Clsamples to ClProfile.
-    set AFS:Cdsamples to CdProfile.
+    set AFS:CtrlSpeedSamples to speedSamples.
+    set AFS:CtrlAOASamples to AOASamples.
 }
 
 function entry_get_control {
@@ -214,12 +227,6 @@ function entry_initialize_guidance {
             }
         }
         set numiter to numiter + 1.
-        // update aerodynamic profile based on predicted trajectory
-        entry_set_aeroprofile_ontraj(
-            result1["trajV"],
-            result1["trajR"],
-            result1["trajAOA"]
-        ).
     }
 
     local gst to lexicon(
@@ -274,13 +281,6 @@ function entry_step_guidance {
     set bank_now to max(0, min(AFS:bank_max, bank_now)).
     set gst["bank_i"] to bank_now.
     set gst["energy_i"] to energy_now.
-
-    // update aerodynamic profile based on predicted trajectory
-    entry_set_aeroprofile_ontraj(
-        result1["trajV"],
-        result1["trajR"],
-        result1["trajAOA"]
-    ).
 
     return lexicon(
         "ok", true, "status", "COMPLETED",

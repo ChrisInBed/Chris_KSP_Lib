@@ -1,4 +1,6 @@
 runOncePath("0:/lib/atm_utils.ks").
+runOncePath("0:/lib/chrismath.ks").
+runOncePath("0:/lib/edllib/uentry_core.ks").
 
 if (not addons:hasaddon("AFS")) {
     print "AFS addon is not installed. Please install the AFS addon to use this script.".
@@ -35,29 +37,20 @@ set AFS:predict_traj_dSqrtE to 300.
 set AFS:predict_traj_dH to 10e3.
 
 // Initialize Energy, AOA, Cl, Cd profiles
-declare global speedsamples to list(400, 3500, 8000).
-declare global AOAProfile to list(13, 25, 32).
-declare global HProfile to list(20e3, 40e3, 80e3).
-declare global EProfile to list().
-declare global ClProfile to list().
-declare global CdProfile to list().
-from {local i to 0.} until i = speedsamples:length step {set i to i+1.} do {
-    EProfile:add(get_spercific_energy(body:radius+HProfile[i], speedsamples[i])).
-    local CLD to atm_get_CLD_at(AOAProfile[i], speedsamples[i], HProfile[i]).
-    ClProfile:add(CLD["Cl"]).
-    CdProfile:add(CLD["Cd"]).
-}
-set AFS:speedsamples to speedsamples.
-set AFS:AOAsamples to AOAProfile.
-set AFS:energysamples to EProfile.
-set AFS:Clsamples to ClProfile.
-set AFS:Cdsamples to CdProfile.
+entry_set_AOAprofile(
+    list(400, 3500, 8000), // speed profile in m/s
+    list(13, 25, 32) // AOA profile in degrees
+).
 
-print "Lift and Drag coefficients profiles:".
-// print "AOA (deg): " + AOAProfile.
-// print "Altitude (m): " + HProfile.
-print "Cl: " + ClProfile.
-print "Cd: " + CdProfile.
+local aeroSpeedSamples to list().
+mlinspace(400, 8000, 32, aeroSpeedSamples).
+local aeroAltSamples to list().
+mlinspace(15e3, body:atm:height-100, 32, aeroAltSamples).
+entry_async_set_aeroprofile(
+    aeroSpeedSamples,
+    aeroAltSamples
+).
+wait until entry_aeroprofile_process["idle"].
 
 function get_spercific_energy {
     parameter rr.
@@ -76,43 +69,6 @@ print "V = 6km/s, Alt = 80km, Bank = " + AFS:GetBankCmd(lexicon(
 
 // test item: Predictor
 declare global startState to list(body:radius+140e3, 0, 7.8e3, -1).
-declare global newRange to 0.
-declare global lastRange to 0.
-
-declare global numiter to 0.
-declare global result to lexicon().
-until (false) {
-    local jobid to AFS:AsyncSimAtmTraj(lexicon(
-        "t", 0, "y4", startState,
-        "bank_i", bank_i, "bank_f", bank_f,
-        "energy_i", energy_i, "energy_f", energy_f
-    )).
-    wait until AFS:CheckTask(jobid).
-    set result to AFS:GetTaskResult(jobid).
-    set newRange to result["finalState"][1]/180*constant:PI*body:radius.
-    if (abs(newRange - lastRange) < 1e3) break.
-    set lastRange to newRange.
-    // Renew aerodynamic profiles based on predicted trajectory
-    set EProfile to list().
-    set ClProfile to list().
-    set CdProfile to list().
-    from {local i to result["trajE"]:length-1.} until i = -1 step {set i to i-1.} do {
-        EProfile:add(result["trajE"][i]).
-        local CLD to atm_get_CLD_at(result["trajAOA"][i], result["trajV"][i], result["trajR"][i] - body:radius).
-        ClProfile:add(CLD["Cl"]).
-        CdProfile:add(CLD["Cd"]).
-        print "V=" + round(result["trajV"][i]/1e3, 1) + ",Alt=" + round((result["trajR"][i]-body:radius)/1e3, 0) + ",Cl=" + round(CLD["Cl"], 3) + ",Cd=" + round(CLD["Cd"], 3) + ",AOA=" + round(result["trajAOA"][i], 1) + "    ".
-    }
-    set AFS:energysamples to EProfile.
-    set AFS:Clsamples to ClProfile.
-    set AFS:Cdsamples to CdProfile.
-    set numiter to numiter + 1.
-    print "Iteration " + numiter + ": predicted range = " + (newRange/1e3) + " km.".
-}
-
-print "Final predicted range = " + (newRange/1e3) + " km after " + numiter + " iterations.".
-
-// Test deriative
 local jobid to AFS:AsyncSimAtmTraj(lexicon(
     "t", 0, "y4", startState,
     "bank_i", bank_i, "bank_f", bank_f,
@@ -120,6 +76,7 @@ local jobid to AFS:AsyncSimAtmTraj(lexicon(
 )).
 wait until AFS:CheckTask(jobid).
 local result1 to AFS:GetTaskResult(jobid).
+print "Final predicted range = " + (result1["finalState"][1]/180*constant:PI*body:radius*1e-3) + " km.".
 set jobid to AFS:AsyncSimAtmTraj(lexicon(
     "t", 0, "y4", startState,
     "bank_i", bank_i+0.1, "bank_f", bank_f,

@@ -32,15 +32,16 @@ function initialize_guidance {
     entry_set_target(entry_hf, entry_vf, entry_dist, target_geo).
     entry_set_AOAprofile(
         list(400, 2000, 6000, 8000), // speed profile in m/s
-        list(10, 25, 28, 28) // AOA profile in degrees
+        list(13, 20, 32, 33) // AOA profile in degrees
     ).
-    entry_set_aeroprofile(
-        AFS:speedsamples,
-        list(15e3, 40e3, 70e3, 90e3), // altitude profile in meters
-        AFS:AOAsamples
+    local aeroSpeedSamples to list().
+    mlinspace(entry_vf, 8000, 32, aeroSpeedSamples).
+    local aeroAltSamples to list().
+    mlinspace(entry_hf, body:atm:height, 32, aeroAltSamples).
+    entry_async_set_aeroprofile(
+        aeroSpeedSamples,
+        aeroAltSamples
     ).
-    print "CL profile: " + arr2str(AFS:Clsamples) AT(0,3).
-    print "CD profile: " +  arr2str(AFS:Cdsamples) AT(0,4).
 
     set AFS:Qdot_max to 6e5.
     set AFS:acc_max to 25.
@@ -51,6 +52,8 @@ function initialize_guidance {
     set AFS:k_QEGC to 0.5.
     set AFS:k_C to 2.
     set AFS:t_reg to 90.
+
+    wait until entry_aeroprofile_process["idle"].
 }
 
 function entry_phase {
