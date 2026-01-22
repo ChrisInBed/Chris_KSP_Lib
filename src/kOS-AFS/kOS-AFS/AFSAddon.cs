@@ -9,6 +9,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using FerramAerospaceResearch;
 using System.Linq;
+using UnityEngine;
+using kOS.Suffixed;
 
 namespace kOS.AddOns.AFSAddon
 {
@@ -49,6 +51,7 @@ namespace kOS.AddOns.AFSAddon
             AddSuffix(new string[] { "molar_mass" }, new SetSuffix<ScalarDoubleValue>(GetMolarMass, SetMolarMass, "Atmospheric average molar mass"));
             AddSuffix(new string[] { "mass" }, new SetSuffix<ScalarDoubleValue>(GetMass, SetMass, "Vehicle mass"));
             AddSuffix(new string[] { "area" }, new SetSuffix<ScalarDoubleValue>(GetArea, SetArea, "Reference area"));
+            AddSuffix(new string[] { "rotation" }, new SetSuffix<Direction>(GetRotation, SetRotation, "Rotation of the vessel"));
             AddSuffix(new string[] { "atm_height" }, new SetSuffix<ScalarDoubleValue>(GetAtmHeight, SetAtmHeight, "Height of the ceiling of the atmosphere"));
             AddSuffix(new string[] { "bank_max" }, new SetSuffix<ScalarDoubleValue>(GetBankMax, SetBankMax, "Max bank angle"));
             AddSuffix(new string[] { "k_QEGC" }, new SetSuffix<ScalarDoubleValue>(GetK_QEGC, SetK_QEGC, "Heat flux gain constant"));
@@ -117,6 +120,9 @@ namespace kOS.AddOns.AFSAddon
 
         private ScalarDoubleValue GetArea() { return new ScalarDoubleValue(simArgs.area); }
         private void SetArea(ScalarDoubleValue val) { simArgs.area = val.GetDoubleValue(); }
+
+        private Direction GetRotation() { return new Direction(simArgs.rotation); }
+        private void SetRotation(Direction q) { simArgs.rotation = q.Rotation; }
 
         private ScalarDoubleValue GetAtmHeight() { return new ScalarDoubleValue(simArgs.atmHeight); }
         private void SetAtmHeight(ScalarDoubleValue val) { simArgs.atmHeight = val.GetDoubleValue(); }
@@ -337,7 +343,7 @@ namespace kOS.AddOns.AFSAddon
             double altitude = RequireDoubleArg(args, "altitude");
             double speed = RequireDoubleArg(args, "speed");
             double AOA = RequireDoubleArg(args, "AOA") / 180 * Math.PI;
-            AFSCore.GetFARAeroCoefs(altitude, AOA, speed, out double Cd, out double Cl);
+            AFSCore.GetFARAeroCoefs(altitude, AOA, speed, out double Cd, out double Cl, simArgs.rotation);
             Lexicon result = new Lexicon();
             result.Add(new StringValue("Cd"), new ScalarDoubleValue(Cd));
             result.Add(new StringValue("Cl"), new ScalarDoubleValue(Cl));

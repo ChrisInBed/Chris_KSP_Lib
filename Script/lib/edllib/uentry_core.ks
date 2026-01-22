@@ -86,12 +86,14 @@ function entry_initialize {
     declare global entry_hf to 25000.
     declare global entry_vf to 650.
     declare global entry_target_geo to body:geopositionlatlng(0, 0).
-    set AFS:Qdot_max to 5e6.
-    set AFS:acc_max to 30.
-    set AFS:dynp_max to 15e3.
     set AFS:target_energy to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
     declare global entry_heading_tol to 10.
     declare global entry_bank_reversal to false.
+    // path constraints
+    set AFS:Qdot_max to 6e5.
+    set AFS:acc_max to 25.
+    set AFS:dynp_max to 10e3.
+    set entry_heading_tol to 10.
     // prediction parameters
     set AFS:predict_min_step to 0.
     set AFS:predict_max_step to 0.5.
@@ -101,6 +103,7 @@ function entry_initialize {
     set AFS:k_QEGC to 0.5.
     set AFS:k_C to 2.
     set AFS:t_reg to 90.
+
     // Trajectory sampling parameters
     set AFS:predict_traj_dSqrtE to 300.
     set AFS:predict_traj_dH to 10e3.
@@ -165,22 +168,23 @@ function entry_initialize_guidance {
     parameter bank_i, bank_f.
 
     local vecRtgt to entry_target_geo:position - body:position.
-    if (vecR:mag > body:radius + body:atm:height) {
-        // propagate to entry interface
-        local _result to entry_propagate_to_entry(tt, vecR, vecV).
-        if (not _result["ok"]) return lexicon(
-            "ok", false, "status", _result["status"],
-            "msg", _result["msg"]
-        ).
-        set tt to _result["time_entry"].
-        set vecR to _result["vecR"].
-        set vecV to _result["vecV"].
-        print "Time to entry interface: " + round(tt) + " s." AT(0, 13).
-        print "Entry height = " + round(vecR:mag - body:radius) + " m."
-            + ", speed = " + round(vecV:mag) + " m/s." AT(0, 14).
-    }
-    // Convert orbital velocity to surface velocity
-    set vecV to vecV - vCrs(body:angularvel, vecR).
+
+    // propagate to entry interface
+    local entryInfo to entry_propagate_to_entry(tt, vecR, vecV).
+    if (not entryInfo["ok"]) return lexicon(
+        "ok", false, "status", entryInfo["status"],
+        "msg", entryInfo["msg"]
+    ).
+    set tt to entryInfo["time_entry"].
+    set vecR to entryInfo["vecR"].
+    set vecV to entryInfo["vecV"].
+    // print "Time to entry interface: " + round(tt) + " s." AT(0, 13).
+    // print "Entry height = " + round(vecR:mag - body:radius) + " m."
+    //     + ", speed = " + round(vecV:mag) + " m/s." AT(0, 14).
+    // convert to body-fixed frame
+    local _toBodyFixed to angleAxis(-body:angularvel:mag*180/constant:pi*tt, body:angularvel).
+    set vecR to _toBodyFixed * vecR.
+    set vecV to _toBodyFixed * vecV - vCrs(body:angularvel, vecR).
 
     local energy_i to entry_get_spercific_energy(vecR:mag, vecV:mag).
     local energy_f to AFS:target_energy.
@@ -196,7 +200,7 @@ function entry_initialize_guidance {
             "bank_f", bank_f,
             "energy_i", energy_i,
             "energy_f", energy_f
-        )).
+        ), true).
         if (not result1["ok"]) {
             print "Entry predictor error: (" + result1["status"] + ") "
                 + result1["msg"] AT(0, 15).
@@ -214,7 +218,7 @@ function entry_initialize_guidance {
                 "bank_f", bank_f,
                 "energy_i", energy_i,
                 "energy_f", energy_f
-            )).
+            ), true).
             if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
             set thetaErr to result1["thetaf"] - theta_target.
             local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
@@ -241,6 +245,7 @@ function entry_initialize_guidance {
     return lexicon(
         "ok", true, "status", "COMPLETED", "gst", gst,
         "time_entry", tt, "vecR_entry", vecR, "vecV_entry", vecV,
+        "re", result1["re"], "thetae", result1["thetae"], "ve", result1["ve"], "gammae", result1["gammae"],
         "time_final", result1["time_final"], "vecR_final", result1["vecR_final"], "vecV_final", result1["vecV_final"],
         "rf", result1["rf"], "thetaf", result1["thetaf"], "vf", result1["vf"], "gammaf", result1["gammaf"],
         "maxQdot", result1["maxQdot"], "maxQdotTime", result1["maxQdotTime"],
@@ -268,14 +273,14 @@ function entry_step_guidance {
         "bank_f", gst["bank_f"],
         "energy_i", energy_now,
         "energy_f", gst["energy_f"]
-    )).
+    ), false).
     if (not result1["ok"]) return lexicon("ok", false, "status", result1["status"], "msg", result1["msg"]).
     local result2 to entry_predictor(tt, vecR, vecV, lexicon(
         "bank_i", bank_now + 0.1,
         "bank_f", gst["bank_f"],
         "energy_i", energy_now,
         "energy_f", gst["energy_f"]
-    )).
+    ), false).
     if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
     local thetaErr to result1["thetaf"] - theta_target.
     local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
@@ -301,24 +306,26 @@ function entry_predictor {
     parameter vecR.
     parameter vecV.  // orbital or surface velocity
     parameter gst.
-    parameter inOrbit is false.  // true if vecV is orbital velocity
+    parameter PlanMode is true.
 
-    if (vecR:mag > body:radius + body:atm:height) {
+    if (PlanMode) {
+        // In plan mode, vecV is orbital velocity
+        // And the program will propagate to entry interface first
         // propagate to entry interface
-        local _result to entry_propagate_to_entry(tt, vecR, vecV).
-        if (not _result["ok"]) return lexicon(
+        local entryInfo to entry_propagate_to_entry(tt, vecR, vecV).
+        if (not entryInfo["ok"]) return lexicon(
             "ok", false,
-            "status", _result["status"],
-            "msg", _result["msg"]
+            "status", entryInfo["status"],
+            "msg", entryInfo["msg"]
         ).
-        set tt to _result["time_entry"].
-        set vecR to _result["vecR"].
-        set vecV to _result["vecV"].
-    }
+        set tt to entryInfo["time_entry"].
+        set vecR to entryInfo["vecR"].
+        set vecV to entryInfo["vecV"].
 
-    if (inOrbit) {
-        // Convert orbital velocity to surface velocity
-        set vecV to vecV - vCrs(body:angularvel, vecR).
+        // convert to body-fixed frame
+        local _toBodyFixed to angleAxis(-body:angularvel:mag*180/constant:pi*tt, body:angularvel).
+        set vecR to _toBodyFixed * vecR.
+        set vecV to _toBodyFixed * vecV - vCrs(body:angularvel, vecR).
     }
 
     // Convert to y4 state
@@ -326,11 +333,12 @@ function entry_predictor {
     local theta to 0.
     local vv to vecV:mag.
     local gamma to 90 - vAng(vecR, vecV).
+    local y4_entry to list(rr, theta, vv, gamma).
     local unitUy to vCrs(vecV, vecR):normalized.
     local unitRref to vecR:normalized.
     // Propagate to final state
     local _jobid to AFS:AsyncSimAtmTraj(lexicon(
-        "t", tt, "y4", list(rr, theta, vv, gamma),
+        "t", tt, "y4", y4_entry,
         "bank_i", gst["bank_i"], "bank_f", gst["bank_f"],
         "energy_i", gst["energy_i"], "energy_f", gst["energy_f"]
     )).
@@ -359,6 +367,7 @@ function entry_predictor {
     return lexicon(
         "ok", true, "status", "COMPLETED",
         "time_entry", tt, "vecR_entry", vecR, "vecV_entry", vecV,
+        "re", y4_entry[0], "thetae", y4_entry[1], "ve", y4_entry[2], "gammae", y4_entry[3],
         "time_final", predRes["t"], "vecR_final", vecRf, "vecV_final", vecVf,
         "rf", yf[0], "thetaf", yf[1], "vf", yf[2], "gammaf", yf[3],
         "trajE", predRes["trajE"],
@@ -376,6 +385,18 @@ function entry_propagate_to_entry {
     parameter tt.
     parameter vecR.
     parameter vecV.
+
+    if (vecR:mag <= body:radius + body:atm:height) {
+        // local _toBodyFixed to angleAxis(-body:angularvel:mag*180/constant:pi*tt, body:angularvel).
+        // set vecR to _toBodyFixed * vecR.
+        // set vecV to _toBodyFixed * vecV.
+        return lexicon(
+            "ok", true, "status", "COMPLETED",
+            "time_entry", tt,
+            "vecR", vecR,
+            "vecV", vecV
+        ).
+    }
 
     // Get orbit elements
     local obts to get_orbit_element_from_VR(vecR, vecV, body:mu).
@@ -401,9 +422,9 @@ function entry_propagate_to_entry {
     local t_e to get_time_to_theta(obts["sma"], obts["ecc"], body:mu, tt, obts["TA"], theta_e).
     print "TA = " + round(obts["TA"]) + " ; TA_entry = " + round(theta_e) + "   " AT(0, 17).
     // to body-fixed reference frame
-    local _toBodyFixed to angleAxis(-body:angularvel:mag*180/constant:pi*(t_e-tt), body:angularvel).
-    set vecR_e to _toBodyFixed * vecR_e.
-    set vecV_e to _toBodyFixed * vecV_e.
+    // local _toBodyFixed to angleAxis(-body:angularvel:mag*180/constant:pi*t_e, body:angularvel).
+    // set vecR_e to _toBodyFixed * vecR_e.
+    // set vecV_e to _toBodyFixed * vecV_e.
     return lexicon(
         "ok", true, "status", "COMPLETED",
         "time_entry", t_e,

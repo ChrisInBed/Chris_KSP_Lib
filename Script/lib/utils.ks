@@ -16,7 +16,7 @@ function str2arr {
     local strarr to str:split(",").
     local arr to list().
     for _s in strarr {
-        arr:add(_s:trim:toNumber()).
+        arr:add(_s:trim:toNumber(0)).
     }
     return arr.
 }

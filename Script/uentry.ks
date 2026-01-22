@@ -25,24 +25,24 @@ function init_print {
 function initialize_guidance {
     // set all state variables to initial values
     entry_initialize().
-    entry_set_target(25e3, 650, 30e3, 0, get_target_geo()).
-    set _vecRtgtDraw to vecDraw(
-        {return body:position.},
-        {return entry_target_geo:position - body:position.},
-        RGB(255, 0, 0), "Target", 1.0, true
-    ).
-    entry_set_AOAprofile(
-        list(400, 2000, 6000, 8000), // speed profile in m/s
-        list(13, 20, 32, 33) // AOA profile in degrees
-    ).
-    local aeroSpeedSamples to list().
-    mlinspace(entry_vf, 8000, 32, aeroSpeedSamples).
-    local aeroAltSamples to list().
-    mlinspace(entry_hf, body:atm:height, 32, aeroAltSamples).
-    entry_async_set_aeroprofile(
-        aeroSpeedSamples,
-        aeroAltSamples
-    ).
+    // entry_set_target(25e3, 650, 30e3, 0, get_target_geo()).
+    // set _vecRtgtDraw to vecDraw(
+    //     {return body:position.},
+    //     {return entry_target_geo:position - body:position.},
+    //     RGB(255, 0, 0), "Target", 1.0, true
+    // ).
+    // entry_set_AOAprofile(
+    //     list(400, 2000, 6000, 8000), // speed profile in m/s
+    //     list(13, 20, 32, 33) // AOA profile in degrees
+    // ).
+    // local aeroSpeedSamples to list().
+    // mlinspace(entry_vf, 8000, 32, aeroSpeedSamples).
+    // local aeroAltSamples to list().
+    // mlinspace(entry_hf, body:atm:height, 32, aeroAltSamples).
+    // entry_async_set_aeroprofile(
+    //     aeroSpeedSamples,
+    //     aeroAltSamples
+    // ).
 
     set AFS:Qdot_max to 6e5.
     set AFS:acc_max to 25.
@@ -77,7 +77,6 @@ function entry_phase {
         return _cd >= 0.
     } 
     wait until time:seconds - startTime > initInfo["time_entry"] - 60 or ship:altitude < body:atm:height.
-    // wait until ship:altitude < body:atm:height.
     set guidance_stage to "entry".
     RCS ON.
     local _control to entry_get_control(-body:position, ship:velocity:surface, gst).
@@ -88,36 +87,60 @@ function entry_phase {
         if (enable_roll_torque) set ship:control:pilotrolltrim to _torqueCmd:x.
         if (enable_pitch_torque) set ship:control:pilotpitchtrim to _torqueCmd:y.
         if (enable_yaw_torque) set ship:control:pilotyawtrim to _torqueCmd:z.
-        print "Bank = " + round(_control["bank"]) + " deg; " +
-                "AOA = " + round(_control["AOA"]) + " deg; " AT(0, 16).
+        if (defined gui_edlmain) {
+            set gui_edl_state_alt:text to "Altitude: " + round(ship:altitude*1e-3,2) + " km".
+            set gui_edl_state_speed:text to "Speed: " + round(ship:velocity:surface:mag,1) + " m/s".
+            set gui_edl_state_aoa:text to "AOA: " + round(AFS:AOA,1) + "(" + round(_control["AOA"],1) + ")".
+            set gui_edl_state_bank:text to "Bank: " + round(get_bank(),1) + "(" + round(_control["bank"],1) + ")".
+            local gamma to 90 - vAng(ship:velocity:surface, up:forevector).
+            set gui_edl_state_pathangle:text to "Path Angle: " + round(gamma,2) + "°".
+        }
         return true.
     }
 
     // Outer loop: update guidance state
     local lock ee to entry_get_spercific_energy(body:position:mag, ship:velocity:surface:mag).
     local lock ef to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
+    local stepInfo to lexicon().
     // step once before entering the loop
     until (ee < ef) {
         set AFS:mass to ship:mass.
         set AFS:area to AFS:REFAREA.
-        local stepInfo to entry_step_guidance(0, -body:position, ship:velocity:surface, gst).
+        set stepInfo to entry_step_guidance(0, -body:position, ship:velocity:surface, gst).
         if (not stepInfo["ok"]) {
             print "Error: (" + stepInfo["status"] + ")" + stepInfo["msg"] AT(0, 30).
         }
         else {
-            print "bank_i = " + round(gst["bank_i"]) + " deg; " + "T = " + round(stepInfo["time_final"]) + " s    " AT(0, 13).
-            print "range error = " + round(body:radius*stepInfo["error"]/180*constant:pi) + " m    " AT(0, 14).
-            print "vf = " + round(stepInfo["vf"]) + " m/s; " + "hf = " + round(stepInfo["rf"] - body:radius) + " m    " AT(0, 15).
-            print "Max Qdot = " + round(stepInfo["maxQdot"]/1e3, 1) + " kW/m^2 @" + round(stepInfo["maxQdotTime"]) + " s    " AT(0, 17).
-            print "Max acc = " + round(stepInfo["maxAcc"]/9.81, 2) + " g @" + round(stepInfo["maxAccTime"]) + " s    " AT(0, 18).
-            print "Max dynp = " + round(stepInfo["maxDynP"]/1e3, 1) + " kPa @" + round(stepInfo["maxDynPTime"]) + " s    " AT(0, 19).
+            // print "bank_i = " + round(gst["bank_i"]) + " deg; " + "T = " + round(stepInfo["time_final"]) + " s    " AT(0, 13).
+            // print "range error = " + round(body:radius*stepInfo["error"]/180*constant:pi) + " m    " AT(0, 14).
+            // print "vf = " + round(stepInfo["vf"]) + " m/s; " + "hf = " + round(stepInfo["rf"] - body:radius) + " m    " AT(0, 15).
+            // print "Max Qdot = " + round(stepInfo["maxQdot"]/1e3, 1) + " kW/m^2 @" + round(stepInfo["maxQdotTime"]) + " s    " AT(0, 17).
+            // print "Max acc = " + round(stepInfo["maxAcc"]/9.81, 2) + " g @" + round(stepInfo["maxAccTime"]) + " s    " AT(0, 18).
+            // print "Max dynp = " + round(stepInfo["maxDynP"]/1e3, 1) + " kPa @" + round(stepInfo["maxDynPTime"]) + " s    " AT(0, 19).
+            if (defined gui_edlmain) {
+                set gui_edl_state_banki:text to "Bank_i: " + round(gst["bank_i"],1):tostring + " °".
+                set gui_edl_state_T:text to "T: " + round(stepInfo["time_final"]):tostring + " s".
+                set gui_edl_state_rangetogo:text to "Range TOGO: " + +round(stepInfo["thetaf"]/180*constant:pi*body:radius*1e-3,2) + " km".
+                set gui_edl_state_rangeerr:text to "Range Err: " + round(stepInfo["error"]/180*constant:pi*body:radius*1e-3,2) + " km".
+                set gui_edl_state_vf:text to "Vf: " + round(stepInfo["vf"]):tostring + " m/s".
+                set gui_edl_state_hf:text to "Hf: " + round((stepInfo["rf"] - body:radius)*1e-3):tostring + " km".
+                set gui_edl_state_maxqdot:text to "M.Heatflux: " + round(stepInfo["maxQdot"]/1e3):tostring + " kW @" + round(stepInfo["maxQdotTime"]):tostring + " s".
+                set gui_edl_state_maxload:text to "M.Load: " + round(stepInfo["maxAcc"]/9.81,1):tostring + " g @" + round(stepInfo["maxAccTime"]):tostring + " s".
+                set gui_edl_state_maxdynp:text to "M.DynP: " + round(stepInfo["maxDynP"]/1e3,1):tostring + " kPa @" + round(stepInfo["maxDynPTime"]):tostring + " s".
+                set gui_edl_state_EToGo:text to "E TOGO: " + round((ee - ef)*1e-3):tostring + " kJ".
+            }
             draw_vecR_final(stepInfo["vecR_final"], entry_target_geo:position - body:position).
             if (stepInfo["time_final"] < 60) break.  // Stop updating guidance parameters
         }
-        wait 0.2.
+        wait 1.
     }
+    local _timebegin to time:seconds.
     until ee < ef {
-        print "Left Energy = " + round((ee - ef)*1e-3) + " kJ         " AT(0, 13).
+        // print "Left Energy = " + round((ee - ef)*1e-3) + " kJ         " AT(0, 13).
+        if (defined gui_edlmain) {
+            set gui_edl_state_T:text to "T: " + round(stepInfo["time_final"]+_timebegin - time:seconds):tostring + " s".
+            set gui_edl_state_EToGo:text to "E TOGO: " + round((ee - ef)*1e-3):tostring + " kJ".
+        }
         wait 0.2.
     }
     fc_DeactiveControl().
@@ -155,10 +178,10 @@ function draw_vecR_final {
     ).
 }
 
-// function get_bank {
-//     // calculate current bank angle
-//     return arcTan2(
-//         -vDot(ship:facing:starvector, up:forevector),
-//         vDot(ship:facing:upvector, up:forevector)
-//     ).
-// }
+function get_bank {
+    // calculate current bank angle
+    return arcTan2(
+        -vDot(ship:facing:starvector, up:forevector),
+        vDot(ship:facing:upvector, up:forevector)
+    ).
+}

@@ -3,13 +3,16 @@ runOncePath("0:/lib/utils.ks").
 runOncePath("0:/lib/orbit.ks").
 runOncePath("0:/lib/chrismath.ks").
 
+declare global hudtextsize to 15.
+declare global hudtextcolor to RGB(22/255, 255/255, 22/255).
+
 declare global AFS to addons:AFS.
 function edl_MakeEDLGUI {
     // EDL Main GUI
     // Required global variables:
     // - AFS, entry_vf, entry_hf, entry_dist, entry_bank_i, entry_bank_f
     // - entry_heading_tol, AOAProfile, HProfile
-    declare global gui_edlmain to GUI(500, 700).
+    declare global gui_edlmain to GUI(400, 400).
     set gui_edlmain:style:hstretch to true.
 
     // Title
@@ -32,88 +35,62 @@ function edl_MakeEDLGUI {
     set gui_edl_activate_button:onclick to {
         set guidance_active to true.
     }.
-
-    // Vessel Parameters
-    gui_edlmain:addlabel("<b>Vessel Parameters</b>").
-    
-    declare global gui_edl_mass_box to gui_edlmain:addhbox().
-    declare global gui_edl_mass_label to gui_edl_mass_box:addlabel("Mass (t):").
-    set gui_edl_mass_label:style:width to 120.
-    declare global gui_edl_mass_input to gui_edl_mass_box:addtextfield(AFS:mass:tostring).
-    declare global gui_edl_mass_set to gui_edl_mass_box:addbutton("set").
-    set gui_edl_mass_set:style:width to 50.
-    set gui_edl_mass_set:onclick to {set AFS:mass to gui_edl_mass_input:text:tonumber.}.
-
-    declare global gui_edl_area_box to gui_edlmain:addhbox().
-    declare global gui_edl_area_label to gui_edl_area_box:addlabel("Area (m²):").
-    set gui_edl_area_label:style:width to 120.
-    declare global gui_edl_area_input to gui_edl_area_box:addtextfield(AFS:area:tostring).
-    declare global gui_edl_area_set to gui_edl_area_box:addbutton("set").
-    set gui_edl_area_set:style:width to 50.
-    set gui_edl_area_set:onclick to {set AFS:area to gui_edl_area_input:text:tonumber.}.
+    declare global gui_edl_emergency_button to gui_edlmain:addcheckbox("<b><size=16>EMERGENCY SUPPRESS</size></b>", false).
+    set gui_edl_emergency_button:ontoggle to {
+        parameter newstate.
+        set config:suppressautopilot to newstate.
+    }.
+    declare global gui_edl_kcl_button to gui_edlmain:addbutton("Open KCL Controller GUI").
+    set gui_edl_kcl_button:onclick to {
+        fc_MakeKCLGUI().
+    }.
 
     gui_edlmain:addspacing(10).
 
-    // // Aerodynamic Parameters
-    // gui_edlmain:addlabel("<b>Aerodynamic Profile</b>").
-    // declare global gui_edl_aeroprofile_box to gui_edlmain:addvbox().
-    // declare global gui_edl_aeroprofile_update_button to gui_edl_aeroprofile_box:addbutton("Update Profiles").
-    // set gui_edl_aeroprofile_update_button:onclick to {
-    //     local speedsamples to str2arr(gui_edl_speedsamples_input:text).
-    //     mscalarmul(speedsamples, 1e3).  // convert to m/s
-    //     local AOAProfile to str2arr(gui_edl_aoaprofile_input:text).
-    //     entry_set_AOAprofile(speedsamples, AOAProfile).
-    //     local _HProfile to str2arr(gui_edl_hprofile_input:text).
-    //     mscalarmul(_HProfile, 1e3).  // convert to m
-    //     entry_set_aeroprofile(AFS:speedsamples, _HProfile, AOAProfile).
-    //     set gui_edl_Cdprofile_input:text to arr2str(AFS:Cdsamples, 2).
-    //     set gui_edl_Clprofile_input:text to arr2str(AFS:Clsamples, 2).
-    // }.
-
-    // declare global gui_edl_speedsamples_box to gui_edl_aeroprofile_box:addhbox().
-    // declare global gui_edl_speedsamples_label to gui_edl_speedsamples_box:addlabel("Speed Profile (km/s):").
-    // set gui_edl_speedsamples_label:style:width to 150.
-    // local speedsamples to AFS:speedsamples:copy.
-    // mscalarmul(speedsamples, 1e-3).  // convert to km/s
-    // declare global gui_edl_speedsamples_input to gui_edl_speedsamples_box:addtextfield(arr2str(speedsamples, 1)).
-
-    // declare global gui_edl_hprofile_box to gui_edl_aeroprofile_box:addhbox().
-    // declare global gui_edl_hprofile_label to gui_edl_hprofile_box:addlabel("(Guess)Alt Profile (km):").
-    // set gui_edl_hprofile_label:style:width to 150.
-    // local _HProfile to HProfile:copy.
-    // mscalarmul(_HProfile, 1e-3).  // convert to km
-    // declare global gui_edl_hprofile_input to gui_edl_hprofile_box:addtextfield(arr2str(_HProfile, 1)).
-
-    // declare global gui_edl_aoaprofile_box to gui_edl_aeroprofile_box:addhbox().
-    // declare global gui_edl_aoaprofile_label to gui_edl_aoaprofile_box:addlabel("AOA Profile (°):").
-    // set gui_edl_aoaprofile_label:style:width to 150.
-    // declare global gui_edl_aoaprofile_input to gui_edl_aoaprofile_box:addtextfield(arr2str(AFS:AOAsamples, 1)).
-
-    // declare global gui_edl_Cdprofile_box to gui_edl_aeroprofile_box:addhbox().
-    // declare global gui_edl_Cdprofile_label to gui_edl_Cdprofile_box:addlabel("Cd Profile:").
-    // set gui_edl_Cdprofile_label:style:width to 150.
-    // declare global gui_edl_Cdprofile_input to gui_edl_Cdprofile_box:addtextfield(arr2str(AFS:Cdsamples, 2)).
-
-    // declare global gui_edl_Clprofile_box to gui_edl_aeroprofile_box:addhbox().
-    // declare global gui_edl_Clprofile_label to gui_edl_Clprofile_box:addlabel("Cl Profile:").
-    // set gui_edl_Clprofile_label:style:width to 150.
-    // declare global gui_edl_Clprofile_input to gui_edl_Clprofile_box:addtextfield(arr2str(AFS:Clsamples, 2)).
-
-    // gui_edlmain:addspacing(10).
+    // State Display
+    declare global gui_edl_state_label to gui_edlmain:addlabel("<b>Guidance State</b>").
+    declare global gui_edl_state_box to gui_edlmain:addhbox().
+    declare global gui_edl_state_box1 to gui_edl_state_box:addvlayout().
+    declare global gui_edl_state_box2 to gui_edl_state_box:addvlayout().
+    declare global gui_edl_state_status to gui_edl_state_box1:addlabel("Status: "+guidance_stage).
+    on guidance_stage {
+        set gui_edl_state_status:text to "Status: " + guidance_stage.
+    }
+    declare global gui_edl_state_alt to gui_edl_state_box1:addlabel("Altitude: 0 km").
+    declare global gui_edl_state_speed to gui_edl_state_box1:addlabel("Speed: 0 m/s").
+    declare global gui_edl_state_banki to gui_edl_state_box1:addlabel("Bank_i: "+round(entry_bank_i,1):tostring+" °").
+    declare global gui_edl_state_aoa to gui_edl_state_box1:addlabel("AOA: 0").
+    declare global gui_edl_state_bank to gui_edl_state_box1:addlabel("Bank: 0").
+    declare global gui_edl_state_pathangle to gui_edl_state_box1:addlabel("Path Angle: 0").
+    declare global gui_edl_state_T to gui_edl_state_box1:addlabel("T: 0 s").
+    declare global gui_edl_state_rangetogo to gui_edl_state_box2:addlabel("Range TOGO: 0 km").
+    declare global gui_edl_state_rangeerr to gui_edl_state_box2:addlabel("Range Err: 0 km").
+    declare global gui_edl_state_vf to gui_edl_state_box2:addlabel("Vf: 0 m/s").
+    declare global gui_edl_state_hf to gui_edl_state_box2:addlabel("Hf: 0 km").
+    declare global gui_edl_state_maxqdot to gui_edl_state_box2:addlabel("M.Heatflux: 0 kW/m^2 @ 0s").
+    declare global gui_edl_state_maxload to gui_edl_state_box2:addlabel("M.Load: 0 g @ 0s").
+    declare global gui_edl_state_maxdynp to gui_edl_state_box2:addlabel("M.Dynp: 0 kPa @ 0s").
+    declare global gui_edl_state_EToGo to gui_edl_state_box2:addlabel("E TOGO: 0 kJ").
 
     // Target Parameters
     gui_edlmain:addlabel("<b>Target</b>").
-    declare global gui_edl_target_button to gui_edlmain:addbutton("Update Target").
+    declare global entry_edl_target_mainbox to gui_edlmain:addvbox().
+    declare global gui_edl_target_button to entry_edl_target_mainbox:addbutton("Update Target").
     set gui_edl_target_button:onclick to {
+        local target_geo to get_target_geo().
+        if (target_geo = 0) {
+            hudtext("No active waypoint found!", 4, 2, 12, hudtextcolor, false).
+            return.
+        }
         local entry_vf to gui_edl_entry_vf_input:text:tonumber.
         local entry_hf to gui_edl_entry_hf_input:text:tonumber * 1e3.  // convert to m
         local entry_dist to gui_edl_entry_dist_input:text:tonumber * 1e3.  // convert to m
         local entry_headingf to gui_edl_entry_headingf_input:text:tonumber.
-        entry_set_target(entry_hf, entry_vf, entry_dist, entry_headingf, get_target_geo()).
+        entry_set_target(entry_hf, entry_vf, entry_dist, entry_headingf, target_geo).
     }.
 
-    declare global gui_edl_target_box1 to gui_edlmain:addhbox().  // line 1
-    declare global gui_edl_target_box2 to gui_edlmain:addhbox().  // line 2
+    declare global gui_edl_target_box1 to entry_edl_target_mainbox:addhbox().  // line 1
+    declare global gui_edl_target_box2 to entry_edl_target_mainbox:addhbox().  // line 2
 
     declare global gui_edl_entry_hf_label to gui_edl_target_box1:addlabel("Height (km):").
     set gui_edl_entry_hf_label:style:width to 150.
@@ -124,6 +101,10 @@ function edl_MakeEDLGUI {
     declare global gui_edl_entry_vf_input to gui_edl_target_box1:addtextfield(round(entry_vf, 1):tostring).
 
     local active_geo to get_target_geo().
+    if (active_geo = 0) {
+        hudtext("No active waypoint found!", 4, 2, 12, hudtextcolor, false).
+        set active_geo to body:geopositionlatlng(0, 0).
+    }
     local entry_dist to (active_geo:position - entry_target_geo:position):mag.
     declare global gui_edl_entry_dist_label to gui_edl_target_box2:addlabel("Distance (km):").
     set gui_edl_entry_dist_label:style:width to 150.
@@ -133,6 +114,11 @@ function edl_MakeEDLGUI {
     declare global gui_edl_entry_headingf_label to gui_edl_target_box2:addlabel("Heading (°):").
     set gui_edl_entry_headingf_label:style:width to 150.
     declare global gui_edl_entry_headingf_input to gui_edl_target_box2:addtextfield(round(entry_headingf, 1):tostring).
+
+    declare global gui_edl_aero_button to gui_edlmain:addbutton("Open Aerodynamic Profile GUI").
+    set gui_edl_aero_button:onclick to {
+        edl_MakeAeroGUI().
+    }.
 
     // Guidance Parameters
     gui_edlmain:addlabel("<b>Guidance Parameters</b>").
@@ -169,7 +155,7 @@ function edl_MakeEDLGUI {
     set gui_edl_entry_heading_tol_set:onclick to {set entry_heading_tol to gui_edl_entry_heading_tol_input:text:tonumber.}.
     
     declare global gui_edl_qdot_max_box to gui_edlmain:addhbox().
-    declare global gui_edl_qdot_max_label to gui_edl_qdot_max_box:addlabel("Max Heatflux (kW/m^2):").
+    declare global gui_edl_qdot_max_label to gui_edl_qdot_max_box:addlabel("M.Heatflux (kW):").
     set gui_edl_qdot_max_label:style:width to 150.
     declare global gui_edl_qdot_max_input to gui_edl_qdot_max_box:addtextfield(round(AFS:Qdot_max*1e-3):tostring).
     declare global gui_edl_qdot_max_set to gui_edl_qdot_max_box:addbutton("set").
@@ -177,7 +163,7 @@ function edl_MakeEDLGUI {
     set gui_edl_qdot_max_set:onclick to {set AFS:Qdot_max to gui_edl_qdot_max_input:text:tonumber * 1e3.}.
 
     declare global gui_edl_acc_max_box to gui_edlmain:addhbox().
-    declare global gui_edl_acc_max_label to gui_edl_acc_max_box:addlabel("Max Load (g):").
+    declare global gui_edl_acc_max_label to gui_edl_acc_max_box:addlabel("M.Load (g):").
     set gui_edl_acc_max_label:style:width to 150.
     declare global gui_edl_acc_max_input to gui_edl_acc_max_box:addtextfield(round(AFS:acc_max/9.81, 1):tostring).
     declare global gui_edl_acc_max_set to gui_edl_acc_max_box:addbutton("set").
@@ -185,7 +171,7 @@ function edl_MakeEDLGUI {
     set gui_edl_acc_max_set:onclick to {set AFS:acc_max to gui_edl_acc_max_input:text:tonumber * 9.81.}.
 
     declare global gui_edl_dynp_max_box to gui_edlmain:addhbox().
-    declare global gui_edl_dynp_max_label to gui_edl_dynp_max_box:addlabel("Max Dynp (kPa):").
+    declare global gui_edl_dynp_max_label to gui_edl_dynp_max_box:addlabel("M.DynP (kPa):").
     set gui_edl_dynp_max_label:style:width to 150.
     declare global gui_edl_dynp_max_input to gui_edl_dynp_max_box:addtextfield(round(AFS:dynp_max*1e-3):tostring).
     declare global gui_edl_dynp_max_set to gui_edl_dynp_max_box:addbutton("set").
@@ -224,16 +210,170 @@ function edl_MakeEDLGUI {
     set gui_edl_t_reg_set:style:width to 50.
     set gui_edl_t_reg_set:onclick to {set AFS:t_reg to gui_edl_t_reg_input:text:tonumber.}.
 
-    gui_edlmain:addspacing(10).
-
-    // KCL Controller Button
-    declare global gui_edl_kcl_button to gui_edlmain:addbutton("Open KCL Controller GUI").
-    set gui_edl_kcl_button:onclick to {
-        fc_MakeKCLGUI().
+    declare global gui_edl_planner_box to gui_edlmain:addvbox().
+    declare global gui_edl_planner_msg to gui_edl_planner_box:addlabel("").
+    declare global gui_edl_planner_box1 to gui_edl_planner_box:addhlayout().
+    declare global gui_edl_planner_show_button to gui_edl_planner_box1:addcheckbox("Show Prediction", false).
+    set gui_edl_planner_show_button:ontoggle to {
+        parameter newstate.
+        if (not newstate) {
+            if (defined gui_draw_vecRpred_final) set gui_draw_vecRpred_final:show to false.
+            if (defined gui_draw_vecTgt) set gui_draw_vecTgt:show to false.
+            return.
+        }
+        if (not (defined gui_vecRpred_final)) {
+            declare global gui_vecRpred_final to V(body:radius*1.5, 0, 0).
+        }
+        declare global gui_draw_vecRpred_final to vecDraw(
+            {return body:position.},
+            {return gui_vecRpred_final.},
+            RGB(0, 255, 0), "Final", 1.0, true
+        ).
+        declare global gui_draw_vecTgt to vecDraw(
+            {return body:position.},
+            {return (entry_target_geo:position-body:position):normalized*body:radius*1.5.},
+            RGB(255, 0, 0), "Target", 1.0, true
+        ).
+    }.
+    declare global gui_edl_planner_update_button to gui_edl_planner_box1:addbutton("Update Prediction").
+    set gui_edl_planner_update_button:onclick to {
+        // Propagate to entry
+        local tt to 0.
+        local vecR to v(0,0,0).
+        local vecV to v(0,0,0).
+        if (hasNode) {
+            set tt to nextNode:time - time:seconds.
+            set vecR to positionAt(ship, nextNode:time + 10) - body:position.
+            set vecV to velocityAt(ship, nextNode:time + 10):orbit.
+        }
+        else {
+            set tt to 0.
+            set vecR to ship:position - body:position.
+            set vecV to ship:velocity:orbit.
+        }
+        local entryInfo to entry_propagate_to_entry(tt, vecR, vecV).
+        set tt to entryInfo["time_entry"].
+        set vecR to entryInfo["vecR"].
+        set vecV to entryInfo["vecV"].
+        local vecVsrf to vecV - vCrs(body:angularvel, vecR).  // to body-fixed frame
+        local gst to lexicon(
+            "bank_i", entry_bank_i, "bank_f", entry_bank_f,
+            "energy_i", entry_get_spercific_energy(vecR:mag, vecVsrf:mag),
+            "energy_f", entry_get_spercific_energy(entry_hf + body:radius, entry_vf)
+        ).
+        local finalInfo to entry_predictor(tt, vecR, vecV, gst, true).
+        if (not finalInfo["ok"]) {
+            set gui_edl_planner_msg:text to "Prediction Error: (" + finalInfo["status"] + ") " + finalInfo["msg"].
+            return.
+        }
+        set gui_vecRpred_final to finalInfo["vecR_final"]:normalized * body:radius * 1.5.
+        set gui_edl_planner_msg:text to 
+            "Entry interface: V = " + round(finalInfo["ve"])
+            + " m/s, Path angle = " + round(finalInfo["gammae"], 2)
+            + ", Range = " + round(finalInfo["thetaf"]/180*constant:pi*body:radius*1e-3) + " km."
+            + ", Vf = " + round(finalInfo["vf"]) + " m/s."
+            + ", Hf = " + round((finalInfo["rf"]-body:radius)*1e-3, 1) + " km.".
     }.
 
     gui_edlmain:show().
     return gui_edlmain.
+}
+
+function edl_MakeAeroGUI {
+    declare global gui_aeromain to GUI(400, 400).
+    set gui_aeromain:style:hstretch to true.
+
+    // Title
+    declare global gui_aero_title_box to gui_aeromain:addhbox().
+    set gui_aero_title_box:style:height to 40.
+    set gui_aero_title_box:style:margin:top to 0.
+    declare global gui_aero_title_label to gui_aero_title_box:addlabel("<b><size=20>Aerodynamic Profile</size></b>").
+    set gui_aero_title_label:style:align TO "center".
+    declare global gui_aero_title_exit_button to gui_aero_title_box:addbutton("X").
+    set gui_aero_title_exit_button:style:width to 20.
+    set gui_aero_title_exit_button:style:align to "right".
+    set gui_aero_title_exit_button:onclick to {
+        gui_aeromain:hide().
+    }.
+    declare global gui_aero_msg_label to gui_aeromain:addlabel("").
+
+    gui_aeromain:addspacing(10).
+    declare global gui_aero_update_button to gui_aeromain:addbutton("Update Profiles").
+    set gui_aero_update_button:onclick to {
+        if (not entry_aeroprofile_process["idle"]) {
+            hudtext("Cannot update aerodynamic profile while another process is running", 4, 2, hudtextsize, hudtextcolor, false).
+            return.
+        }
+        local CtrlSpeedSamples to str2arr(gui_aero_speedsamples_input:text).
+        mscalarmul(CtrlSpeedSamples, 1e3).  // convert to m/s
+        local CtrlAOASamples to str2arr(gui_aero_AOAsamples_input:text).
+        set AFS:CtrlSpeedSamples to CtrlSpeedSamples.
+        set AFS:CtrlAOASamples to CtrlAOASamples.
+
+        local AeroSpeedSamples to list().
+        mlinspace(
+            gui_aero_speedgrid_vmin_input:text:tonumber * 1e3,  // convert to m/s
+            gui_aero_speedgrid_vmax_input:text:tonumber * 1e3,  // convert to m/s
+            gui_aero_speedgrid_npoints_input:text:tonumber,
+            AeroSpeedSamples
+        ).
+        local AeroAltSamples to list().
+        mlinspace(
+            gui_aero_altgrid_hmin_input:text:tonumber * 1e3,  // convert to m
+            gui_aero_altgrid_hmax_input:text:tonumber * 1e3,  // convert to m
+            round(gui_aero_altgrid_npoints_input:text:tonumber, 0),
+            AeroAltSamples
+        ).
+        local batchsize to round(gui_aero_batchsize_input:text:tonumber(20), 0).
+        entry_async_set_aeroprofile(AeroSpeedSamples, AeroAltSamples, batchsize).
+        when (true) then {
+            local nV to AeroSpeedSamples:length().
+            local nH to AeroAltSamples:length().
+            local currentIndex to entry_aeroprofile_process["curIndex"].
+            set gui_aero_msg_label:text to "Generating aerodynamic profile: " + (round(currentIndex*100/(nV*nH), 1)):tostring + "% complete".
+            if (entry_aeroprofile_process["idle"]) {
+                set gui_aero_msg_label:text to "Aerodynamic profile generation complete.".
+                return false.
+            }
+            return true.
+        }
+    }.
+
+    declare global gui_aero_speedsamples_box to gui_aeromain:addhbox().
+    declare global gui_aero_speedsamples_label to gui_aero_speedsamples_box:addlabel("Speed Profile (km/s):").
+    set gui_aero_speedsamples_label:style:width to 150.
+    local speedsamples to AFS:CtrlSpeedSamples:copy.
+    mscalarmul(speedsamples, 1e-3).  // convert to km/s
+    declare global gui_aero_speedsamples_input to gui_aero_speedsamples_box:addtextfield(arr2str(speedsamples, 1)).
+
+    declare global gui_aero_AOAsamples_box to gui_aeromain:addhbox().
+    declare global gui_aero_AOAsamples_label to gui_aero_AOAsamples_box:addlabel("AOA Profile (°):").
+    set gui_aero_AOAsamples_label:style:width to 150.
+    declare global gui_aero_AOAsamples_input to gui_aero_AOAsamples_box:addtextfield(arr2str(AFS:CtrlAOASamples, 1)).
+
+    declare global gui_aero_speedgrid_box to gui_aeromain:addhbox().
+    declare global gui_aero_speedgrid_label to gui_aero_speedgrid_box:addlabel("Vmin (km/s)").
+    declare global gui_aero_speedgrid_vmin_input to gui_aero_speedgrid_box:addtextfield((round(entry_vf*1e-3, 2)):tostring).
+    declare global gui_aero_speedgrid_label2 to gui_aero_speedgrid_box:addlabel("Vmax (km/s)").
+    declare global gui_aero_speedgrid_vmax_input to gui_aero_speedgrid_box:addtextfield("8").
+    declare global gui_aero_speedgrid_npoints_label to gui_aero_speedgrid_box:addlabel("Points").
+    declare global gui_aero_speedgrid_npoints_input to gui_aero_speedgrid_box:addtextfield("32").
+
+    declare global gui_aero_altgrid_box to gui_aeromain:addhbox().
+    declare global gui_aero_altgrid_label to gui_aero_altgrid_box:addlabel("Hmin (km)").
+    declare global gui_aero_altgrid_hmin_input to gui_aero_altgrid_box:addtextfield(round(entry_hf*1e-3, 2):tostring).
+    declare global gui_aero_altgrid_label2 to gui_aero_altgrid_box:addlabel("Hmax (km)").
+    declare global gui_aero_altgrid_hmax_input to gui_aero_altgrid_box:addtextfield((round(body:atm:height, 2)):tostring).
+    declare global gui_aero_altgrid_npoints_label to gui_aero_altgrid_box:addlabel("Points").
+    declare global gui_aero_altgrid_npoints_input to gui_aero_altgrid_box:addtextfield("32").
+
+    declare global gui_aero_batchsize_box to gui_aeromain:addhbox().
+    declare global gui_aero_batchsize_label to gui_aero_batchsize_box:addlabel("Batch Size per Frame").
+    set gui_aero_batchsize_label:style:width to 150.
+    declare global gui_aero_batchsize_input to gui_aero_batchsize_box:addtextfield("20").
+
+    gui_aeromain:show().
+    return gui_aeromain.
 }
 
 function fc_MakeKCLGUI {
@@ -242,7 +382,7 @@ function fc_MakeKCLGUI {
     // - enable_roll_torque, enable_pitch_torque, enable_yaw_torque: automatically initialized to true
     // - kclcontroller: automatically initialized to true
     // Return: global gui_kclmain
-    declare global gui_kclmain is GUI(500, 700).
+    declare global gui_kclmain is GUI(400, 400).
     set gui_kclmain:style:hstretch to true.
 
     // Title
