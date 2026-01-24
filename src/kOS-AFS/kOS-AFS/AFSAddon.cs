@@ -41,9 +41,14 @@ namespace kOS.AddOns.AFSAddon
             // Get-only args (scalars)
             AddSuffix(new string[] { "AOA" }, new Suffix<ScalarDoubleValue>(GetAOA, "Angle of attack of current vessel"));
             AddSuffix(new string[] { "AOS" }, new Suffix<ScalarDoubleValue>(GetAOS, "Sideslip of current vessel"));
+            AddSuffix(new string[] { "BANK" }, new Suffix<ScalarDoubleValue>(GetBank, "Bank of current vessel"));
             AddSuffix(new string[] { "REFAREA" }, new Suffix<ScalarDoubleValue>(GetRefArea, "reference area of current vessel"));
             AddSuffix(new string[] { "CD" }, new Suffix<ScalarDoubleValue>(GetCd, "current drag coefficient of the current vessel"));
             AddSuffix(new string[] { "CL" }, new Suffix<ScalarDoubleValue>(GetCl, "current lift coefficient of the current vessel"));
+            AddSuffix(new string[] { "HeatFlux" }, new Suffix<ScalarDoubleValue>(GetHeatFlux, "current heat flux of the current vessel"));
+            AddSuffix(new string[] { "GeeForce" }, new Suffix<ScalarDoubleValue>(GetGeeForce, "current acceleration of the current vessel"));
+            AddSuffix(new string[] { "DynamicPressure" }, new Suffix<ScalarDoubleValue>(GetDynamicPressure, "current dynamic pressure of the current vessel"));
+            AddSuffix(new string[] { "Density" }, new Suffix<ScalarDoubleValue>(GetDensity, "current air density of the current vessel"));
 
             // Get&Set args (scalars)
             AddSuffix(new string[] { "mu" }, new SetSuffix<ScalarDoubleValue>(GetMu, SetMu, "Gravity constant of central celestral"));
@@ -52,6 +57,7 @@ namespace kOS.AddOns.AFSAddon
             AddSuffix(new string[] { "mass" }, new SetSuffix<ScalarDoubleValue>(GetMass, SetMass, "Vehicle mass"));
             AddSuffix(new string[] { "area" }, new SetSuffix<ScalarDoubleValue>(GetArea, SetArea, "Reference area"));
             AddSuffix(new string[] { "rotation" }, new SetSuffix<Direction>(GetRotation, SetRotation, "Rotation of the vessel"));
+            AddSuffix(new string[] { "AOAReversal" }, new SetSuffix<BooleanValue>(GetAOAReversal, SetAOAReversal, "The sign of AOA angle, false mean positive, true mean negative"));
             AddSuffix(new string[] { "atm_height" }, new SetSuffix<ScalarDoubleValue>(GetAtmHeight, SetAtmHeight, "Height of the ceiling of the atmosphere"));
             AddSuffix(new string[] { "bank_max" }, new SetSuffix<ScalarDoubleValue>(GetBankMax, SetBankMax, "Max bank angle"));
             AddSuffix(new string[] { "k_QEGC" }, new SetSuffix<ScalarDoubleValue>(GetK_QEGC, SetK_QEGC, "Heat flux gain constant"));
@@ -86,9 +92,11 @@ namespace kOS.AddOns.AFSAddon
             AddSuffix(new string[] { "GetBankCmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetBankCmd, "Takes y4 state and guidance parameters, output Bank command"));
             AddSuffix(new string[] { "GetAOACmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetAOACmd, "Takes y4 state, output AOA command"));
             AddSuffix(new string[] { "GetFARAeroCoefs" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefs, "Takes altitude, speed and AOA as input, output Cd and Cl"));
+            AddSuffix(new string[] { "GetFARAeroCoefsEst" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefsEst, "Takes altitude, speed and AOA as input, output estimated Cd and Cl"));
             AddSuffix(new string[] { "GetDensityAt" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityAt, "Takes altitude as input, output air density in kg/m3"));
             AddSuffix(new string[] { "GetDensityEst" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityEst, "Takes altitude as input, output estimated air density in kg/m3"));
             AddSuffix(new string[] { "InitAtmModel" }, new NoArgsVoidSuffix(InitAtmModel, "Initialize atmosphere model for current body"));
+            AddSuffix(new string[] { "DirectionToAngleAxis" }, new OneArgsSuffix<Vector, Direction>(DirectionToAngleAxis, "Takes direction as input, output its angle axis form, where the magnitude of the vector is in radian unit"));
 
             // Async operations
             AddSuffix(new string[] { "AsyncSimAtmTraj" }, new OneArgsSuffix<ScalarValue, Lexicon>(StartSimAtmTraj, "Start a background atmosphere flight simulation; returns integer handle"));
@@ -100,13 +108,52 @@ namespace kOS.AddOns.AFSAddon
 
         private SimAtmTrajArgs simArgs = new SimAtmTrajArgs();
 
-        private ScalarDoubleValue GetAOA() { return new ScalarDoubleValue(FARAPI.ActiveVesselAoA()); }
-        private ScalarDoubleValue GetAOS() { return new ScalarDoubleValue(FARAPI.ActiveVesselSideslip()); }
-        private ScalarDoubleValue GetRefArea() { return new ScalarDoubleValue(FARAPI.ActiveVesselRefArea()); }
-        private ScalarDoubleValue GetCd() { return new ScalarDoubleValue(FARAPI.ActiveVesselDragCoeff()); }
-        private ScalarDoubleValue GetCl() { return new ScalarDoubleValue(FARAPI.ActiveVesselLiftCoeff()); }
+        //private ScalarDoubleValue GetAOA() { return new ScalarDoubleValue(FARAPI.ActiveVesselAoA()); }
+        private ScalarDoubleValue GetAOA() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARAOA(FlightGlobals.ActiveVessel.srf_velocity, simArgs.rotation, simArgs.AOAReversal) * 180 / Math.PI)); }
+        //private ScalarDoubleValue GetAOS() { return new ScalarDoubleValue(FARAPI.ActiveVesselSideslip()); }
+        private ScalarDoubleValue GetAOS() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARAOS(FlightGlobals.ActiveVessel.srf_velocity, simArgs.rotation) * 180 / Math.PI)); }
+        private ScalarDoubleValue GetBank() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARBank(simArgs.rotation) * 180 / Math.PI)); }
+        private ScalarDoubleValue GetRefArea() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.ActiveVesselRefArea())); }
+        private ScalarDoubleValue GetCd() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.ActiveVesselDragCoeff())); }
+        private ScalarDoubleValue GetCl() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.ActiveVesselLiftCoeff())); }
+        private ScalarDoubleValue GetHeatFlux()
+        {
+            double rho = FlightGlobals.ActiveVessel.atmDensity;
+            double v = FlightGlobals.ActiveVessel.srf_velocity.magnitude;
+            return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.HeatFluxCoefficient * Math.Pow(v, 3.15) * Math.Sqrt(rho)));
+        }
 
-        private ScalarDoubleValue GetMu() { return new ScalarDoubleValue(simArgs.mu); }
+        private ScalarDoubleValue GetGeeForce()
+        {
+            return new ScalarDoubleValue(AFSCore.GetSafeDouble(FlightGlobals.ActiveVessel.geeForce));
+        }
+
+        private ScalarDoubleValue GetDynamicPressure()
+        {
+            return new ScalarDoubleValue(AFSCore.GetSafeDouble(FlightGlobals.ActiveVessel.dynamicPressurekPa * 1000.0));
+        }
+
+        private ScalarDoubleValue GetDensity()
+        {
+            return new ScalarDoubleValue(AFSCore.GetSafeDouble(FlightGlobals.ActiveVessel.atmDensity));
+        }
+
+        private Vector DirectionToAngleAxis(Direction q)
+        {
+            q.Rotation.ToAngleAxis(out float angle, out Vector3 axis);
+            if (angle > 180f)
+            {
+                angle = 360f - angle;
+                axis = -axis;
+            }
+            Vector resVec = new Vector(axis * (angle * Mathf.Deg2Rad));
+            if (Double.IsFinite(resVec.X) && Double.IsFinite(resVec.Y) && Double.IsFinite(resVec.Z))
+                return resVec;
+            else
+                return Vector.Zero;
+		}
+
+		private ScalarDoubleValue GetMu() { return new ScalarDoubleValue(simArgs.mu); }
         private void SetMu(ScalarDoubleValue val) { simArgs.mu = val.GetDoubleValue(); }
 
         private ScalarDoubleValue GetR() { return new ScalarDoubleValue(simArgs.R); }
@@ -123,6 +170,9 @@ namespace kOS.AddOns.AFSAddon
 
         private Direction GetRotation() { return new Direction(simArgs.rotation); }
         private void SetRotation(Direction q) { simArgs.rotation = q.Rotation; }
+
+        private BooleanValue GetAOAReversal() { return simArgs.AOAReversal ? BooleanValue.True : BooleanValue.False; }
+        private void SetAOAReversal(BooleanValue val) { simArgs.AOAReversal = val.Value; }
 
         private ScalarDoubleValue GetAtmHeight() { return new ScalarDoubleValue(simArgs.atmHeight); }
         private void SetAtmHeight(ScalarDoubleValue val) { simArgs.atmHeight = val.GetDoubleValue(); }
@@ -343,7 +393,18 @@ namespace kOS.AddOns.AFSAddon
             double altitude = RequireDoubleArg(args, "altitude");
             double speed = RequireDoubleArg(args, "speed");
             double AOA = RequireDoubleArg(args, "AOA") / 180 * Math.PI;
-            AFSCore.GetFARAeroCoefs(altitude, AOA, speed, out double Cd, out double Cl, simArgs.rotation);
+            AFSCore.GetFARAeroCoefs(altitude, AOA, speed, out double Cd, out double Cl, simArgs.rotation, simArgs.AOAReversal);
+            Lexicon result = new Lexicon();
+            result.Add(new StringValue("Cd"), new ScalarDoubleValue(Cd));
+            result.Add(new StringValue("Cl"), new ScalarDoubleValue(Cl));
+            return result;
+        }
+
+        private Lexicon GetFARAeroCoefsEst(Lexicon args)
+        {
+            double altitude = RequireDoubleArg(args, "altitude");
+            double speed = RequireDoubleArg(args, "speed");
+            AFSCore.GetAeroCoefficients(simArgs, speed, altitude, out double Cd, out double Cl);
             Lexicon result = new Lexicon();
             result.Add(new StringValue("Cd"), new ScalarDoubleValue(Cd));
             result.Add(new StringValue("Cl"), new ScalarDoubleValue(Cl));

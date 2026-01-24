@@ -12,6 +12,7 @@ namespace AFS
     {
         public double mu, R, mass, molarMass, area, atmHeight, bank_max;
         public Quaternion rotation;
+        public bool AOAReversal;
         public double[] CtrlSpeedSamples, CtrlAOAsamples;
         public double[] AeroSpeedSamples, AeroAltSamples;
         public double[,] AeroCdSamples, AeroClSamples;
@@ -29,6 +30,7 @@ namespace AFS
             mass = 6000;
             area = 12;
             rotation = Quaternion.identity;
+            AOAReversal = false;
             atmHeight = 140e3;
             bank_max = 40.0 *Math.PI/180.0;
             CtrlSpeedSamples = new double[] { 600, 8000 };
@@ -130,7 +132,7 @@ namespace AFS
     internal class AFSCore
     {
         // RKF45 parameterss
-        private const double HeatFluxCoefficient = 9.4369e-5;
+        public const double HeatFluxCoefficient = 9.4369e-5;
         private const double AbsVTol = 0;
         private const double RelVTol = 1e-6;
         private const double StepSafety = 0.9;
@@ -366,7 +368,7 @@ namespace AFS
             return -mu / r + 0.5 * v * v;
         }
 
-        private static void GetAeroCoefficients(SimAtmTrajArgs args, double speed, double altitude, out double Cd, out double Cl)
+        public static void GetAeroCoefficients(SimAtmTrajArgs args, double speed, double altitude, out double Cd, out double Cl)
         {
             // Bilinear interpolation for aerodynamic coefficients
             int nV = args.AeroSpeedSamples.Length;
@@ -493,41 +495,15 @@ namespace AFS
 
         private static float SignedAngle(Vector3 from, Vector3 to, Vector3 axis)
         {
-            var cross = Vector3.Cross(from, to);
-            var dot = Vector3.Dot(from, to);
-            var angle = Mathf.Atan2(cross.magnitude, dot) * Mathf.Rad2Deg;
+            Vector3 cross = Vector3.Cross(from, to);
+            float dot = Vector3.Dot(from, to);
+            float angle = Mathf.Atan2(cross.magnitude, dot);
             if (Vector3.Dot(axis, cross) < 0.0f)
                 angle = -angle;
             return angle;
         }
 
-        private static void CalculateVesselOrientation(Vector3d velVectorNorm, out double AOA, out double AOS, out double Bank)
-        {
-            Transform refTransform = FlightGlobals.ActiveVessel.ReferenceTransform;
-
-            Vector3 forward = refTransform.up;
-            Vector3 down = refTransform.forward;
-            Vector3 right = refTransform.right;
-            //velocity vector projected onto a plane that divides the airplane into left and right halves
-            Vector3 tmpVec = forward * Vector3.Dot(forward, velVectorNorm) + down * Vector3.Dot(down, velVectorNorm);
-            AOA = Math.Asin(Vector3.Dot(tmpVec.normalized, down));
-            if (double.IsNaN(AOA)) AOA = 0;
-
-            //velocity vector projected onto the vehicle-horizontal plane
-            tmpVec = forward * Vector3.Dot(forward, velVectorNorm) + right * Vector3.Dot(right, velVectorNorm);
-            AOS = Math.Asin(Vector3.Dot(tmpVec.normalized, right));
-            if (double.IsNaN(AOS)) AOS = 0;
-
-            Vessel _vessel = FlightGlobals.ActiveVessel;
-            var localUp = (_vessel.transform.position - _vessel.mainBody.transform.position).normalized;
-            var east = Vector3.Cross(localUp, _vessel.mainBody.RotationAxis).normalized;
-            var north = Vector3.Cross(east, localUp).normalized;
-            double headingAngle = (SignedAngle(north, Vector3.ProjectOnPlane(forward, localUp).normalized, localUp) + 360f) % 360f;
-            double pitchAngle = 90f - SignedAngle(localUp, forward, Vector3.Cross(localUp, forward).normalized);
-            Bank = SignedAngle(Vector3.Cross(localUp, forward).normalized, right, -forward);
-        }
-
-        private static double GetFARAOA(Vector3d vel, Quaternion rot)
+        public static double GetFARAOA(Vector3d vel, Quaternion rot, bool AOAReversal)
         {
             Quaternion facing = FlightGlobals.ActiveVessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
             Vector3 forward = facing * Vector3.forward;
@@ -537,10 +513,10 @@ namespace AFS
             Vector3 tmpVec = forward * Vector3.Dot(forward, vel) + down * Vector3.Dot(down, vel);
             double AOA = Math.Asin(Vector3.Dot(tmpVec.normalized, down));
             if (double.IsNaN(AOA)) AOA = 0;
-            return AOA;
+            return AOAReversal ? -AOA : AOA;
         }
 
-        private static double GetFARAOS(Vector3d vel, Quaternion rot)
+        public static double GetFARAOS(Vector3d vel, Quaternion rot)
         {
             Quaternion facing = FlightGlobals.ActiveVessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
             Vector3 forward = facing * Vector3.forward;
@@ -553,20 +529,35 @@ namespace AFS
             return AOS;
         }
 
-        private static double GetFARBank(Quaternion rot)
+        public static double GetFARRoll(Quaternion rot)
         {
-            Quaternion facing = FlightGlobals.ActiveVessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
+            Vessel _vessel = FlightGlobals.ActiveVessel;
+            Quaternion facing = _vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
             Vector3 forward = facing * Vector3.forward;
             //Vector3 down = facing * (-Vector3.up);
             Vector3 right = facing * Vector3.right;
-            Vessel _vessel = FlightGlobals.ActiveVessel;
             Vector3 localUp = (_vessel.transform.position - _vessel.mainBody.transform.position).normalized;
-            double Bank = SignedAngle(Vector3.Cross(localUp, forward).normalized, right, -forward);
+            double Roll = SignedAngle(Vector3.Cross(localUp, forward).normalized, right, -forward);
+            return Roll;
+        }
+
+        public static double GetFARBank(Quaternion rot)
+        {
+            Vessel _vessel = FlightGlobals.ActiveVessel;
+            Quaternion facing = _vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
+            Vector3 localUp = (_vessel.transform.position - _vessel.mainBody.transform.position).normalized;
+            Vector3 windForward = _vessel.srf_velocity.normalized;
+            Vector3 windRight = Vector3.Cross(localUp, windForward).normalized;
+            Vector3 windUp = Vector3.Cross(windForward, windRight).normalized;
+            Vector3 bankVec = facing * Vector3.up;
+            bankVec = bankVec - Vector3.Dot(bankVec, windForward) * windForward;
+            double Bank = SignedAngle(windUp, bankVec.normalized, -windForward);
             return Bank;
         }
 
-        public static void GetFARAeroCoefs(double altitude, double AOA, double speed, out double Cd, out double Cl, Quaternion rot)
+        public static void GetFARAeroCoefs(double altitude, double AOA, double speed, out double Cd, out double Cl, Quaternion rot, bool AOAReversal)
         {
+            if (AOAReversal) AOA = -AOA;
             if (rot == null) rot = Quaternion.identity;
             double atmHeight = FlightGlobals.ActiveVessel.mainBody.atmosphereDepth;
             double hs = GetScaleHeightAt(0);
@@ -677,6 +668,11 @@ namespace AFS
             double r = altitude + args.R;
             double g = args.mu / (r * r);
             return GAS_CONSTANT * (double)temperature / (args.molarMass * g);
+        }
+
+        public static double GetSafeDouble(double value)
+        {
+            return Double.IsFinite(value) ? value : 0.0;
         }
     }
 }

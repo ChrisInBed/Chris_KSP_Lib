@@ -1,5 +1,5 @@
 runOncePath("0:/lib/chrismath.ks").
-declare global __ORBIT_TIME_N to 11.
+declare global __ORBIT_TIME_N to 23.
 
 function get_orbit_latus_rectum {
     parameter sma.

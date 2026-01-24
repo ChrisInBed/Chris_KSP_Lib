@@ -20,11 +20,11 @@ function atm_get_CLD_at {
     parameter _altitude.
     // Return a lexicon with keys: Cl, Cd
 
-    // weired values will be acquired near atomosphere edge, clamp altitude
-    local hs to atm_get_scale_height().
-    if (_altitude > body:atm:height - hs) {
-        set _altitude to body:atm:height - hs.
-    }
+    // // weired values will be acquired near atomosphere edge, clamp altitude
+    // local hs to atm_get_scale_height().
+    // if (_altitude > body:atm:height - hs) {
+    //     set _altitude to body:atm:height - hs.
+    // }
 
     return addons:AFS:GetFARAeroCoefs(lexicon(
         "AOA", _AOA,

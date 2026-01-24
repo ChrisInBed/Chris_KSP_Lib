@@ -12,7 +12,7 @@ function edl_MakeEDLGUI {
     // Required global variables:
     // - AFS, entry_vf, entry_hf, entry_dist, entry_bank_i, entry_bank_f
     // - entry_heading_tol, AOAProfile, HProfile
-    declare global gui_edlmain to GUI(400, 400).
+    declare global gui_edlmain to GUI(500, 500).
     set gui_edlmain:style:hstretch to true.
 
     // Title
@@ -29,27 +29,29 @@ function edl_MakeEDLGUI {
         gui_edlmain:hide().
     }.
 
-    gui_edlmain:addspacing(10).
+    declare global gui_edlmainbox to gui_edlmain:addscrollbox().
 
-    declare global gui_edl_activate_button to gui_edlmain:addbutton("Activate Guidance").
+    gui_edlmainbox:addspacing(10).
+
+    declare global gui_edl_activate_button to gui_edlmainbox:addbutton("Activate Guidance").
     set gui_edl_activate_button:onclick to {
         set guidance_active to true.
     }.
-    declare global gui_edl_emergency_button to gui_edlmain:addcheckbox("<b><size=16>EMERGENCY SUPPRESS</size></b>", false).
+    declare global gui_edl_emergency_button to gui_edlmainbox:addcheckbox("<b><size=16>EMERGENCY SUPPRESS</size></b>", false).
     set gui_edl_emergency_button:ontoggle to {
         parameter newstate.
         set config:suppressautopilot to newstate.
     }.
-    declare global gui_edl_kcl_button to gui_edlmain:addbutton("Open KCL Controller GUI").
+    declare global gui_edl_kcl_button to gui_edlmainbox:addbutton("Open KCL Controller GUI").
     set gui_edl_kcl_button:onclick to {
         fc_MakeKCLGUI().
     }.
 
-    gui_edlmain:addspacing(10).
+    gui_edlmainbox:addspacing(10).
 
     // State Display
-    declare global gui_edl_state_label to gui_edlmain:addlabel("<b>Guidance State</b>").
-    declare global gui_edl_state_box to gui_edlmain:addhbox().
+    declare global gui_edl_state_label to gui_edlmainbox:addlabel("<b>Guidance State</b>").
+    declare global gui_edl_state_box to gui_edlmainbox:addhbox().
     declare global gui_edl_state_box1 to gui_edl_state_box:addvlayout().
     declare global gui_edl_state_box2 to gui_edl_state_box:addvlayout().
     declare global gui_edl_state_status to gui_edl_state_box1:addlabel("Status: "+guidance_stage).
@@ -62,19 +64,28 @@ function edl_MakeEDLGUI {
     declare global gui_edl_state_aoa to gui_edl_state_box1:addlabel("AOA: 0").
     declare global gui_edl_state_bank to gui_edl_state_box1:addlabel("Bank: 0").
     declare global gui_edl_state_pathangle to gui_edl_state_box1:addlabel("Path Angle: 0").
-    declare global gui_edl_state_T to gui_edl_state_box1:addlabel("T: 0 s").
+    declare global gui_edl_state_T to gui_edl_state_box2:addlabel("T: 0 s").
+    declare global gui_edl_state_EToGo to gui_edl_state_box2:addlabel("E TOGO: 0 kJ").
     declare global gui_edl_state_rangetogo to gui_edl_state_box2:addlabel("Range TOGO: 0 km").
     declare global gui_edl_state_rangeerr to gui_edl_state_box2:addlabel("Range Err: 0 km").
     declare global gui_edl_state_vf to gui_edl_state_box2:addlabel("Vf: 0 m/s").
     declare global gui_edl_state_hf to gui_edl_state_box2:addlabel("Hf: 0 km").
-    declare global gui_edl_state_maxqdot to gui_edl_state_box2:addlabel("M.Heatflux: 0 kW/m^2 @ 0s").
-    declare global gui_edl_state_maxload to gui_edl_state_box2:addlabel("M.Load: 0 g @ 0s").
-    declare global gui_edl_state_maxdynp to gui_edl_state_box2:addlabel("M.Dynp: 0 kPa @ 0s").
-    declare global gui_edl_state_EToGo to gui_edl_state_box2:addlabel("E TOGO: 0 kJ").
+
+    declare global gui_edl_state_box34 to gui_edlmainbox:addhbox().
+    declare global gui_edl_state_box3 to gui_edl_state_box34:addvlayout().
+    declare global gui_edl_state_box4 to gui_edl_state_box34:addvlayout().
+    declare global gui_edl_state_qdot to gui_edl_state_box3:addlabel("Heatflux: 0 kW").
+    declare global gui_edl_state_maxqdot to gui_edl_state_box4:addlabel("M.Heatflux: 0 kW @ 0s").
+    declare global gui_edl_state_load to gui_edl_state_box3:addlabel("Load: 0 g").
+    declare global gui_edl_state_maxload to gui_edl_state_box4:addlabel("M.Load: 0 g @ 0s").
+    declare global gui_edl_state_dynp to gui_edl_state_box3:addlabel("DynP: 0 kPa").
+    declare global gui_edl_state_maxdynp to gui_edl_state_box4:addlabel("M.Dynp: 0 kPa @ 0s").
+
+    declare global gui_edl_state_msg to gui_edlmainbox:addlabel("").
 
     // Target Parameters
-    gui_edlmain:addlabel("<b>Target</b>").
-    declare global entry_edl_target_mainbox to gui_edlmain:addvbox().
+    gui_edlmainbox:addlabel("<b>Target</b>").
+    declare global entry_edl_target_mainbox to gui_edlmainbox:addvbox().
     declare global gui_edl_target_button to entry_edl_target_mainbox:addbutton("Update Target").
     set gui_edl_target_button:onclick to {
         local target_geo to get_target_geo().
@@ -115,14 +126,14 @@ function edl_MakeEDLGUI {
     set gui_edl_entry_headingf_label:style:width to 150.
     declare global gui_edl_entry_headingf_input to gui_edl_target_box2:addtextfield(round(entry_headingf, 1):tostring).
 
-    declare global gui_edl_aero_button to gui_edlmain:addbutton("Open Aerodynamic Profile GUI").
+    declare global gui_edl_aero_button to gui_edlmainbox:addbutton("Open Aerodynamic Profile GUI").
     set gui_edl_aero_button:onclick to {
         edl_MakeAeroGUI().
     }.
 
     // Guidance Parameters
-    gui_edlmain:addlabel("<b>Guidance Parameters</b>").
-    declare global gui_edl_entry_bank_i_box to gui_edlmain:addhbox().
+    gui_edlmainbox:addlabel("<b>Guidance Parameters</b>").
+    declare global gui_edl_entry_bank_i_box to gui_edlmainbox:addhbox().
     declare global gui_edl_entry_bank_i_label to gui_edl_entry_bank_i_box:addlabel("Initial Bank (°):").
     set gui_edl_entry_bank_i_label:style:width to 150.
     declare global gui_edl_entry_bank_i_input to gui_edl_entry_bank_i_box:addtextfield(entry_bank_i:tostring).
@@ -130,7 +141,7 @@ function edl_MakeEDLGUI {
     set gui_edl_entry_bank_i_set:style:width to 50.
     set gui_edl_entry_bank_i_set:onclick to {set entry_bank_i to gui_edl_entry_bank_i_input:text:tonumber.}.
 
-    declare global gui_edl_entry_bank_f_box to gui_edlmain:addhbox().
+    declare global gui_edl_entry_bank_f_box to gui_edlmainbox:addhbox().
     declare global gui_edl_entry_bank_f_label to gui_edl_entry_bank_f_box:addlabel("Final Bank (°):").
     set gui_edl_entry_bank_f_label:style:width to 150.
     declare global gui_edl_entry_bank_f_input to gui_edl_entry_bank_f_box:addtextfield(entry_bank_f:tostring).
@@ -138,7 +149,7 @@ function edl_MakeEDLGUI {
     set gui_edl_entry_bank_f_set:style:width to 50.
     set gui_edl_entry_bank_f_set:onclick to {set entry_bank_f to gui_edl_entry_bank_f_input:text:tonumber.}.
 
-    declare global gui_edl_bank_max_box to gui_edlmain:addhbox().
+    declare global gui_edl_bank_max_box to gui_edlmainbox:addhbox().
     declare global gui_edl_bank_max_label to gui_edl_bank_max_box:addlabel("Max Bank (°):").
     set gui_edl_bank_max_label:style:width to 150.
     declare global gui_edl_bank_max_input to gui_edl_bank_max_box:addtextfield(AFS:bank_max:tostring).
@@ -146,7 +157,7 @@ function edl_MakeEDLGUI {
     set gui_edl_bank_max_set:style:width to 50.
     set gui_edl_bank_max_set:onclick to {set AFS:bank_max to gui_edl_bank_max_input:text:tonumber.}.
 
-    declare global gui_edl_entry_heading_tol_box to gui_edlmain:addhbox().
+    declare global gui_edl_entry_heading_tol_box to gui_edlmainbox:addhbox().
     declare global gui_edl_entry_heading_tol_label to gui_edl_entry_heading_tol_box:addlabel("Heading Tol (°):").
     set gui_edl_entry_heading_tol_label:style:width to 150.
     declare global gui_edl_entry_heading_tol_input to gui_edl_entry_heading_tol_box:addtextfield(entry_heading_tol:tostring).
@@ -154,7 +165,7 @@ function edl_MakeEDLGUI {
     set gui_edl_entry_heading_tol_set:style:width to 50.
     set gui_edl_entry_heading_tol_set:onclick to {set entry_heading_tol to gui_edl_entry_heading_tol_input:text:tonumber.}.
     
-    declare global gui_edl_qdot_max_box to gui_edlmain:addhbox().
+    declare global gui_edl_qdot_max_box to gui_edlmainbox:addhbox().
     declare global gui_edl_qdot_max_label to gui_edl_qdot_max_box:addlabel("M.Heatflux (kW):").
     set gui_edl_qdot_max_label:style:width to 150.
     declare global gui_edl_qdot_max_input to gui_edl_qdot_max_box:addtextfield(round(AFS:Qdot_max*1e-3):tostring).
@@ -162,7 +173,7 @@ function edl_MakeEDLGUI {
     set gui_edl_qdot_max_set:style:width to 50.
     set gui_edl_qdot_max_set:onclick to {set AFS:Qdot_max to gui_edl_qdot_max_input:text:tonumber * 1e3.}.
 
-    declare global gui_edl_acc_max_box to gui_edlmain:addhbox().
+    declare global gui_edl_acc_max_box to gui_edlmainbox:addhbox().
     declare global gui_edl_acc_max_label to gui_edl_acc_max_box:addlabel("M.Load (g):").
     set gui_edl_acc_max_label:style:width to 150.
     declare global gui_edl_acc_max_input to gui_edl_acc_max_box:addtextfield(round(AFS:acc_max/9.81, 1):tostring).
@@ -170,7 +181,7 @@ function edl_MakeEDLGUI {
     set gui_edl_acc_max_set:style:width to 50.
     set gui_edl_acc_max_set:onclick to {set AFS:acc_max to gui_edl_acc_max_input:text:tonumber * 9.81.}.
 
-    declare global gui_edl_dynp_max_box to gui_edlmain:addhbox().
+    declare global gui_edl_dynp_max_box to gui_edlmainbox:addhbox().
     declare global gui_edl_dynp_max_label to gui_edl_dynp_max_box:addlabel("M.DynP (kPa):").
     set gui_edl_dynp_max_label:style:width to 150.
     declare global gui_edl_dynp_max_input to gui_edl_dynp_max_box:addtextfield(round(AFS:dynp_max*1e-3):tostring).
@@ -178,7 +189,7 @@ function edl_MakeEDLGUI {
     set gui_edl_dynp_max_set:style:width to 50.
     set gui_edl_dynp_max_set:onclick to {set AFS:dynp_max to gui_edl_dynp_max_input:text:tonumber * 1e3.}.
 
-    declare global gui_edl_l_min_box to gui_edlmain:addhbox().
+    declare global gui_edl_l_min_box to gui_edlmainbox:addhbox().
     declare global gui_edl_l_min_label to gui_edl_l_min_box:addlabel("Min Lift (m/s^2):").
     set gui_edl_l_min_label:style:width to 150.
     declare global gui_edl_l_min_input to gui_edl_l_min_box:addtextfield(AFS:L_min:tostring).
@@ -186,7 +197,7 @@ function edl_MakeEDLGUI {
     set gui_edl_l_min_set:style:width to 50.
     set gui_edl_l_min_set:onclick to {set AFS:L_min to gui_edl_l_min_input:text:tonumber.}.
     
-    declare global gui_edl_k_qegc_box to gui_edlmain:addhbox().
+    declare global gui_edl_k_qegc_box to gui_edlmainbox:addhbox().
     declare global gui_edl_k_qegc_label to gui_edl_k_qegc_box:addlabel("QEGC Gain:").
     set gui_edl_k_qegc_label:style:width to 150.
     declare global gui_edl_k_qegc_input to gui_edl_k_qegc_box:addtextfield(AFS:k_QEGC:tostring).
@@ -194,7 +205,7 @@ function edl_MakeEDLGUI {
     set gui_edl_k_qegc_set:style:width to 50.
     set gui_edl_k_qegc_set:onclick to {set AFS:k_QEGC to gui_edl_k_qegc_input:text:tonumber.}.
 
-    declare global gui_edl_k_c_box to gui_edlmain:addhbox().
+    declare global gui_edl_k_c_box to gui_edlmainbox:addhbox().
     declare global gui_edl_k_c_label to gui_edl_k_c_box:addlabel("Constraint Gain:").
     set gui_edl_k_c_label:style:width to 150.
     declare global gui_edl_k_c_input to gui_edl_k_c_box:addtextfield(AFS:k_C:tostring).
@@ -202,7 +213,7 @@ function edl_MakeEDLGUI {
     set gui_edl_k_c_set:style:width to 50.
     set gui_edl_k_c_set:onclick to {set AFS:k_C to gui_edl_k_c_input:text:tonumber.}.
 
-    declare global gui_edl_t_reg_box to gui_edlmain:addhbox().
+    declare global gui_edl_t_reg_box to gui_edlmainbox:addhbox().
     declare global gui_edl_t_reg_label to gui_edl_t_reg_box:addlabel("Lag T (s):").
     set gui_edl_t_reg_label:style:width to 150.
     declare global gui_edl_t_reg_input to gui_edl_t_reg_box:addtextfield(AFS:t_reg:tostring).
@@ -210,7 +221,7 @@ function edl_MakeEDLGUI {
     set gui_edl_t_reg_set:style:width to 50.
     set gui_edl_t_reg_set:onclick to {set AFS:t_reg to gui_edl_t_reg_input:text:tonumber.}.
 
-    declare global gui_edl_planner_box to gui_edlmain:addvbox().
+    declare global gui_edl_planner_box to gui_edlmainbox:addvbox().
     declare global gui_edl_planner_msg to gui_edl_planner_box:addlabel("").
     declare global gui_edl_planner_box1 to gui_edl_planner_box:addhlayout().
     declare global gui_edl_planner_show_button to gui_edl_planner_box1:addcheckbox("Show Prediction", false).
@@ -270,9 +281,12 @@ function edl_MakeEDLGUI {
         set gui_edl_planner_msg:text to 
             "Entry interface: V = " + round(finalInfo["ve"])
             + " m/s, Path angle = " + round(finalInfo["gammae"], 2)
-            + ", Range = " + round(finalInfo["thetaf"]/180*constant:pi*body:radius*1e-3) + " km."
-            + ", Vf = " + round(finalInfo["vf"]) + " m/s."
-            + ", Hf = " + round((finalInfo["rf"]-body:radius)*1e-3, 1) + " km.".
+            + ", Range = " + round(finalInfo["thetaf"]/180*constant:pi*body:radius*1e-3) + "km."
+            + ", Vf = " + round(finalInfo["vf"]) + "m/s."
+            + ", Hf = " + round((finalInfo["rf"]-body:radius)*1e-3, 1) + "km"
+            + ", M.HeatFlux = " + round(finalInfo["maxQdot"]*1e-3) + " kW"
+            + ", M.Load = " + round(finalInfo["maxAcc"]/9.81, 2) + "g"
+            + ", M.DynP = " + round(finalInfo["maxDynP"]*1e-3) + "kPa".
     }.
 
     gui_edlmain:show().
@@ -296,6 +310,68 @@ function edl_MakeAeroGUI {
         gui_aeromain:hide().
     }.
     declare global gui_aero_msg_label to gui_aeromain:addlabel("").
+
+    gui_aeromain:addspacing(10).
+    declare global gui_aero_attitude_label to gui_aeromain:addlabel("<b>Attitude Offset</b>").
+    declare global gui_attitude_offset_box to gui_aeromain:addhbox().
+    declare global gui_attitude_offset_box1 to gui_attitude_offset_box:addvlayout().
+    declare global gui_attitude_offset_box2 to gui_attitude_offset_box:addvlayout().
+    declare global gui_attitude_offset_set_button to gui_attitude_offset_box1:addbutton("Set Attitude").
+    set gui_attitude_offset_set_button:onclick to {
+        local pitch to gui_attitude_offset_pitch_input:text:tonumber.
+        local yaw to gui_attitude_offset_yaw_input:text:tonumber.
+        local roll to gui_attitude_offset_roll_input:text:tonumber.
+        set AFS:rotation to R(pitch, yaw, roll).
+    }.
+    declare global gui_attitude_offset_show_button to gui_attitude_offset_box1:addcheckbox("Show Attitude", false).
+    set gui_attitude_offset_show_button:ontoggle to {
+        parameter newstate.
+        if (not newstate) {
+            if (defined gui_draw_attitude_offset_x) set gui_draw_attitude_offset_x:show to false.
+            if (defined gui_draw_attitude_offset_y) set gui_draw_attitude_offset_y:show to false.
+            if (defined gui_draw_attitude_offset_z) set gui_draw_attitude_offset_z:show to false.
+            return.
+        }
+        set gui_draw_attitude_offset_x to vecDraw(
+            V(0,0,0),
+            {return (ship:facing*AFS:rotation):starvector * gui_attitude_offset_show_input1:text:tonumber.},
+            RGB(255, 0, 0), "Right", 1.0, true
+        ).
+        set gui_draw_attitude_offset_x:show to true.
+        set gui_draw_attitude_offset_y to vecDraw(
+            V(0,0,0),
+            {return (ship:facing*AFS:rotation):upvector * gui_attitude_offset_show_input1:text:tonumber.},
+            RGB(0, 255, 0), "Up", 1.0, true
+        ).
+        set gui_draw_attitude_offset_y:show to true.
+        set gui_draw_attitude_offset_z to vecDraw(
+            V(0,0,0),
+            {return (ship:facing*AFS:rotation):forevector * gui_attitude_offset_show_input1:text:tonumber.},
+            RGB(0, 0, 255), "Forward", 1.0, true
+        ).
+        set gui_draw_attitude_offset_z:show to true.
+    }.
+    declare global gui_attitude_offset_show_box1 to gui_attitude_offset_box1:addhbox().
+    declare global gui_attitude_offset_show_label1 to gui_attitude_offset_show_box1:addlabel("Scale (m): ").
+    set gui_attitude_offset_show_label1:style:width to 80.
+    declare global gui_attitude_offset_show_input1 to gui_attitude_offset_show_box1:addtextfield("50").
+    declare global gui_attitude_offset_pitch_box to gui_attitude_offset_box2:addhbox().
+    declare global gui_attitude_offset_pitch_label to gui_attitude_offset_pitch_box:addlabel("Pitch: ").
+    set gui_attitude_offset_pitch_label:style:width to 80.
+    declare global gui_attitude_offset_pitch_input to gui_attitude_offset_pitch_box:addtextfield(round(AFS:rotation:pitch):tostring).
+    declare global gui_attitude_offset_yaw_box to gui_attitude_offset_box2:addhbox().
+    declare global gui_attitude_offset_yaw_label to gui_attitude_offset_yaw_box:addlabel("Yaw: ").
+    set gui_attitude_offset_yaw_label:style:width to 80.
+    declare global gui_attitude_offset_yaw_input to gui_attitude_offset_yaw_box:addtextfield(round(AFS:rotation:yaw):tostring).
+    declare global gui_attitude_offset_roll_box to gui_attitude_offset_box2:addhbox().
+    declare global gui_attitude_offset_roll_label to gui_attitude_offset_roll_box:addlabel("Roll: ").
+    set gui_attitude_offset_roll_label:style:width to 80.
+    declare global gui_attitude_offset_roll_input to gui_attitude_offset_roll_box:addtextfield(round(AFS:rotation:roll):tostring).
+    declare global gui_attitude_offset_AOAReversal_button to gui_attitude_offset_box2:addcheckbox("Reverse AOA", AFS:AOAReversal).
+    set gui_attitude_offset_AOAReversal_button:ontoggle to {
+        parameter newstate.
+        set AFS:AOAReversal to newstate.
+    }.
 
     gui_aeromain:addspacing(10).
     declare global gui_aero_update_button to gui_aeromain:addbutton("Update Profiles").
@@ -363,7 +439,7 @@ function edl_MakeAeroGUI {
     declare global gui_aero_altgrid_label to gui_aero_altgrid_box:addlabel("Hmin (km)").
     declare global gui_aero_altgrid_hmin_input to gui_aero_altgrid_box:addtextfield(round(entry_hf*1e-3, 2):tostring).
     declare global gui_aero_altgrid_label2 to gui_aero_altgrid_box:addlabel("Hmax (km)").
-    declare global gui_aero_altgrid_hmax_input to gui_aero_altgrid_box:addtextfield((round(body:atm:height, 2)):tostring).
+    declare global gui_aero_altgrid_hmax_input to gui_aero_altgrid_box:addtextfield((round(body:atm:height*1e-3, 2)):tostring).
     declare global gui_aero_altgrid_npoints_label to gui_aero_altgrid_box:addlabel("Points").
     declare global gui_aero_altgrid_npoints_input to gui_aero_altgrid_box:addtextfield("32").
 
@@ -428,69 +504,26 @@ function fc_MakeKCLGUI {
     }.
 
     // Rotation Rate Controller Parameters
-    gui_kclmain:addlabel("<b>Rotation Rate Controller</b>").
+    gui_kclmain:addlabel("<b>Rotational Rate Controller</b>").
 
-    gui_kclmain:addlabel("AOA Rate").
-    declare global gui_kcl_aoa_rate_box to gui_kclmain:addhbox().
-    declare global gui_kcl_kaoa_label to gui_kcl_aoa_rate_box:addlabel("K:").
-    declare global gui_kcl_kaoa_input to gui_kcl_aoa_rate_box:addtextfield(kclcontroller["RotationRateController"]["KAOA"]:tostring).
-    set gui_kcl_kaoa_input:onconfirm to {
+    declare global gui_kcl_rotation_rate_box to gui_kclmain:addhbox().
+    declare global gui_kcl_kp_label to gui_kcl_rotation_rate_box:addlabel("Kp:").
+    declare global gui_kcl_kp_input to gui_kcl_rotation_rate_box:addtextfield(kclcontroller["RotationRateController"]["Kp"]:tostring).
+    set gui_kcl_kp_input:onconfirm to {
         parameter newval.
-        set kclcontroller["RotationRateController"]["KAOA"] to newval:tonumber.
+        set kclcontroller["RotationRateController"]["Kp"] to newval:tonumber.
     }.
-    declare global gui_kcl_upperaoa_label to gui_kcl_aoa_rate_box:addlabel("Upper:").
-    declare global gui_kcl_upperaoa_input to gui_kcl_aoa_rate_box:addtextfield(kclcontroller["RotationRateController"]["UpperAOA"]:tostring).
-    set gui_kcl_upperaoa_input:onconfirm to {
+    declare global gui_kcl_upper_label to gui_kcl_rotation_rate_box:addlabel("Upper:").
+    declare global gui_kcl_upper_input to gui_kcl_rotation_rate_box:addtextfield(kclcontroller["RotationRateController"]["Upper"]:tostring).
+    set gui_kcl_upper_input:onconfirm to {
         parameter newval.
-        set kclcontroller["RotationRateController"]["UpperAOA"] to newval:tonumber.
+        set kclcontroller["RotationRateController"]["Upper"] to newval:tonumber.
     }.
-    declare global gui_kcl_epaoa_label to gui_kcl_aoa_rate_box:addlabel("Ep:").
-    declare global gui_kcl_epaoa_input to gui_kcl_aoa_rate_box:addtextfield(kclcontroller["RotationRateController"]["EpAOA"]:tostring).
-    set gui_kcl_epaoa_input:onconfirm to {
+    declare global gui_kcl_ep_label to gui_kcl_rotation_rate_box:addlabel("Ep:").
+    declare global gui_kcl_ep_input to gui_kcl_rotation_rate_box:addtextfield(kclcontroller["RotationRateController"]["Ep"]:tostring).
+    set gui_kcl_ep_input:onconfirm to {
         parameter newval.
-        set kclcontroller["RotationRateController"]["EpAOA"] to newval:tonumber.
-    }.
-
-    gui_kclmain:addlabel("Bank Rate").
-    declare global gui_kcl_bank_rate_box to gui_kclmain:addhbox().
-    declare global gui_kcl_kbank_label to gui_kcl_bank_rate_box:addlabel("K:").
-    declare global gui_kcl_kbank_input to gui_kcl_bank_rate_box:addtextfield(kclcontroller["RotationRateController"]["KBank"]:tostring).
-    set gui_kcl_kbank_input:onconfirm to {
-        parameter newval.
-        set kclcontroller["RotationRateController"]["KBank"] to newval:tonumber.
-    }.
-    declare global gui_kcl_upperbank_label to gui_kcl_bank_rate_box:addlabel("Upper:").
-    declare global gui_kcl_upperbank_input to gui_kcl_bank_rate_box:addtextfield(kclcontroller["RotationRateController"]["UpperBank"]:tostring).
-    set gui_kcl_upperbank_input:onconfirm to {
-        parameter newval.
-        set kclcontroller["RotationRateController"]["UpperBank"] to newval:tonumber.
-    }.
-    declare global gui_kcl_epbank_label to gui_kcl_bank_rate_box:addlabel("Ep:").
-    declare global gui_kcl_epbank_input to gui_kcl_bank_rate_box:addtextfield(kclcontroller["RotationRateController"]["EpBank"]:tostring).
-    set gui_kcl_epbank_input:onconfirm to {
-        parameter newval.
-        set kclcontroller["RotationRateController"]["EpBank"] to newval:tonumber.
-    }.
-
-    gui_kclmain:addlabel("Sideslip Rate").
-    declare global gui_kcl_sideslip_rate_box to gui_kclmain:addhbox().
-    declare global gui_kcl_ksideslip_label to gui_kcl_sideslip_rate_box:addlabel("K:").
-    declare global gui_kcl_ksideslip_input to gui_kcl_sideslip_rate_box:addtextfield(kclcontroller["RotationRateController"]["KSideslip"]:tostring).
-    set gui_kcl_ksideslip_input:onconfirm to {
-        parameter newval.
-        set kclcontroller["RotationRateController"]["KSideslip"] to newval:tonumber.
-    }.
-    declare global gui_kcl_uppersideslip_label to gui_kcl_sideslip_rate_box:addlabel("Upper:").
-    declare global gui_kcl_uppersideslip_input to gui_kcl_sideslip_rate_box:addtextfield(kclcontroller["RotationRateController"]["UpperSideslip"]:tostring).
-    set gui_kcl_uppersideslip_input:onconfirm to {
-        parameter newval.
-        set kclcontroller["RotationRateController"]["UpperSideslip"] to newval:tonumber.
-    }.
-    declare global gui_kcl_epsideslip_label to gui_kcl_sideslip_rate_box:addlabel("Ep:").
-    declare global gui_kcl_epsideslip_input to gui_kcl_sideslip_rate_box:addtextfield(kclcontroller["RotationRateController"]["EpSideslip"]:tostring).
-    set gui_kcl_epsideslip_input:onconfirm to {
-        parameter newval.
-        set kclcontroller["RotationRateController"]["EpSideslip"] to newval:tonumber.
+        set kclcontroller["RotationRateController"]["Ep"] to newval:tonumber.
     }.
 
     gui_kclmain:addspacing(10).

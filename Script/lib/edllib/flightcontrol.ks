@@ -1,96 +1,92 @@
 declare global enable_roll_torque is true.
 declare global enable_pitch_torque is true.
 declare global enable_yaw_torque is true.
+declare global AFS to addons:AFS.
 declare global kclcontroller is KCLController_Init().
 // Kinetic Control Low attitude controller for high AOA atmospheric flight
 // Input target Bank, AOA, Sideslip angles
 // Output torque commands (roll, pitch, yaw)
 function KCLController_Init {
     return lexicon(
-        "RotationRateController", RotationRateController_Init(
-            0.5, 5, 0.05,    // AOA
-            0.5, 5, 0.05,    // Bank
-            0.5, 5, 0.05     // Sideslip
-        ),
+        "RotationRateController", RotationRateController_Init(0.5, 5, 0.05),
         "RollTorqueController", TorqueController_Init(0.4, 0, 0.02, 1, 0),
-        "PitchTorqueController", TorqueController_Init(0.4, 0.004, 0.02, 1, 0),
+        "PitchTorqueController", TorqueController_Init(0.8, 0.008, 0.02, 1, 0),
         "YawTorqueController", TorqueController_Init(0.4, 0, 0.02, 1, 0)
     ).
 }
 
+// debug
+// declare global fc_debug_targetAttitude_x to V(1,0,0).
+// declare global fc_debug_targetAttitude_y to V(0,1,0).
+// declare global fc_debug_targetAttitude_z to V(0,0,1).
+// declare global fc_debug_currentAttitude_x to V(1,0,0).
+// declare global fc_debug_currentAttitude_y to V(0,1,0).
+// declare global fc_debug_currentAttitude_z to V(0,0,1).
+// declare global fc_debug_targetAttitude_x_draw to vecDraw(V(0,0,0), {return fc_debug_targetAttitude_x.}, RGB(255,0,0), "Target X", 1.0, true).
+// declare global fc_debug_targetAttitude_y_draw to vecDraw(V(0,0,0), {return fc_debug_targetAttitude_y.}, RGB(0,255,0), "Target Y", 1.0, true).
+// declare global fc_debug_targetAttitude_z_draw to vecDraw(V(0,0,0), {return fc_debug_targetAttitude_z.}, RGB(0,0,255), "Target Z", 1.0, true).
+// declare global fc_debug_currentAttitude_x_draw to vecDraw(V(0,0,0), {return fc_debug_currentAttitude_x.}, RGB(255,128,128), "Current X", 1.0, true).
+// declare global fc_debug_currentAttitude_y_draw to vecDraw(V(0,0,0), {return fc_debug_currentAttitude_y.}, RGB(128,255,128), "Current Y", 1.0, true).
+// declare global fc_debug_currentAttitude_z_draw to vecDraw(V(0,0,0), {return fc_debug_currentAttitude_z.}, RGB(128,128,255), "Current Z", 1.0, true).
+
 function KCLController_GetControl {
     parameter this.
-    parameter angleTarget.  // vector: (Bank, AOA, Sideslip)
+    parameter directionCurrent.  // Direction
+    parameter directionTarget.  // Direction
 
-    local rateCmd to RotationRateController_GetControll(this["RotationRateController"], angleTarget).
-    // Calculate current roll, pitch, yaw rate
+    local rateCmd to RotationRateController_GetControll(this["RotationRateController"], directionCurrent, directionTarget).  // In raw frame
+    // To ship local frame (before applying rotational offset)
+    local _facingInv to ship:facing:inverse.
+    set rateCmd to _facingInv * rateCmd.
     local rateCurrent to ship:angularvel * 180/constant:pi.
-    set rateCurrent to ship:facing:inverse * rateCurrent.
-    local rollRate to -rateCurrent:z.
-    local pitchRate to -rateCurrent:x.
-    local yawRate to rateCurrent:y.
+    set rateCurrent to _facingInv * rateCurrent.
     // Get torque commands
-    local rollTorqueCmd to TorqueController_GetControl(this["RollTorqueController"], rateCmd:x, rollRate).
-    local pitchTorqueCmd to TorqueController_GetControl(this["PitchTorqueController"], rateCmd:y, pitchRate).
-    local yawTorqueCmd to TorqueController_GetControl(this["YawTorqueController"], rateCmd:z, yawRate).
-    return V(rollTorqueCmd, pitchTorqueCmd, yawTorqueCmd).
+    local pitchTorqueCmd to TorqueController_GetControl(this["PitchTorqueController"], -rateCmd:x, -rateCurrent:x).
+    local yawTorqueCmd to TorqueController_GetControl(this["YawTorqueController"], rateCmd:y, rateCurrent:y).
+    local rollTorqueCmd to TorqueController_GetControl(this["RollTorqueController"], -rateCmd:z, -rateCurrent:z).
+    return V(pitchTorqueCmd, yawTorqueCmd, rollTorqueCmd).
 }
 
 function KCLController_ApplyControl {
     parameter this.
-    parameter angleTarget.  // vector: (Bank, AOA, Sideslip)
-    local torqueCmd to KCLController_GetControl(this, angleTarget).
+    parameter direcctionCurrent.  // Direction
+    parameter directionTarget.  // Direction
+
+    // debug
+    // set fc_debug_targetAttitude_x to directionTarget:starvector * 50.
+    // set fc_debug_targetAttitude_y to directionTarget:upvector * 50.
+    // set fc_debug_targetAttitude_z to directionTarget:forevector * 50.
+    // set fc_debug_currentAttitude_x to direcctionCurrent:starvector * 50.
+    // set fc_debug_currentAttitude_y to direcctionCurrent:upvector * 50.
+    // set fc_debug_currentAttitude_z to direcctionCurrent:forevector * 50.
+
+    local torqueCmd to KCLController_GetControl(this, direcctionCurrent, directionTarget).
     // Apply torque commands
-    if (enable_roll_torque) set ship:control:pilotrolltrim to torqueCmd:x.
-    if (enable_pitch_torque) set ship:control:pilotpitchtrim to torqueCmd:y.
-    if (enable_yaw_torque) set ship:control:pilotyawtrim to torqueCmd:z.
+    if (enable_pitch_torque) set ship:control:pilotpitchtrim to torqueCmd:x.
+    if (enable_yaw_torque) set ship:control:pilotyawtrim to torqueCmd:y.
+    if (enable_roll_torque) set ship:control:pilotrolltrim to torqueCmd:z.
 }
 
-// Rate controller: input (Bank, AOA, Sideslip), output body rotation rate (roll, pitch, yaw)
+// Rate controller: input target direction, output angular velocity command
 function RotationRateController_Init {
-    parameter KAOA, UpperAOA, EpAOA.
-    parameter KBank, UpperBank, EpBank.
-    parameter KSideslip, UpperSideslip, EpSideslip.
+    parameter Kp, Upper, Ep.
     return lexicon(
-        "KAOA", KAOA, "UpperAOA", UpperAOA, "EpAOA", EpAOA,
-        "KBank", KBank, "UpperBank", UpperBank, "EpBank", EpBank,
-        "KSideslip", KSideslip, "UpperSideslip", UpperSideslip, "EpSideslip", EpSideslip
+        "Kp", Kp, "Upper", Upper, "Ep", Ep
     ).
 }
 
 function RotationRateController_GetControll {
     parameter this.
-    parameter angleTarget.  // vector: (Bank, AOA, Sideslip)
+    parameter directionCurrent.  // Direction
+    parameter directionTarget.  // Direction
 
-    // Get current angles
-    local _facing to ship:facing.
-    local _prog to srfPrograde.
-    local _up to up.
-    local BankErr to arcTan2(-vDot(_up:forevector, _facing:starvector), vDot(_up:forevector, _facing:upvector)) - angleTarget:x.
-    if (abs(BankErr) < this["EpBank"]) set BankErr to 0.
-    // local AOACurrent to arcTan2(-vDot(_prog:forevector, _facing:upvector), vDot(_prog:forevector, _facing:forevector)).
-    local AOACurrent to AFS:AOA.
-    local AOAErr to AOACurrent - angleTarget:y.
-    if (abs(AOAErr) < this["EpAOA"]) set AOAErr to 0.
-    // local SideslipErr to arcSin(vDot(_prog:forevector, _facing:starvector)) - angleTarget:z.
-    local SideslipErr to AFS:AOS - angleTarget:z.
-    if (abs(SideslipErr) < this["EpSideslip"]) set SideslipErr to 0.
-
-    // Rotation rates (wind frame)
-    local pitchRateCmd to max(-this["UpperAOA"], min(this["UpperAOA"], -AOAErr*this["KAOA"])).
-    local bankRateCmd to max(-this["UpperBank"], min(this["UpperBank"], -BankErr*this["KBank"])).
-    local sideslipRateCmd to max(-this["UpperSideslip"], min(this["UpperSideslip"], -SideslipErr*this["KSideslip"])).
-    // print "Rate(airflow): Bank = " + round(bankRateCmd, 2) + " AOA = " + round(pitchRateCmd, 2) + " Side = " + round(sideslipRateCmd, 2) AT(0, 6).
-
-    // transform to body frame
-    local cosAOA to cos(AOACurrent).
-    local sinAOA to sin(AOACurrent).
-    // local rollRateCmd to bankRateCmd * cosAOA + sideslipRateCmd * sinAOA.
-    local rollRateCmd to bankRateCmd * cosAOA.
-    local yawRateCmd to bankRateCmd * sinAOA - sideslipRateCmd * cosAOA.
-    // print "Rate(body): Roll = " + round(rollRateCmd, 2) + " Pitch = " + round(pitchRateCmd, 2) + " Yaw = " + round(yawRateCmd, 2) AT(0, 7).
-
-    return V(rollRateCmd, pitchRateCmd, yawRateCmd).
+    local directionErr to directionTarget * directionCurrent:inverse.
+    local angularErr to AFS:DirectionToAngleAxis(directionErr).
+    local angleErr to angularErr:mag * 180/constant:pi.
+    if (angleErr < max(this["Ep"], 1e-4)) return V(0, 0, 0).
+    local angularRateCmd to min(this["Kp"] * angleErr, this["Upper"]).
+    local angularVelCmd to angularRateCmd * angularErr:normalized.
+    return angularVelCmd.
 }
 
 // Roll, Pitch, Yaw torque controllers: Input target rotation rate, output torque command
@@ -113,4 +109,12 @@ function fc_DeactiveControl {
     set ship:control:pilotpitchtrim to 0.
     set ship:control:pilotrolltrim to 0.
     set ship:control:pilotyawtrim to 0.
+}
+
+function AeroFrameCmd2Attitude {
+    parameter AOA, AOS, Bank.
+    // Build target direction from AOA, AOS, Bank angles
+    local resDir to lookDirUp(ship:velocity:surface, up:forevector).
+    set resDir to resDir * R(0, 0, -Bank) * R(-AOA, 0, 0) * R(0, -AOS, 0).
+    return resDir.
 }

@@ -115,6 +115,7 @@ function entry_set_target {
 
     set entry_hf to new_hf.
     set entry_vf to new_vf.
+    set AFS:target_energy to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
 
     local dlat to new_df * cos(new_headingf) / body:radius /constant:pi*180.
     local dlon to new_df / cos(new_target_geo:lat) * sin(new_headingf) / body:radius /constant:pi*180.
@@ -223,7 +224,7 @@ function entry_initialize_guidance {
             set thetaErr to result1["thetaf"] - theta_target.
             local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
             local bank_i_old to bank_i.
-            set bank_i to bank_i - max(-5, min(5, thetaErr / thetaErrDBank)).
+            set bank_i to bank_i - max(-5, min(5, thetaErr / msafedivision(thetaErrDBank))).
             set bank_i to max(0, min(AFS:bank_max, bank_i)).
             print "Iteration " + (numiter+1) + ": bank_i = "
                 + round(bank_i, 2) + " deg; theta error = "

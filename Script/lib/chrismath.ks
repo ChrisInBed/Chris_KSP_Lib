@@ -149,3 +149,12 @@ function mlinearInterpolation {
     }
     return yseq[n-1].
 }
+
+function msafedivision {
+    parameter xx.
+    parameter dzsize is 1e-7.
+
+    if (abs(xx) > dzsize) {return xx.}
+    if (xx < 0) {return -dzsize.}
+    else {return dzsize.}
+}

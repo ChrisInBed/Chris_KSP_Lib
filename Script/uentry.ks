@@ -25,24 +25,8 @@ function init_print {
 function initialize_guidance {
     // set all state variables to initial values
     entry_initialize().
-    // entry_set_target(25e3, 650, 30e3, 0, get_target_geo()).
-    // set _vecRtgtDraw to vecDraw(
-    //     {return body:position.},
-    //     {return entry_target_geo:position - body:position.},
-    //     RGB(255, 0, 0), "Target", 1.0, true
-    // ).
-    // entry_set_AOAprofile(
-    //     list(400, 2000, 6000, 8000), // speed profile in m/s
-    //     list(13, 20, 32, 33) // AOA profile in degrees
-    // ).
-    // local aeroSpeedSamples to list().
-    // mlinspace(entry_vf, 8000, 32, aeroSpeedSamples).
-    // local aeroAltSamples to list().
-    // mlinspace(entry_hf, body:atm:height, 32, aeroAltSamples).
-    // entry_async_set_aeroprofile(
-    //     aeroSpeedSamples,
-    //     aeroAltSamples
-    // ).
+    local _target_geo to get_target_geo().
+    if (_target_geo <> 0) entry_set_target(entry_hf, entry_vf, 0, 0, _target_geo).
 
     set AFS:Qdot_max to 6e5.
     set AFS:acc_max to 25.
@@ -70,28 +54,31 @@ function entry_phase {
     local gst to initInfo["gst"].
     // glide to entry interface
     set guidance_stage to "gliding".
-    when (true) then {
+    when ((not done) and guidance_active) then {
         local _cd to startTime+initInfo["time_entry"]-time:seconds.
-        local msg to "Time to entry = " + round(_cd) + " s.      ".
-        print msg AT(0, 2).
+        if (defined gui_edlmain) {
+            local msg to "Time to entry = " + round(_cd) + " s.".
+            set gui_edl_state_msg:text to msg.
+        }
         return _cd >= 0.
     } 
-    wait until time:seconds - startTime > initInfo["time_entry"] - 60 or ship:altitude < body:atm:height.
+    wait until time:seconds - startTime > initInfo["time_entry"] - 60 or ship:altitude < body:atm:height or done or (not guidance_active).
+    if (done or (not guidance_active)) return.
     set guidance_stage to "entry".
     RCS ON.
     local _control to entry_get_control(-body:position, ship:velocity:surface, gst).
     // Inner loop
-    when (guidance_stage = "entry") then {
+    when (guidance_stage = "entry" and (not done) and guidance_active) then {
         set _control to entry_get_control(-body:position, ship:velocity:surface, gst).
-        local _torqueCmd to KCLController_GetControl(kclcontroller, V(_control["bank"], _control["AOA"], 0)).
-        if (enable_roll_torque) set ship:control:pilotrolltrim to _torqueCmd:x.
-        if (enable_pitch_torque) set ship:control:pilotpitchtrim to _torqueCmd:y.
-        if (enable_yaw_torque) set ship:control:pilotyawtrim to _torqueCmd:z.
+        local _AOACmd to _control["AOA"].
+        if (AFS:AOAReversal) {set _AOACmd to -_AOACmd.}
+        local _targetAttitude to AeroFrameCmd2Attitude(_AOACmd, 0, _control["bank"]).
+        KCLController_ApplyControl(kclcontroller, ship:facing * AFS:rotation, _targetAttitude).
         if (defined gui_edlmain) {
             set gui_edl_state_alt:text to "Altitude: " + round(ship:altitude*1e-3,2) + " km".
             set gui_edl_state_speed:text to "Speed: " + round(ship:velocity:surface:mag,1) + " m/s".
             set gui_edl_state_aoa:text to "AOA: " + round(AFS:AOA,1) + "(" + round(_control["AOA"],1) + ")".
-            set gui_edl_state_bank:text to "Bank: " + round(get_bank(),1) + "(" + round(_control["bank"],1) + ")".
+            set gui_edl_state_bank:text to "Bank: " + round(AFS:BANK,1) + "(" + round(_control["bank"],1) + ")".
             local gamma to 90 - vAng(ship:velocity:surface, up:forevector).
             set gui_edl_state_pathangle:text to "Path Angle: " + round(gamma,2) + "°".
         }
@@ -103,7 +90,7 @@ function entry_phase {
     local lock ef to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
     local stepInfo to lexicon().
     // step once before entering the loop
-    until (ee < ef) {
+    until (ee < ef or done or (not guidance_active)) {
         set AFS:mass to ship:mass.
         set AFS:area to AFS:REFAREA.
         set stepInfo to entry_step_guidance(0, -body:position, ship:velocity:surface, gst).
@@ -111,31 +98,36 @@ function entry_phase {
             print "Error: (" + stepInfo["status"] + ")" + stepInfo["msg"] AT(0, 30).
         }
         else {
-            // print "bank_i = " + round(gst["bank_i"]) + " deg; " + "T = " + round(stepInfo["time_final"]) + " s    " AT(0, 13).
-            // print "range error = " + round(body:radius*stepInfo["error"]/180*constant:pi) + " m    " AT(0, 14).
-            // print "vf = " + round(stepInfo["vf"]) + " m/s; " + "hf = " + round(stepInfo["rf"] - body:radius) + " m    " AT(0, 15).
-            // print "Max Qdot = " + round(stepInfo["maxQdot"]/1e3, 1) + " kW/m^2 @" + round(stepInfo["maxQdotTime"]) + " s    " AT(0, 17).
-            // print "Max acc = " + round(stepInfo["maxAcc"]/9.81, 2) + " g @" + round(stepInfo["maxAccTime"]) + " s    " AT(0, 18).
-            // print "Max dynp = " + round(stepInfo["maxDynP"]/1e3, 1) + " kPa @" + round(stepInfo["maxDynPTime"]) + " s    " AT(0, 19).
+            // debug
+            print "FAR CD = " + round(AFS:CD, 2) + ", CL = " + round(AFS:CL, 2) + "          " AT(0, 13).
+            local calculated_cdl to AFS:GetFARAeroCoefs(lexicon("altitude", ship:altitude, "speed", ship:velocity:surface:mag, "AOA", AFS:AOA)).
+            local estimated_cdl to AFS:GetFARAeroCoefsEst(lexicon("altitude", ship:altitude, "speed", ship:velocity:surface:mag)).
+            print "Estimated CD = " + round(estimated_cdl["CD"], 2) + ", CL = " + round(estimated_cdl["CL"], 2) + "          " AT(0, 14).
+            print "Calculated CD = " + round(calculated_cdl["CD"], 2) + ", CL = " + round(calculated_cdl["CL"], 2) + "          " AT(0, 15).
+            print "Current Air Density = " + AFS:Density + " kg/m^3          " AT(0,16).
+            print "Estimated Air Density = " + AFS:GetDensityEst(ship:altitude) + " kg/m^3          " AT(0,17).
             if (defined gui_edlmain) {
                 set gui_edl_state_banki:text to "Bank_i: " + round(gst["bank_i"],1):tostring + " °".
                 set gui_edl_state_T:text to "T: " + round(stepInfo["time_final"]):tostring + " s".
+                set gui_edl_state_EToGo:text to "E TOGO: " + round((ee - ef)*1e-3):tostring + " kJ".
                 set gui_edl_state_rangetogo:text to "Range TOGO: " + +round(stepInfo["thetaf"]/180*constant:pi*body:radius*1e-3,2) + " km".
                 set gui_edl_state_rangeerr:text to "Range Err: " + round(stepInfo["error"]/180*constant:pi*body:radius*1e-3,2) + " km".
                 set gui_edl_state_vf:text to "Vf: " + round(stepInfo["vf"]):tostring + " m/s".
                 set gui_edl_state_hf:text to "Hf: " + round((stepInfo["rf"] - body:radius)*1e-3):tostring + " km".
-                set gui_edl_state_maxqdot:text to "M.Heatflux: " + round(stepInfo["maxQdot"]/1e3):tostring + " kW @" + round(stepInfo["maxQdotTime"]):tostring + " s".
+
+                set gui_edl_state_qdot:text to "Heatflux: " + round(AFS:HeatFlux*1e-3):tostring + " kW".
+                set gui_edl_state_maxqdot:text to "M.Heatflux: " + round(stepInfo["maxQdot"]*1e-3):tostring + " kW @" + round(stepInfo["maxQdotTime"]):tostring + " s".
+                set gui_edl_state_load:text to "Load: " + round(AFS:GeeForce,1):tostring + " g".
                 set gui_edl_state_maxload:text to "M.Load: " + round(stepInfo["maxAcc"]/9.81,1):tostring + " g @" + round(stepInfo["maxAccTime"]):tostring + " s".
-                set gui_edl_state_maxdynp:text to "M.DynP: " + round(stepInfo["maxDynP"]/1e3,1):tostring + " kPa @" + round(stepInfo["maxDynPTime"]):tostring + " s".
-                set gui_edl_state_EToGo:text to "E TOGO: " + round((ee - ef)*1e-3):tostring + " kJ".
+                set gui_edl_state_dynp:text to "DynP: " + round(AFS:DynamicPressure*1e-3,1):tostring + " kPa".
+                set gui_edl_state_maxdynp:text to "M.DynP: " + round(stepInfo["maxDynP"]*1e-3,1):tostring + " kPa @" + round(stepInfo["maxDynPTime"]):tostring + " s".
             }
-            draw_vecR_final(stepInfo["vecR_final"], entry_target_geo:position - body:position).
             if (stepInfo["time_final"] < 60) break.  // Stop updating guidance parameters
         }
         wait 1.
     }
     local _timebegin to time:seconds.
-    until ee < ef {
+    until ee < ef or done or (not guidance_active) {
         // print "Left Energy = " + round((ee - ef)*1e-3) + " kJ         " AT(0, 13).
         if (defined gui_edlmain) {
             set gui_edl_state_T:text to "T: " + round(stepInfo["time_final"]+_timebegin - time:seconds):tostring + " s".
@@ -149,39 +141,19 @@ function entry_phase {
 function main {
     // initialize the guidance system
     init_print().
-    initialize_guidance().
-    edl_MakeEDLGUI().
-    wait until guidance_active.
-    entry_phase().
-    // print result
-    print "Entry guidance completed." AT(0, 21).
-    print "Final position: " + ship:position AT(0, 22).
-    print "Final velocity: " + ship:velocity AT(0, 23).
+    until done {
+        initialize_guidance().
+        edl_MakeEDLGUI().
+        wait until guidance_active or done.
+        if (not done) {entry_phase().}
+        // print result
+        print "Entry guidance completed." AT(0, 21).
+        print "Final position: " + ship:position AT(0, 22).
+        print "Final velocity: " + ship:velocity AT(0, 23).
+        set guidance_stage to "inactive".
+        set guidance_active to false.
+    }
     wait until done.
 }
 
 main().
-
-function draw_vecR_final {
-    parameter vecRf.
-    parameter vecRtgt.
-
-    set _vecRfDraw to vecDraw(
-        {return body:position.},
-        {return vecRf.},
-        RGB(0, 255, 0), "Final", 1.0, true
-    ).
-    set _vecRtgtDraw to vecDraw(
-        {return body:position.},
-        {return vecRtgt.},
-        RGB(255, 0, 0), "Target", 1.0, true
-    ).
-}
-
-function get_bank {
-    // calculate current bank angle
-    return arcTan2(
-        -vDot(ship:facing:starvector, up:forevector),
-        vDot(ship:facing:upvector, up:forevector)
-    ).
-}
