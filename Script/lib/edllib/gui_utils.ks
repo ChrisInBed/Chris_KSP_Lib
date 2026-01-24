@@ -33,9 +33,10 @@ function edl_MakeEDLGUI {
 
     gui_edlmainbox:addspacing(10).
 
-    declare global gui_edl_activate_button to gui_edlmainbox:addbutton("Activate Guidance").
-    set gui_edl_activate_button:onclick to {
-        set guidance_active to true.
+    declare global gui_edl_activate_button to gui_edlmainbox:addcheckbox("<b><size=16>ACTIVATE GUIDANCE</size></b>").
+    set gui_edl_activate_button:ontoggle to {
+        parameter newstate.
+        set guidance_active to newstate.
     }.
     declare global gui_edl_emergency_button to gui_edlmainbox:addcheckbox("<b><size=16>EMERGENCY SUPPRESS</size></b>", false).
     set gui_edl_emergency_button:ontoggle to {
@@ -46,6 +47,122 @@ function edl_MakeEDLGUI {
     set gui_edl_kcl_button:onclick to {
         fc_MakeKCLGUI().
     }.
+    declare global gui_edl_list_presets to {
+        local _presetPath to path("0:/entry_presets").
+        if (not exists(_presetPath)) {return list().}
+        local _presetDir to open(_presetPath).
+        if (_presetDir:isfile) {return list().}
+        local _presetFiles to list().
+        for _file in _presetDir:lexicon:values {
+            if (_file:isfile and _file:extension = "json") {
+                _presetFiles:add(_file:name:substring(0, _file:name:length - 5)).
+            }
+        }
+        return _presetFiles.
+    }.
+    declare global gui_edl_save_preset to {
+        parameter presetName.
+        local _presetPath to path("0:/entry_presets").
+        if (not exists(_presetPath)) createDir(_presetPath).
+        local _path to path("0:/entry_presets/" + presetName + ".json").
+        if (exists(_path)) deletePath(_path).
+        local _presetBody to lexicon(
+            "kclcontroller", kclcontroller,
+            "aeroprofile", lexicon(
+                "CtrlSpeedSamples", AFS:CtrlSpeedSamples,
+                "CtrlAOASamples", AFS:CtrlAOASamples,
+                "AeroSpeedSamples", AFS:AeroSpeedSamples,
+                "AeroAltSamples", AFS:AeroAltSamples,
+                "AeroCdSamples", AFS:AeroCdSamples,
+                "AeroClSamples", AFS:AeroClSamples,
+                // "rotation", AFS:rotation,  // disabled because their is a bug in serialization of Direction object
+                "rotation_fore", AFS:rotation:forevector,
+                "rotation_up", AFS:rotation:upvector,
+                "AOAReversal", AFS:AOAReversal
+            ),
+            "target", lexicon(
+                "vf", entry_vf,
+                "hf", entry_hf
+            ),
+            "guidance", lexicon(
+                "bank_i", entry_bank_i,
+                "bank_f", entry_bank_f,
+                "bank_max", AFS:bank_max,
+                "heading_tol", entry_heading_tol,
+                "Qdot_max", AFS:Qdot_max,
+                "acc_max", AFS:acc_max,
+                "dynp_max", AFS:dynp_max,
+                "L_min", AFS:L_min,
+                "k_QEGC", AFS:k_QEGC,
+                "k_C", AFS:k_C,
+                "t_reg", AFS:t_reg
+            )
+        ).
+        writeJSON(_presetBody, _path).
+    }.
+    declare global gui_edl_load_preset to {
+        parameter presetName.
+        local _path to path("0:/entry_presets/" + presetName + ".json").
+        if (not exists(_path)) {
+            hudtext("Preset file not found!", 4, 2, 12, hudtextcolor, false).
+            return.
+        }
+        local _presetBody to readJSON(_path).
+        set kclcontroller to _presetBody["kclcontroller"].
+        local _aeroProfile to _presetBody["aeroprofile"].
+        set AFS:CtrlSpeedSamples to _aeroProfile["CtrlSpeedSamples"].
+        set AFS:CtrlAOASamples to _aeroProfile["CtrlAOASamples"].
+        set AFS:AeroSpeedSamples to _aeroProfile["AeroSpeedSamples"].
+        set AFS:AeroAltSamples to _aeroProfile["AeroAltSamples"].
+        set AFS:AeroCdSamples to _aeroProfile["AeroCdSamples"].
+        set AFS:AeroClSamples to _aeroProfile["AeroClSamples"].
+        // set AFS:rotation to _aeroProfile["rotation"].  // disabled because their is a bug in serialization of Direction object
+        set AFS:rotation to lookDirUp(_aeroProfile["rotation_fore"], _aeroProfile["rotation_up"]).
+        set AFS:AOAReversal to _aeroProfile["AOAReversal"].
+        local _target to _presetBody["target"].
+        set entry_vf to _target["vf"].
+        set entry_hf to _target["hf"].
+        set AFS:target_energy to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
+        local _guidance to _presetBody["guidance"].
+        set entry_bank_i to _guidance["bank_i"].
+        set entry_bank_f to _guidance["bank_f"].
+        set AFS:bank_max to _guidance["bank_max"].
+        set entry_heading_tol to _guidance["heading_tol"].
+        set AFS:Qdot_max to _guidance["Qdot_max"].
+        set AFS:acc_max to _guidance["acc_max"].
+        set AFS:dynp_max to _guidance["dynp_max"].
+        set AFS:L_min to _guidance["L_min"].
+        set AFS:k_QEGC to _guidance["k_QEGC"].
+        set AFS:k_C to _guidance["k_C"].
+        set AFS:t_reg to _guidance["t_reg"].
+        // Refresh GUI
+        edl_MakeEDLGUI().
+    }.
+    declare global gui_edl_load_box to gui_edlmainbox:addhbox().
+    declare global gui_edl_load_label to gui_edl_load_box:addlabel("Load Preset:").
+    declare global gui_edl_load_options to gui_edl_load_box:addpopupmenu().
+    set gui_edl_load_options:onclick to {
+        set gui_edl_load_options:options to gui_edl_list_presets().
+    }.
+    declare global gui_edl_load_button to gui_edl_load_box:addbutton("Load").
+    set gui_edl_load_button:onclick to {
+        local _selectedPreset to gui_edl_load_options:value.
+        gui_edl_load_preset(_selectedPreset).
+    }.
+    declare global gui_edl_save_box to gui_edlmainbox:addhbox().
+    declare global gui_edl_save_label to gui_edl_save_box:addlabel("Save Preset As:").
+    declare global gui_edl_save_input to gui_edl_save_box:addtextfield("").
+    declare global gui_edl_save_button to gui_edl_save_box:addbutton("Save").
+    set gui_edl_save_button:onclick to {
+        local _presetName to gui_edl_save_input:text.
+        if (_presetName = "") {
+            hudtext("Please enter a preset name!", 4, 2, 12, hudtextcolor, false).
+            return.
+        }
+        gui_edl_save_preset(_presetName).
+        hudtext("Preset '" + _presetName + "' saved!", 4, 2, 12, hudtextcolor, false).
+    }.
+    
 
     gui_edlmainbox:addspacing(10).
 
@@ -380,6 +497,7 @@ function edl_MakeAeroGUI {
             hudtext("Cannot update aerodynamic profile while another process is running", 4, 2, hudtextsize, hudtextcolor, false).
             return.
         }
+        AFS:InitAtmModel().
         local CtrlSpeedSamples to str2arr(gui_aero_speedsamples_input:text).
         mscalarmul(CtrlSpeedSamples, 1e3).  // convert to m/s
         local CtrlAOASamples to str2arr(gui_aero_AOAsamples_input:text).
@@ -428,21 +546,46 @@ function edl_MakeAeroGUI {
     declare global gui_aero_AOAsamples_input to gui_aero_AOAsamples_box:addtextfield(arr2str(AFS:CtrlAOASamples, 1)).
 
     declare global gui_aero_speedgrid_box to gui_aeromain:addhbox().
+    local _vmin to 0.
+    local _vmax to 0.
+    local _nvpoints to 0.
+    if (AFS:AeroSpeedSamples:length() > 1) {
+        set _nvpoints to AFS:AeroSpeedSamples:length().
+        set _vmin to AFS:AeroSpeedSamples[0].
+        set _vmax to AFS:AeroSpeedSamples[_nvpoints-1].
+    }
+    else {
+        set _nvpoints to 64.
+        set _vmin to entry_vf.
+        set _vmax to max(_vmin, get_orbit_v_at_theta(orbit:semimajoraxis, orbit:eccentricity, 0, body:mu)).
+    }
     declare global gui_aero_speedgrid_label to gui_aero_speedgrid_box:addlabel("Vmin (km/s)").
-    declare global gui_aero_speedgrid_vmin_input to gui_aero_speedgrid_box:addtextfield((round(entry_vf*1e-3, 2)):tostring).
+    declare global gui_aero_speedgrid_vmin_input to gui_aero_speedgrid_box:addtextfield((round(_vmin*1e-3, 2)):tostring).
     declare global gui_aero_speedgrid_label2 to gui_aero_speedgrid_box:addlabel("Vmax (km/s)").
-    declare global gui_aero_speedgrid_vmax_input to gui_aero_speedgrid_box:addtextfield("8").
+    declare global gui_aero_speedgrid_vmax_input to gui_aero_speedgrid_box:addtextfield((round(_vmax*1e-3, 2)):tostring).
     declare global gui_aero_speedgrid_npoints_label to gui_aero_speedgrid_box:addlabel("Points").
-    declare global gui_aero_speedgrid_npoints_input to gui_aero_speedgrid_box:addtextfield("32").
+    declare global gui_aero_speedgrid_npoints_input to gui_aero_speedgrid_box:addtextfield(_nvpoints:tostring).
 
     declare global gui_aero_altgrid_box to gui_aeromain:addhbox().
+    local _hmin to 0.
+    local _hmax to 0.
+    local _nhpoints to 0.
+    if (AFS:AeroAltSamples:length() > 1) {
+        set _nhpoints to AFS:AeroAltSamples:length().
+        set _hmin to AFS:AeroAltSamples[0].
+        set _hmax to AFS:AeroAltSamples[_nhpoints-1].
+    }
+    else {
+        set _nhpoints to 64.
+        set _hmin to entry_hf.
+        set _hmax to body:atm:height.
+    }
     declare global gui_aero_altgrid_label to gui_aero_altgrid_box:addlabel("Hmin (km)").
-    declare global gui_aero_altgrid_hmin_input to gui_aero_altgrid_box:addtextfield(round(entry_hf*1e-3, 2):tostring).
+    declare global gui_aero_altgrid_hmin_input to gui_aero_altgrid_box:addtextfield(round(_hmin*1e-3, 2):tostring).
     declare global gui_aero_altgrid_label2 to gui_aero_altgrid_box:addlabel("Hmax (km)").
-    declare global gui_aero_altgrid_hmax_input to gui_aero_altgrid_box:addtextfield((round(body:atm:height*1e-3, 2)):tostring).
+    declare global gui_aero_altgrid_hmax_input to gui_aero_altgrid_box:addtextfield((round(_hmax*1e-3, 2)):tostring).
     declare global gui_aero_altgrid_npoints_label to gui_aero_altgrid_box:addlabel("Points").
-    declare global gui_aero_altgrid_npoints_input to gui_aero_altgrid_box:addtextfield("32").
-
+    declare global gui_aero_altgrid_npoints_input to gui_aero_altgrid_box:addtextfield(_nhpoints:tostring).
     declare global gui_aero_batchsize_box to gui_aeromain:addhbox().
     declare global gui_aero_batchsize_label to gui_aero_batchsize_box:addlabel("Batch Size per Frame").
     set gui_aero_batchsize_label:style:width to 150.

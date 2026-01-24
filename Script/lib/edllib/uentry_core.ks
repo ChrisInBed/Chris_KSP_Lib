@@ -3,6 +3,7 @@ runOncePath("0:/lib/orbit.ks").
 runOncePath("0:/lib/atm_utils.ks").
 
 declare global AFS to addons:AFS.
+declare global entry_step_guidance_err_pid to pidLoop(1, 0.01, 0, -5, 5).
 declare global entry_aeroprofile_process to lexicon(
     "idle", true,
     "speedSamples", list(), "altSamples", list(),
@@ -262,6 +263,13 @@ function entry_step_guidance {
     parameter vecV.  // surface velocity
     parameter gst.
 
+    // local rangeFactor to 1.
+    // local rhoReal to AFS:Density.
+    // if (rhoReal * ship:airspeed^2 * 0.5 > 10) {
+    //     local rhoEst to AFS:GetDensityEst(ship:altitude).
+    //     set rangeFactor to min(1.3, max(0.7, rhoEst / rhoReal)).
+    // }
+
     // re-align guidance start point
     local energy_now to entry_get_spercific_energy(vecR:mag, vecV:mag).
     local bank_now to gst["bank_i"]
@@ -276,6 +284,7 @@ function entry_step_guidance {
         "energy_f", gst["energy_f"]
     ), false).
     if (not result1["ok"]) return lexicon("ok", false, "status", result1["status"], "msg", result1["msg"]).
+    // set result1["thetaf"] to result1["thetaf"] * rangeFactor.  // adjust for density error
     local result2 to entry_predictor(tt, vecR, vecV, lexicon(
         "bank_i", bank_now + 0.1,
         "bank_f", gst["bank_f"],
@@ -283,10 +292,12 @@ function entry_step_guidance {
         "energy_f", gst["energy_f"]
     ), false).
     if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
+    // set result2["thetaf"] to result2["thetaf"] * rangeFactor.  // adjust for density error
     local thetaErr to result1["thetaf"] - theta_target.
     local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
     // update gst
-    set bank_now to bank_now - max(-5, min(5, thetaErr / thetaErrDBank)).
+    set bank_now to bank_now - max(-5, min(5, thetaErr / msafedivision(thetaErrDBank))).
+    // set bank_now to bank_now + entry_step_guidance_err_pid:Update(time:seconds, thetaErr/msafedivision(thetaErrDBank)).
     set bank_now to max(0, min(AFS:bank_max, bank_now)).
     set gst["bank_i"] to bank_now.
     set gst["energy_i"] to energy_now.

@@ -100,7 +100,9 @@ function entry_phase {
         else {
             // debug
             print "FAR CD = " + round(AFS:CD, 2) + ", CL = " + round(AFS:CL, 2) + "          " AT(0, 13).
-            local calculated_cdl to AFS:GetFARAeroCoefs(lexicon("altitude", ship:altitude, "speed", ship:velocity:surface:mag, "AOA", AFS:AOA)).
+            // local calculated_cdl to AFS:GetFARAeroCoefs(lexicon("altitude", ship:altitude, "speed", ship:velocity:surface:mag, "AOA", AFS:AOA)).
+            local AOACmd to AFS:GetAOACmd(lexicon("y4", list(0,0,ship:velocity:surface:mag,0)))["AOA"].
+            local calculated_cdl to AFS:GetFARAeroCoefs(lexicon("altitude", ship:altitude, "speed", ship:velocity:surface:mag, "AOA", AOACmd)).
             local estimated_cdl to AFS:GetFARAeroCoefsEst(lexicon("altitude", ship:altitude, "speed", ship:velocity:surface:mag)).
             print "Estimated CD = " + round(estimated_cdl["CD"], 2) + ", CL = " + round(estimated_cdl["CL"], 2) + "          " AT(0, 14).
             print "Calculated CD = " + round(calculated_cdl["CD"], 2) + ", CL = " + round(calculated_cdl["CL"], 2) + "          " AT(0, 15).
