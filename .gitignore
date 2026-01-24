@@ -1,4 +1,5 @@
 .vscode/
+Script/entry_presets/*
 **/.vs
 **/bin
 **/obj
@@ -9,3 +10,6 @@
 
 *.pdb
 *.dll
+
+!Script/entry_presets/Apollo.json
+!Script/entry_presets/shuttle.json
