@@ -14,7 +14,7 @@ namespace AFS
         public Quaternion rotation;
         public bool AOAReversal;
         public double[] CtrlSpeedSamples, CtrlAOAsamples;
-        public double[] AeroSpeedSamples, AeroAltSamples;
+        public double[] AeroSpeedSamples, AeroLogDensitySamples;
         public double[,] AeroCdSamples, AeroClSamples;
         public double[] AtmAltSamples, AltTempSamples, AtmLogDensitySamples;
         public double k_QEGC, k_C, t_reg, Qdot_max, acc_max, dynp_max;
@@ -36,7 +36,7 @@ namespace AFS
             CtrlSpeedSamples = new double[] { 600, 8000 };
             CtrlAOAsamples = new double[] { 15.0*Math.PI/180.0, 15.0*Math.PI/180.0 };
             AeroSpeedSamples = new double[] { 3000 };
-            AeroAltSamples = new double[] { 40e3 };
+            AeroLogDensitySamples = new double[] { -0.5 };
             AeroClSamples = new double[,] { { 0.3 } };
             AeroCdSamples = new double[,] { { 1.5 } };
             AtmAltSamples = new double[] { 0e3, 140e3 };
@@ -164,9 +164,10 @@ namespace AFS
             double bankBase = bargs.bank_f + (bargs.bank_i - bargs.bank_f) * (energy - bargs.energy_f) / (bargs.energy_i - bargs.energy_f);
             double G = args.mu / r / r;
 
-            double rho = GetDensityEst(args, r - args.R);
+            double logRho = GetLogDensityEst(args, r - args.R);
+            double rho = Math.Exp(logRho);
             double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
-            GetAeroCoefficients(args, v, r - args.R, out double Cd, out double Cl);
+            GetAeroCoefficients(args, v, logRho, out double Cd, out double Cl);
             double D = aeroCoef * Cd;
             double L = aeroCoef * Cl;
 
@@ -237,6 +238,88 @@ namespace AFS
                 double t = (v - args.CtrlSpeedSamples[idx - 1]) / (args.CtrlSpeedSamples[idx] - args.CtrlSpeedSamples[idx - 1]);
                 return args.CtrlAOAsamples[idx - 1] + t * (args.CtrlAOAsamples[idx] - args.CtrlAOAsamples[idx - 1]);
             }
+        }
+
+        public static PhyState GetPhyState()
+        {
+            Vessel _vessel = FlightGlobals.ActiveVessel;
+            double h = _vessel.altitude;
+            double gamma = (90 - Vector3d.Angle(_vessel.CurrentPosition() - _vessel.mainBody.position, _vessel.srf_velocity)) / 180 * Math.PI;
+            double v = _vessel.srfSpeed;
+            return new PhyState(h + _vessel.mainBody.Radius, 0, v, gamma);
+        }
+
+        public static double GetAptBankCommand(SimAtmTrajArgs args, BankPlanArgs bargs)
+        {
+            Vessel _vessel = FlightGlobals.ActiveVessel;
+            double h = _vessel.altitude;
+            double density = _vessel.atmDensity;
+            double gamma = (90 - Vector3d.Angle(_vessel.CurrentPosition() - _vessel.mainBody.position, _vessel.srf_velocity)) / 180 * Math.PI;
+            double v = _vessel.srfSpeed;
+            if (density < 1e-9)
+            {
+                return GetBankCommand(new PhyState(h + args.R, 0, v, gamma), args, bargs, null);
+            }
+            double AOA = GetAOACommand(new PhyState(0, 0, v, 0), args);
+            GetFARAeroCoefs(h, AOA, v, out double Cd, out double Cl, args.rotation, args.AOAReversal);
+            double densityApt = density;
+            double CdApt = 0, ClApt = 0;
+            for (int i = 0; i < 2; ++i)
+            {
+                GetAeroCoefficients(args, v, Math.Log(density), out CdApt, out ClApt);
+                densityApt = density * Cd / CdApt;
+            }
+            if (Math.Abs(Cd) < 1e-8 || Math.Abs(CdApt) < 1e-8)
+            {
+                return GetBankCommand(new PhyState(h + args.R, 0, v, gamma), args, bargs, null);
+            }
+            double hApt = GetHeightEst(args, densityApt);
+            double hs = GetScaleHeightAt(h);
+            double hsApt = GetScaleHeightEst(args, hApt);
+            double G = args.mu / Math.Pow(args.R + h, 2);
+            double GApt = args.mu / Math.Pow(args.R + hApt, 2);
+            double factor = (v / hs + 2 * G / v) / (v / hsApt + 2 * GApt / v);
+            double gammaApt = Math.Asin(Clamp(factor * Math.Sin(gamma), -1, 1));
+            double BankApt = GetBankCommand(new PhyState(hApt + args.R, 0, v, gammaApt), args, bargs, null);
+            factor = factor * (Cl / Cd) / (ClApt / CdApt);
+            if ((!Double.IsFinite(factor)) || Math.Abs(factor)<1e-8) return BankApt;
+            double Bank = Math.Acos(Clamp(Math.Cos(BankApt) / factor, Math.Cos(args.bank_max), 1));
+            return Bank;
+        }
+
+        public static double GetAptAOACommand(SimAtmTrajArgs args)
+        {
+            return GetAOACommand(new PhyState(0, 0, FlightGlobals.ActiveVessel.srfSpeed, 0), args);
+        }
+
+        public static PhyState GetAtmPhyState(SimAtmTrajArgs args)
+        {
+            Vessel _vessel = FlightGlobals.ActiveVessel;
+            double h = _vessel.altitude;
+            double density = _vessel.atmDensity;
+            double gamma = (90 - Vector3d.Angle(_vessel.CurrentPosition() - _vessel.mainBody.position, _vessel.srf_velocity)) / 180 * Math.PI;
+            double v = _vessel.srfSpeed;
+            double AOA = GetAOACommand(new PhyState(0, 0, v, 0), args);
+            GetFARAeroCoefs(h, AOA, v, out double Cd, out _, args.rotation, args.AOAReversal);
+            double hApt = h;
+            double gammaApt = gamma;
+            if (density > 1e-9)
+            {
+                double densityApt = density;
+                for (int i=0; i<2; ++i)
+                {
+                    GetAeroCoefficients(args, v, Math.Log(density), out double CdApt, out _);
+                    densityApt = density * Cd / CdApt;
+                }
+                hApt = GetHeightEst(args, densityApt);
+                double hs = GetScaleHeightAt(h);
+                double hsApt = GetScaleHeightEst(args, hApt);
+                double G = args.mu / Math.Pow(args.R + h, 2);
+                double GApt = args.mu / Math.Pow(args.R + hApt, 2);
+                double factor = (v / hs + 2 * G / v) / (v / hsApt + 2 * GApt / v);
+                gammaApt = Math.Asin(Clamp(factor * Math.Sin(gamma), -1, 1));
+            }
+            return new PhyState(args.R + hApt, 0, v, gammaApt);
         }
 
         public static PredictResult PredictTrajectory(double t, PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs)
@@ -326,9 +409,10 @@ namespace AFS
                 if (Math.Abs(Err) < ENERGY_ERR_TOL) break;
 
 				double G = args.mu / (r * r);
-				double rho = GetDensityEst(args, r - args.R);
+                double logRho = GetLogDensityEst(args, r - args.R);
+				double rho = Math.Exp(logRho);
 				double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
-				GetAeroCoefficients(args, v, r - args.R, out double Cd, out _);
+				GetAeroCoefficients(args, v, logRho, out double Cd, out _);
 				double D = aeroCoef * Cd;
 
                 double rdot = v * Math.Sin(state.gamma);
@@ -368,13 +452,13 @@ namespace AFS
             return -mu / r + 0.5 * v * v;
         }
 
-        public static void GetAeroCoefficients(SimAtmTrajArgs args, double speed, double altitude, out double Cd, out double Cl)
+        public static void GetAeroCoefficients(SimAtmTrajArgs args, double speed, double logDensity, out double Cd, out double Cl)
         {
             // Bilinear interpolation for aerodynamic coefficients
             int nV = args.AeroSpeedSamples.Length;
-            int nH = args.AeroAltSamples.Length;
+            int nD = args.AeroLogDensitySamples.Length;
             int idxV = FindUpperBound(args.AeroSpeedSamples, speed);
-            int idxH = FindUpperBound(args.AeroAltSamples, altitude);
+            int idxD = FindUpperBound(args.AeroLogDensitySamples, logDensity);
             double w00, w01, w10, w11;
             if (idxV == 0) { w00 = 0; w01 = 0; w10 = 1; w11 = 1; }
             else if (idxV == nV) { w00 = 1; w01 = 1; w10 = 0; w11 = 0; }
@@ -384,26 +468,26 @@ namespace AFS
                 w00 = 1 - tV; w10 = tV;
                 w01 = 1 - tV; w11 = tV;
             }
-            if (idxH == 0) { w00 = 0; w10 = 0; }
-            else if (idxH == nH) { w01 = 0; w11 = 0; }
+            if (idxD == 0) { w00 = 0; w10 = 0; }
+            else if (idxD == nD) { w01 = 0; w11 = 0; }
             else
             {
-                double tH = (altitude - args.AeroAltSamples[idxH - 1]) / (args.AeroAltSamples[idxH] - args.AeroAltSamples[idxH - 1]);
-                w00 *= (1 - tH); w01 *= tH;
-                w10 *= (1 - tH); w11 *= tH;
+                double tD = (logDensity - args.AeroLogDensitySamples[idxD - 1]) / (args.AeroLogDensitySamples[idxD] - args.AeroLogDensitySamples[idxD - 1]);
+                w00 *= (1 - tD); w01 *= tD;
+                w10 *= (1 - tD); w11 *= tD;
             }
             int x0 = Math.Max(0, idxV - 1), x1 = Math.Min(nV - 1, idxV);
-            int y0 = Math.Max(0, idxH - 1), y1 = Math.Min(nH - 1, idxH);
+            int y0 = Math.Max(0, idxD - 1), y1 = Math.Min(nD - 1, idxD);
             Cd = w00 * args.AeroCdSamples[x0, y0] + w01 * args.AeroCdSamples[x0, y1] + w10 * args.AeroCdSamples[x1, y0] + w11 * args.AeroCdSamples[x1, y1];
             Cl = w00 * args.AeroClSamples[x0, y0] + w01 * args.AeroClSamples[x0, y1] + w10 * args.AeroClSamples[x1, y0] + w11 * args.AeroClSamples[x1, y1];
             return;
         }
 
-        private static int FindUpperBound(double[] xs, double x)
+        private static int FindUpperBound(double[] xs, double x, IComparer<double> comparer = null)
         {
             if (xs == null || xs.Length == 0) return 0;
             // Assume xs is sorted: binary search
-            int idx = Array.BinarySearch(xs, x);
+            int idx = Array.BinarySearch(xs, x, comparer);
             if (idx >= 0) ++idx;
             else idx = ~idx;
             return idx;
@@ -641,24 +725,52 @@ namespace AFS
             }
         }
 
-        public static double GetDensityEst(SimAtmTrajArgs args, double altitude)
+        public static double GetLogDensityEst(SimAtmTrajArgs args, double altitude)
         {
-            if (altitude > args.atmHeight) return 0;
             int idx = FindUpperBound(args.AtmAltSamples, altitude);
             if (idx == 0)
             {
-                double hs = GetScaleHeightEst(args, Math.Exp(args.AtmLogDensitySamples[0]), args.AltTempSamples[0]);
-                return Math.Exp(args.AtmLogDensitySamples[0] - (args.AtmAltSamples[0] - altitude) / hs);
+                double hs = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AltTempSamples[0]);
+                return args.AtmLogDensitySamples[0] - (args.AtmAltSamples[0] - altitude) / hs;
             }
             else if (idx == args.AtmAltSamples.Length)
             {
-                double hs = GetScaleHeightEst(args, Math.Exp(args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1]), args.AltTempSamples[args.AtmAltSamples.Length - 1]);
-                return Math.Exp(args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1] - (args.AtmAltSamples[args.AtmAltSamples.Length - 1] - altitude) / hs);
+                double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AltTempSamples[args.AtmAltSamples.Length - 1]);
+                return args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1] - (args.AtmAltSamples[args.AtmAltSamples.Length - 1] - altitude) / hs;
             }
             else
             {
                 double t = (altitude - args.AtmAltSamples[idx - 1]) / (args.AtmAltSamples[idx] - args.AtmAltSamples[idx - 1]);
-                return Math.Exp(args.AtmLogDensitySamples[idx - 1] + t * (args.AtmLogDensitySamples[idx] - args.AtmLogDensitySamples[idx - 1]));
+                return args.AtmLogDensitySamples[idx - 1] + t * (args.AtmLogDensitySamples[idx] - args.AtmLogDensitySamples[idx - 1]);
+            }
+        }
+
+        public static double GetDensityEst(SimAtmTrajArgs args, double altitude)
+        {
+            if (altitude > args.atmHeight) return 0;
+            return Math.Exp(GetLogDensityEst(args, altitude));
+        }
+
+        public static double GetHeightEst(SimAtmTrajArgs args, double density)
+        {
+            if ((!Double.IsFinite(density)) || (density <= 0)) return args.atmHeight;
+            // Find the altitude that corresponds to the given density via interpolation
+            double logD = Math.Log(density);
+            int idx = FindUpperBound(args.AtmLogDensitySamples, logD, Comparer<double>.Create((a, b) => b.CompareTo(a)));
+            if (idx == 0)
+            {
+                double hs = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AltTempSamples[0]);
+                return args.AtmAltSamples[0] - hs * (args.AtmLogDensitySamples[0] - logD);
+            }
+            else if (idx == args.AtmLogDensitySamples.Length)
+            {
+                double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AltTempSamples[args.AtmAltSamples.Length - 1]);
+                return args.AtmAltSamples[args.AtmAltSamples.Length - 1] - hs * (args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1] - logD);
+            }
+            else
+            {
+                double t = (logD - args.AtmLogDensitySamples[idx - 1]) / (args.AtmLogDensitySamples[idx] - args.AtmLogDensitySamples[idx - 1]);
+                return args.AtmAltSamples[idx - 1] + t * (args.AtmAltSamples[idx] - args.AtmAltSamples[idx - 1]);
             }
         }
 

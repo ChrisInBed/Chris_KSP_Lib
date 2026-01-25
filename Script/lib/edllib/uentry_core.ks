@@ -3,7 +3,6 @@ runOncePath("0:/lib/orbit.ks").
 runOncePath("0:/lib/atm_utils.ks").
 
 declare global AFS to addons:AFS.
-declare global entry_step_guidance_err_pid to pidLoop(1, 0.01, 0, -5, 5).
 declare global entry_aeroprofile_process to lexicon(
     "idle", true,
     "speedSamples", list(), "altSamples", list(),
@@ -44,7 +43,7 @@ function entry_async_set_aeroprofile {
         }
         if (curEnd = nV * nH) {
             set AFS:AeroSpeedSamples to speedSamples.
-            set AFS:AeroAltSamples to altSamples.
+            AFS:SetAtmDsFromAlt(altSamples).
             set AFS:AeroCdSamples to entry_aeroprofile_process["Cdlist"].
             set AFS:AeroClSamples to entry_aeroprofile_process["Cllist"].
             set entry_aeroprofile_process["idle"] to true.
@@ -80,7 +79,7 @@ function entry_initialize {
         list(10, 25, 28, 28)
     ).
     set AFS:AeroSpeedSamples to list(5000).
-    set AFS:AeroAltSamples to list(0).
+    set AFS:AeroLogDensitySamples to list(-0.5).
     set AFS:AeroCdSamples to list(list(1.5)).
     set AFS:AeroClSamples to list(list(0.3)).
     // target geo and path contraints
@@ -132,23 +131,16 @@ function entry_set_AOAprofile {
 }
 
 function entry_get_control {
-    parameter vecR.
-    parameter vecV.
     parameter gst.
     
-    local unitR to vecR:normalized.
+    local unitR to up:forevector.
+    local unitV to srfPrograde:forevector.
     local unitRtgt to (entry_target_geo:position - body:position):normalized.
-    local rr to vecR:mag.
-    local theta to -vAng(unitR, unitRtgt).
-    local vv to vecV:mag.
-    local gamma to 90 - vAng(vecR, vecV).
     local unitH to vCrs(unitRtgt, unitR):normalized.
-    local psi to entry_get_angle(vCrs(unitR, unitH), vecV, unitR).
+    local psi to entry_get_angle(vCrs(unitR, unitH), unitV, unitR).
 
     // unsigned bank command
-    local y4 to list(rr, theta, vv, gamma).
-    local bank_cmd to AFS:GetBankCmd(lexicon(
-        "y4", y4,
+    local bank_cmd to AFS:GetAptBankCmd(lexicon(
         "bank_i", gst["bank_i"], "bank_f", gst["bank_f"],
         "energy_i", gst["energy_i"], "energy_f", gst["energy_f"]
     ))["Bank"].
@@ -158,7 +150,7 @@ function entry_get_control {
     if (entry_bank_reversal) set bank_cmd to -bank_cmd.
 
     // linear interpolation for AOA command
-    local AOA_cmd to AFS:GetAOACmd(lexicon("y4", y4))["AOA"].
+    local AOA_cmd to AFS:GetAptAOACmd()["AOA"].
 
     return lexicon("bank", bank_cmd, "AOA", AOA_cmd).
 }
@@ -263,13 +255,6 @@ function entry_step_guidance {
     parameter vecV.  // surface velocity
     parameter gst.
 
-    // local rangeFactor to 1.
-    // local rhoReal to AFS:Density.
-    // if (rhoReal * ship:airspeed^2 * 0.5 > 10) {
-    //     local rhoEst to AFS:GetDensityEst(ship:altitude).
-    //     set rangeFactor to min(1.3, max(0.7, rhoEst / rhoReal)).
-    // }
-
     // re-align guidance start point
     local energy_now to entry_get_spercific_energy(vecR:mag, vecV:mag).
     local bank_now to gst["bank_i"]
@@ -292,12 +277,10 @@ function entry_step_guidance {
         "energy_f", gst["energy_f"]
     ), false).
     if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
-    // set result2["thetaf"] to result2["thetaf"] * rangeFactor.  // adjust for density error
     local thetaErr to result1["thetaf"] - theta_target.
     local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
     // update gst
     set bank_now to bank_now - max(-5, min(5, thetaErr / msafedivision(thetaErrDBank))).
-    // set bank_now to bank_now + entry_step_guidance_err_pid:Update(time:seconds, thetaErr/msafedivision(thetaErrDBank)).
     set bank_now to max(0, min(AFS:bank_max, bank_now)).
     set gst["bank_i"] to bank_now.
     set gst["energy_i"] to energy_now.

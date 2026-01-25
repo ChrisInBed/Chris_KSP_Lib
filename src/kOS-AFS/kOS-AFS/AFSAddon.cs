@@ -77,7 +77,7 @@ namespace kOS.AddOns.AFSAddon
             // Arrays (as List)
             // Aerodynamic coefficient profiles
             AddSuffix(new string[] { "AeroSpeedSamples" }, new SetSuffix<ListValue>(GetAeroSpeedSamples, SetAeroSpeedSamples, "Speed samples (For aerodynamic profile"));
-            AddSuffix(new string[] { "AeroAltSamples" }, new SetSuffix<ListValue>(GetAeroAltSamples, SetAeroAltSamples, "Altitude samples (For aerodynamic profile"));
+            AddSuffix(new string[] { "AeroLogDensitySamples" }, new SetSuffix<ListValue>(GetAeroLogDensitySamples, SetAeroLogDensitySamples, "Log density samples (For aerodynamic profile"));
             AddSuffix(new string[] { "AeroCdSamples" }, new SetSuffix<ListValue>(GetAeroCdSamples, SetAeroCdSamples, "2D matrix of drag coefficient samples"));
             AddSuffix(new string[] { "AeroClSamples" }, new SetSuffix<ListValue>(GetAeroClSamples, SetAeroClSamples, "2D matrix of lift coefficient samples"));
             // AOA profiles
@@ -86,15 +86,21 @@ namespace kOS.AddOns.AFSAddon
             // Atmosphere density and temperature profile
             AddSuffix(new string[] { "AtmAltSamples" }, new SetSuffix<ListValue>(GetAtmAltSamples, SetAtmAltSamples, "Altitude samples (For density profile)"));
             AddSuffix(new string[] { "AtmLogDensitySamples" }, new SetSuffix<ListValue>(GetAtmLogDensitySamples, SetAtmLogDensitySamples, "Log Density samples"));
+            AddSuffix(new string[] { "SetAtmDsFromAlt" }, new OneArgsSuffix<ListValue>(SetAtmDsFromAlt, "Set AtmLogDensitySamples from altitudes"));
             AddSuffix(new string[] { "AtmTempSamples" }, new SetSuffix<ListValue>(GetAtmTempSamples, SetAtmTempSamples, "Temperature samples"));
 
             // Sync operations
             AddSuffix(new string[] { "GetBankCmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetBankCmd, "Takes y4 state and guidance parameters, output Bank command"));
             AddSuffix(new string[] { "GetAOACmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetAOACmd, "Takes y4 state, output AOA command"));
+            AddSuffix(new string[] { "GetY4State" }, new NoArgsSuffix<Lexicon>(GetY4State, "Get current y4 state (set theta to 0)"));
+            AddSuffix(new string[] { "GetAptBankCmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetAptBankCmd, "Output adapted Bank command based on current state"));
+            AddSuffix(new string[] { "GetAptAOACmd" }, new NoArgsSuffix<Lexicon>(GetAptAOACmd, "Output adapted AOA command based on current state"));
+            AddSuffix(new string[] { "GetAptY4State" }, new NoArgsSuffix<Lexicon>(GetAptY4State, "Get current adapted y4 state (set theta to 0)"));
             AddSuffix(new string[] { "GetFARAeroCoefs" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefs, "Takes altitude, speed and AOA as input, output Cd and Cl"));
             AddSuffix(new string[] { "GetFARAeroCoefsEst" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefsEst, "Takes altitude, speed and AOA as input, output estimated Cd and Cl"));
             AddSuffix(new string[] { "GetDensityAt" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityAt, "Takes altitude as input, output air density in kg/m3"));
             AddSuffix(new string[] { "GetDensityEst" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityEst, "Takes altitude as input, output estimated air density in kg/m3"));
+            AddSuffix(new string[] { "GetAltEst" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetAltEst, "Takes density as input, output estimated altitude in m"));
             AddSuffix(new string[] { "InitAtmModel" }, new NoArgsVoidSuffix(InitAtmModel, "Initialize atmosphere model for current body"));
             AddSuffix(new string[] { "DirectionToAngleAxis" }, new OneArgsSuffix<Vector, Direction>(DirectionToAngleAxis, "Takes direction as input, output its angle axis form, where the magnitude of the vector is in radian unit"));
 
@@ -317,8 +323,8 @@ namespace kOS.AddOns.AFSAddon
         private ListValue GetAeroSpeedSamples() { return ListFromDoubleArray(simArgs.AeroSpeedSamples); }
         private void SetAeroSpeedSamples(ListValue val) { simArgs.AeroSpeedSamples = ExtractDoubleArray(val, "AeroSpeedSamples"); }
 
-        private ListValue GetAeroAltSamples() { return ListFromDoubleArray(simArgs.AeroAltSamples); }
-        private void SetAeroAltSamples(ListValue val) { simArgs.AeroAltSamples = ExtractDoubleArray(val, "AeroAltSamples"); }
+        private ListValue GetAeroLogDensitySamples() { return ListFromDoubleArray(simArgs.AeroLogDensitySamples); }
+        private void SetAeroLogDensitySamples(ListValue val) { simArgs.AeroLogDensitySamples = ExtractDoubleArray(val, "AeroLogDensitySamples"); }
 
         private ListValue GetAeroCdSamples() { return ListFromDoubleArray2D(simArgs.AeroCdSamples); }
         private void SetAeroCdSamples(ListValue val) { simArgs.AeroCdSamples = ExtractDoubleArray2D(val, "AeroCdSamples"); }
@@ -365,6 +371,17 @@ namespace kOS.AddOns.AFSAddon
         private ListValue GetAtmLogDensitySamples() { return ListFromDoubleArray(simArgs.AtmLogDensitySamples); }
         private void SetAtmLogDensitySamples(ListValue val) { simArgs.AtmLogDensitySamples = ExtractDoubleArray(val, "logdensitysamples"); }
 
+        private void SetAtmDsFromAlt(ListValue val)
+        {
+            double[] altSamples = ExtractDoubleArray(val, "alt samples");
+            for (int i=0; i<altSamples.Length; ++i)
+            {
+                double density = AFSCore.GetDensityAt(altSamples[i]);
+                altSamples[i] = density > Double.Epsilon ? Math.Log(density) : Double.MinValue * 0.5;
+            }
+            simArgs.AeroLogDensitySamples = altSamples;
+        }
+
         private ListValue GetAtmTempSamples() { return ListFromDoubleArray(simArgs.AltTempSamples); }
         private void SetAtmTempSamples(ListValue val) { simArgs.AltTempSamples = ExtractDoubleArray(val, "temperaturesamples"); }
 
@@ -388,6 +405,49 @@ namespace kOS.AddOns.AFSAddon
             return result;
         }
 
+        private Lexicon GetY4State()
+        {
+            PhyState state = AFSCore.GetPhyState();
+            ListValue y4list = new ListValue();
+            y4list.Add(new ScalarDoubleValue(state.r));
+            y4list.Add(new ScalarDoubleValue(state.theta * 180 / Math.PI));
+            y4list.Add(new ScalarDoubleValue(state.v));
+            y4list.Add(new ScalarDoubleValue(state.gamma * 180 / Math.PI));
+            Lexicon result = new Lexicon();
+            result.Add(new StringValue("y4"), y4list);
+            return result;
+        }
+
+        private Lexicon GetAptBankCmd(Lexicon args)
+        {
+            BankPlanArgs bargs = RequireBankArgs(args);
+            double BankCmd = AFSCore.GetAptBankCommand(simArgs, bargs) * 180 / Math.PI;
+            Lexicon result = new Lexicon();
+            result.Add(new StringValue("Bank"), new ScalarDoubleValue(AFSCore.GetSafeDouble(BankCmd)));
+            return result;
+        }
+
+        private Lexicon GetAptAOACmd()
+        {
+            double AOACmd = AFSCore.GetAptAOACommand(simArgs);
+            Lexicon result = new Lexicon();
+            result.Add(new StringValue("AOA"), new ScalarDoubleValue(AOACmd / Math.PI * 180));
+            return result;
+        }
+
+        private Lexicon GetAptY4State()
+        {
+            PhyState state = AFSCore.GetAtmPhyState(simArgs);
+            ListValue y4list = new ListValue();
+            y4list.Add(new ScalarDoubleValue(state.r));
+            y4list.Add(new ScalarDoubleValue(state.theta * 180 / Math.PI));
+            y4list.Add(new ScalarDoubleValue(state.v));
+            y4list.Add(new ScalarDoubleValue(state.gamma * 180 / Math.PI));
+            Lexicon result = new Lexicon();
+            result.Add(new StringValue("y4"), y4list);
+            return result;
+        }
+
         private Lexicon GetFARAeroCoefs(Lexicon args)
         {
             double altitude = RequireDoubleArg(args, "altitude");
@@ -403,8 +463,9 @@ namespace kOS.AddOns.AFSAddon
         private Lexicon GetFARAeroCoefsEst(Lexicon args)
         {
             double altitude = RequireDoubleArg(args, "altitude");
+            double logRho = AFSCore.GetLogDensityEst(simArgs, altitude);
             double speed = RequireDoubleArg(args, "speed");
-            AFSCore.GetAeroCoefficients(simArgs, speed, altitude, out double Cd, out double Cl);
+            AFSCore.GetAeroCoefficients(simArgs, speed, logRho, out double Cd, out double Cl);
             Lexicon result = new Lexicon();
             result.Add(new StringValue("Cd"), new ScalarDoubleValue(Cd));
             result.Add(new StringValue("Cl"), new ScalarDoubleValue(Cl));
@@ -413,12 +474,17 @@ namespace kOS.AddOns.AFSAddon
 
         private ScalarValue GetDensityAt(ScalarValue altitude)
         {
-            return ScalarValue.Create(AFSCore.GetDensityAt(altitude.GetDoubleValue()));
+            return ScalarValue.Create(AFSCore.GetSafeDouble(AFSCore.GetDensityAt(altitude.GetDoubleValue())));
         }
 
         private ScalarValue GetDensityEst(ScalarValue altitude)
         {
-            return ScalarValue.Create(AFSCore.GetDensityEst(simArgs, altitude.GetDoubleValue()));
+            return ScalarValue.Create(AFSCore.GetSafeDouble(AFSCore.GetDensityEst(simArgs, altitude.GetDoubleValue())));
+        }
+
+        private ScalarValue GetAltEst(ScalarValue density)
+        {
+            return ScalarValue.Create(AFSCore.GetSafeDouble(AFSCore.GetHeightEst(simArgs, density.GetDoubleValue())));
         }
 
         private void InitAtmModel()

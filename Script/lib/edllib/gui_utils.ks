@@ -72,7 +72,7 @@ function edl_MakeEDLGUI {
                 "CtrlSpeedSamples", AFS:CtrlSpeedSamples,
                 "CtrlAOASamples", AFS:CtrlAOASamples,
                 "AeroSpeedSamples", AFS:AeroSpeedSamples,
-                "AeroAltSamples", AFS:AeroAltSamples,
+                "AeroLogDensitySamples", AFS:AeroLogDensitySamples,
                 "AeroCdSamples", AFS:AeroCdSamples,
                 "AeroClSamples", AFS:AeroClSamples,
                 // "rotation", AFS:rotation,  // disabled because their is a bug in serialization of Direction object
@@ -113,7 +113,7 @@ function edl_MakeEDLGUI {
         set AFS:CtrlSpeedSamples to _aeroProfile["CtrlSpeedSamples"].
         set AFS:CtrlAOASamples to _aeroProfile["CtrlAOASamples"].
         set AFS:AeroSpeedSamples to _aeroProfile["AeroSpeedSamples"].
-        set AFS:AeroAltSamples to _aeroProfile["AeroAltSamples"].
+        set AFS:AeroLogDensitySamples to _aeroProfile["AeroLogDensitySamples"].
         set AFS:AeroCdSamples to _aeroProfile["AeroCdSamples"].
         set AFS:AeroClSamples to _aeroProfile["AeroClSamples"].
         // set AFS:rotation to _aeroProfile["rotation"].  // disabled because their is a bug in serialization of Direction object
@@ -511,18 +511,19 @@ function edl_MakeAeroGUI {
             gui_aero_speedgrid_npoints_input:text:tonumber,
             AeroSpeedSamples
         ).
-        local AeroAltSamples to list().
+        local altSamples to list().
+        // Reverse order to make log density array in ascending order
         mlinspace(
-            gui_aero_altgrid_hmin_input:text:tonumber * 1e3,  // convert to m
             gui_aero_altgrid_hmax_input:text:tonumber * 1e3,  // convert to m
+            gui_aero_altgrid_hmin_input:text:tonumber * 1e3,  // convert to m
             round(gui_aero_altgrid_npoints_input:text:tonumber, 0),
-            AeroAltSamples
+            altSamples
         ).
         local batchsize to round(gui_aero_batchsize_input:text:tonumber(20), 0).
-        entry_async_set_aeroprofile(AeroSpeedSamples, AeroAltSamples, batchsize).
+        entry_async_set_aeroprofile(AeroSpeedSamples, altSamples, batchsize).
         when (true) then {
             local nV to AeroSpeedSamples:length().
-            local nH to AeroAltSamples:length().
+            local nH to altSamples:length().
             local currentIndex to entry_aeroprofile_process["curIndex"].
             set gui_aero_msg_label:text to "Generating aerodynamic profile: " + (round(currentIndex*100/(nV*nH), 1)):tostring + "% complete".
             if (entry_aeroprofile_process["idle"]) {
@@ -570,10 +571,10 @@ function edl_MakeAeroGUI {
     local _hmin to 0.
     local _hmax to 0.
     local _nhpoints to 0.
-    if (AFS:AeroAltSamples:length() > 1) {
-        set _nhpoints to AFS:AeroAltSamples:length().
-        set _hmin to AFS:AeroAltSamples[0].
-        set _hmax to AFS:AeroAltSamples[_nhpoints-1].
+    if (AFS:AeroLogDensitySamples:length() > 1) {
+        set _nhpoints to AFS:AeroLogDensitySamples:length().
+        set _hmin to AFS:GetAltEst(exp(AFS:AeroLogDensitySamples[_nhpoints-1])).
+        set _hmax to AFS:GetAltEst(exp(AFS:AeroLogDensitySamples[0])).
     }
     else {
         set _nhpoints to 64.
