@@ -380,6 +380,10 @@ function edl_MakeEDLGUI {
             set vecV to ship:velocity:orbit.
         }
         local entryInfo to entry_propagate_to_entry(tt, vecR, vecV).
+        if (not entryInfo["ok"]) {
+            set gui_edl_planner_msg:text to "Propagation Error: (" + entryInfo["status"] + ") " + entryInfo["msg"].
+            return.
+        }
         set tt to entryInfo["time_entry"].
         set vecR to entryInfo["vecR"].
         set vecV to entryInfo["vecV"].

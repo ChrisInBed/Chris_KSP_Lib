@@ -131,16 +131,23 @@ function entry_set_AOAprofile {
 }
 
 function entry_get_control {
+    parameter vecR.
+    parameter vecV.
     parameter gst.
     
-    local unitR to up:forevector.
-    local unitV to srfPrograde:forevector.
+    local unitR to vecR:normalized.
     local unitRtgt to (entry_target_geo:position - body:position):normalized.
+    local rr to vecR:mag.
+    local theta to -vAng(unitR, unitRtgt).
+    local vv to vecV:mag.
+    local gamma to 90 - vAng(vecR, vecV).
     local unitH to vCrs(unitRtgt, unitR):normalized.
-    local psi to entry_get_angle(vCrs(unitR, unitH), unitV, unitR).
+    local psi to entry_get_angle(vCrs(unitR, unitH), vecV, unitR).
 
     // unsigned bank command
-    local bank_cmd to AFS:GetAptBankCmd(lexicon(
+    local y4 to list(rr, theta, vv, gamma).
+    local bank_cmd to AFS:GetBankCmd(lexicon(
+        "y4", y4,
         "bank_i", gst["bank_i"], "bank_f", gst["bank_f"],
         "energy_i", gst["energy_i"], "energy_f", gst["energy_f"]
     ))["Bank"].
@@ -150,7 +157,7 @@ function entry_get_control {
     if (entry_bank_reversal) set bank_cmd to -bank_cmd.
 
     // linear interpolation for AOA command
-    local AOA_cmd to AFS:GetAptAOACmd()["AOA"].
+    local AOA_cmd to AFS:GetAOACmd(lexicon("y4", y4))["AOA"].
 
     return lexicon("bank", bank_cmd, "AOA", AOA_cmd).
 }
@@ -179,6 +186,13 @@ function entry_initialize_guidance {
     local _toBodyFixed to angleAxis(-body:angularvel:mag*180/constant:pi*tt, body:angularvel).
     set vecR to _toBodyFixed * vecR.
     set vecV to _toBodyFixed * vecV - vCrs(body:angularvel, vecR).
+
+    // Decide initial bank reversal
+    local unitR to vecR:normalized.
+    local unitRtgt to vecRtgt:normalized.
+    local unitH to vCrs(unitRtgt, unitR):normalized.
+    local psi to entry_get_angle(vCrs(unitR, unitH), vecV, unitR).
+    set entry_bank_reversal to psi < 0.
 
     local energy_i to entry_get_spercific_energy(vecR:mag, vecV:mag).
     local energy_f to AFS:target_energy.

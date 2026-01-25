@@ -66,10 +66,10 @@ function entry_phase {
     if (done or (not guidance_active)) return.
     set guidance_stage to "entry".
     RCS ON.
-    local _control to entry_get_control(gst).
+    local _control to entry_get_control(-body:position, ship:velocity:surface, gst).
     // Inner loop
     when (guidance_stage = "entry" and (not done) and guidance_active) then {
-        set _control to entry_get_control(gst).
+        set _control to entry_get_control(-body:position, ship:velocity:surface, gst).
         local _AOACmd to _control["AOA"].
         if (AFS:AOAReversal) {set _AOACmd to -_AOACmd.}
         local _targetAttitude to AeroFrameCmd2Attitude(_AOACmd, 0, _control["bank"]).
@@ -93,11 +93,8 @@ function entry_phase {
     until (ee < ef or done or (not guidance_active)) {
         set AFS:mass to ship:mass.
         set AFS:area to AFS:REFAREA.
-        local _y4apt to AFS:GetAptY4State()["y4"].
-        local _vecRApt to up:forevector * _y4apt[0].
-        local _unitUy to vCrs(srfPrograde:forevector, up:forevector):normalized.
-        local _vecVApt to angleAxis(_y4apt[3]-90, _unitUy) * up:forevector * _y4apt[2].
-        set stepInfo to entry_step_guidance(0, _vecRApt, _vecVApt, gst).
+        AFS:InitAtmModel().
+        set stepInfo to entry_step_guidance(0, -body:position, ship:velocity:surface, gst).
         if (not stepInfo["ok"]) {
             print "Error: (" + stepInfo["status"] + ")" + stepInfo["msg"] AT(0, 30).
         }
@@ -147,9 +144,9 @@ function entry_phase {
 function main {
     // initialize the guidance system
     init_print().
+    initialize_guidance().
+    edl_MakeEDLGUI().
     until done {
-        initialize_guidance().
-        edl_MakeEDLGUI().
         wait until guidance_active or done.
         if (not done) {entry_phase().}
         // print result
