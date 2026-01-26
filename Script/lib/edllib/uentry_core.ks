@@ -36,14 +36,14 @@ function entry_async_set_aeroprofile {
                 entry_aeroprofile_process["Cdlist"]:add(list()).
                 entry_aeroprofile_process["Cllist"]:add(list()).
             }
-            local AOAcmd to AFS:GetAOACmd(lexicon("y4", list(10e3, 0, speedSamples[iv], 0)))["AOA"].
+            local AOAcmd to AFS:GetAOACmd(lexicon("vecR", V(0,0,1), "vecV", V(speedSamples[iv],0,0)))["AOA"].
             local CLD to atm_get_CLD_at(AOAcmd, speedSamples[iv], altSamples[ih]).
             entry_aeroprofile_process["Cdlist"][iv]:add(CLD["Cd"]).
             entry_aeroprofile_process["Cllist"][iv]:add(CLD["Cl"]).
         }
         if (curEnd = nV * nH) {
             set AFS:AeroSpeedSamples to speedSamples.
-            AFS:SetAtmDsFromAlt(altSamples).
+            AFS:SetAeroDsFromAlt(altSamples).
             set AFS:AeroCdSamples to entry_aeroprofile_process["Cdlist"].
             set AFS:AeroClSamples to entry_aeroprofile_process["Cllist"].
             set entry_aeroprofile_process["idle"] to true.
@@ -61,14 +61,13 @@ function entry_initialize {
     }
 
     // Initialize atmosphere density model
-    // Note that in FAR model, geoposition and time are counted in temperature and pressure calculation
-    // But here we assume density only depends on altitude, this lead to ~5% error on Earth
-    // This will be improved in future versions
     AFS:InitAtmModel().
     // set AFS:mu to body:mu.
     // set AFS:R to body:radius.
     // set AFS:molar_mass to body:atm:molarmass.
     // set AFS:atm_height to body:atm:height.
+    // set AFS:bodySpin to body:angularvel.
+
     // set basic ship parameters
     set AFS:mass to ship:mass.
     set AFS:area to AFS:REFAREA.
@@ -85,15 +84,22 @@ function entry_initialize {
     // target geo and path contraints
     declare global entry_hf to 25000.
     declare global entry_vf to 650.
-    declare global entry_target_geo to body:geopositionlatlng(0, 0).
+    declare global entry_target_geo to get_target_geo().
+    if (entry_target_geo = 0) {
+        // If no waypoint activated, use a target 2/5 around the planet ahead
+        local unitR to -body:position:normalized.
+        local unitH to vCrs(unitR, ship:velocity:orbit):normalized.
+        local unitRtgt to angleAxis(144, unitH) * unitR.
+        set entry_target_geo to body:geopositionof(body:position + unitRtgt * body:radius).
+    }
     set AFS:target_energy to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
-    declare global entry_heading_tol to 10.
-    declare global entry_bank_reversal to false.
+    set AFS:RTarget to entry_target_geo:position - body:position.
+    set AFS:heading_tol to 10.
+    set AFS:bank_reversal to false.
     // path constraints
     set AFS:Qdot_max to 6e5.
     set AFS:acc_max to 25.
     set AFS:dynp_max to 10e3.
-    set entry_heading_tol to 10.
     // prediction parameters
     set AFS:predict_min_step to 0.
     set AFS:predict_max_step to 0.5.
@@ -102,7 +108,7 @@ function entry_initialize {
     set AFS:L_min to 0.5.
     set AFS:k_QEGC to 0.5.
     set AFS:k_C to 2.
-    set AFS:t_reg to 90.
+    set AFS:t_lag to 90.
 
     // Trajectory sampling parameters
     set AFS:predict_traj_dSqrtE to 300.
@@ -120,6 +126,7 @@ function entry_set_target {
     local dlat to new_df * cos(new_headingf) / body:radius /constant:pi*180.
     local dlon to new_df / cos(new_target_geo:lat) * sin(new_headingf) / body:radius /constant:pi*180.
     set entry_target_geo to body:geopositionlatlng(new_target_geo:lat + dlat, new_target_geo:lng + dlon).
+    set AFS:RTarget to entry_target_geo:position - body:position.
 }
 
 function entry_set_AOAprofile {
@@ -134,30 +141,22 @@ function entry_get_control {
     parameter vecR.
     parameter vecV.
     parameter gst.
-    
-    local unitR to vecR:normalized.
-    local unitRtgt to (entry_target_geo:position - body:position):normalized.
-    local rr to vecR:mag.
-    local theta to -vAng(unitR, unitRtgt).
-    local vv to vecV:mag.
-    local gamma to 90 - vAng(vecR, vecV).
-    local unitH to vCrs(unitRtgt, unitR):normalized.
-    local psi to entry_get_angle(vCrs(unitR, unitH), vecV, unitR).
 
-    // unsigned bank command
-    local y4 to list(rr, theta, vv, gamma).
+    set AFS:RTarget to entry_target_geo:position - body:position.
+
+    // bank command
     local bank_cmd to AFS:GetBankCmd(lexicon(
-        "y4", y4,
+        "vecR", vecR, "vecV", vecV,
         "bank_i", gst["bank_i"], "bank_f", gst["bank_f"],
         "energy_i", gst["energy_i"], "energy_f", gst["energy_f"]
     ))["Bank"].
-
+    
     // bank reversal
-    if (abs(psi) > entry_heading_tol or abs(bank_cmd) < 0.1) set entry_bank_reversal to (psi < 0).
-    if (entry_bank_reversal) set bank_cmd to -bank_cmd.
+    local headingErr to AFS:GetHeadingErr(lexicon("vecR", vecR, "vecV", vecV, "vecRtgt", AFS:RTarget)).
+    if (abs(headingErr) > AFS:heading_tol or abs(bank_cmd) < 0.01) set AFS:bank_reversal to headingErr > 0.
 
     // linear interpolation for AOA command
-    local AOA_cmd to AFS:GetAOACmd(lexicon("y4", y4))["AOA"].
+    local AOA_cmd to AFS:GetAOACmd(lexicon("vecR", vecR, "vecV", vecV))["AOA"].
 
     return lexicon("bank", bank_cmd, "AOA", AOA_cmd).
 }
@@ -169,6 +168,7 @@ function entry_initialize_guidance {
     parameter bank_i, bank_f.
 
     local vecRtgt to entry_target_geo:position - body:position.
+    set AFS:RTarget to vecRtgt.
 
     // propagate to entry interface
     local entryInfo to entry_propagate_to_entry(tt, vecR, vecV).
@@ -188,16 +188,13 @@ function entry_initialize_guidance {
     set vecV to _toBodyFixed * vecV - vCrs(body:angularvel, vecR).
 
     // Decide initial bank reversal
-    local unitR to vecR:normalized.
-    local unitRtgt to vecRtgt:normalized.
-    local unitH to vCrs(unitRtgt, unitR):normalized.
-    local psi to entry_get_angle(vCrs(unitR, unitH), vecV, unitR).
-    set entry_bank_reversal to psi < 0.
+    local headingErr to AFS:GetHeadingErr(lexicon("vecR", vecR, "vecV", vecV, "vecRtgt", vecRtgt)).
+    set AFS:bank_reversal to (headingErr > 0).
 
     local energy_i to entry_get_spercific_energy(vecR:mag, vecV:mag).
     local energy_f to AFS:target_energy.
 
-    local theta_target to vAng(vecR, vecRtgt).
+    local theta_target to entry_angle_to_target(vecR, vecV, vecRtgt).
     local bank_tol to 0.3.
     local numiter to 0.
     local result1 to lexicon().
@@ -228,8 +225,10 @@ function entry_initialize_guidance {
                 "energy_f", energy_f
             ), true).
             if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
-            set thetaErr to result1["thetaf"] - theta_target.
-            local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
+            local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
+            local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
+            set thetaErr to thetaf1 - theta_target.
+            local thetaErrDBank to (thetaf2 - thetaf1) / 0.1.
             local bank_i_old to bank_i.
             set bank_i to bank_i - max(-5, min(5, thetaErr / msafedivision(thetaErrDBank))).
             set bank_i to max(0, min(AFS:bank_max, bank_i)).
@@ -253,9 +252,7 @@ function entry_initialize_guidance {
     return lexicon(
         "ok", true, "status", "COMPLETED", "gst", gst,
         "time_entry", tt, "vecR_entry", vecR, "vecV_entry", vecV,
-        "re", result1["re"], "thetae", result1["thetae"], "ve", result1["ve"], "gammae", result1["gammae"],
         "time_final", result1["time_final"], "vecR_final", result1["vecR_final"], "vecV_final", result1["vecV_final"],
-        "rf", result1["rf"], "thetaf", result1["thetaf"], "vf", result1["vf"], "gammaf", result1["gammaf"],
         "maxQdot", result1["maxQdot"], "maxQdotTime", result1["maxQdotTime"],
         "maxAcc", result1["maxAcc"], "maxAccTime", result1["maxAccTime"],
         "maxDynP", result1["maxDynP"], "maxDynPTime", result1["maxDynPTime"],
@@ -275,14 +272,18 @@ function entry_step_guidance {
         + (gst["bank_f"] - gst["bank_i"]) * (energy_now - gst["energy_i"]) / (gst["energy_f"] - gst["energy_i"]).
     // prediction and get derivatives
     local vecRtgt to entry_target_geo:position - body:position.
-    local theta_target to vAng(vecR, vecRtgt).
+    set AFS:RTarget to vecRtgt.
+    local theta_target to entry_angle_to_target(vecR, vecV, vecRtgt).
     local result1 to entry_predictor(tt, vecR, vecV, lexicon(
         "bank_i", bank_now,
         "bank_f", gst["bank_f"],
         "energy_i", energy_now,
         "energy_f", gst["energy_f"]
     ), false).
-    if (not result1["ok"]) return lexicon("ok", false, "status", result1["status"], "msg", result1["msg"]).
+    if (not result1["ok"]) {
+        if (result1["status"] = "TIMEOUT") set gst["bank_i"] to bank_now + 2.
+        return lexicon("ok", false, "status", result1["status"], "msg", "(bank1) + " + result1["msg"]).
+    }
     // set result1["thetaf"] to result1["thetaf"] * rangeFactor.  // adjust for density error
     local result2 to entry_predictor(tt, vecR, vecV, lexicon(
         "bank_i", bank_now + 0.1,
@@ -290,11 +291,16 @@ function entry_step_guidance {
         "energy_i", energy_now,
         "energy_f", gst["energy_f"]
     ), false).
-    if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
-    local thetaErr to result1["thetaf"] - theta_target.
-    local thetaErrDBank to (result2["thetaf"] - result1["thetaf"]) / 0.1.
+    if (not result2["ok"]) {
+        if (result2["status"] = "TIMEOUT") set gst["bank_i"] to bank_now + 2.
+        return lexicon("ok", false, "status", result2["status"], "msg", "(bank2)" + result2["msg"]).
+    }
+    local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
+    local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
+    set thetaErr to thetaf1 - theta_target.
+    local thetaErrDBank to (thetaf2 - thetaf1) / 0.1.
     // update gst
-    set bank_now to bank_now - max(-5, min(5, thetaErr / msafedivision(thetaErrDBank))).
+    set bank_now to bank_now - max(-1, min(1, thetaErr / msafedivision(thetaErrDBank))).
     set bank_now to max(0, min(AFS:bank_max, bank_now)).
     set gst["bank_i"] to bank_now.
     set gst["energy_i"] to energy_now.
@@ -302,7 +308,6 @@ function entry_step_guidance {
     return lexicon(
         "ok", true, "status", "COMPLETED",
         "time_final", result1["time_final"], "vecR_final", result1["vecR_final"], "vecV_final", result1["vecV_final"],
-        "rf", result1["rf"], "thetaf", result1["thetaf"], "vf", result1["vf"], "gammaf", result1["gammaf"],
         "maxQdot", result1["maxQdot"], "maxQdotTime", result1["maxQdotTime"],
         "maxAcc", result1["maxAcc"], "maxAccTime", result1["maxAccTime"],
         "maxDynP", result1["maxDynP"], "maxDynPTime", result1["maxDynPTime"],
@@ -337,17 +342,9 @@ function entry_predictor {
         set vecV to _toBodyFixed * vecV - vCrs(body:angularvel, vecR).
     }
 
-    // Convert to y4 state
-    local rr to vecR:mag.
-    local theta to 0.
-    local vv to vecV:mag.
-    local gamma to 90 - vAng(vecR, vecV).
-    local y4_entry to list(rr, theta, vv, gamma).
-    local unitUy to vCrs(vecV, vecR):normalized.
-    local unitRref to vecR:normalized.
     // Propagate to final state
     local _jobid to AFS:AsyncSimAtmTraj(lexicon(
-        "t", tt, "y4", y4_entry,
+        "t", tt, "vecR", vecR, "vecV", vecV,
         "bank_i", gst["bank_i"], "bank_f", gst["bank_f"],
         "energy_i", gst["energy_i"], "energy_f", gst["energy_f"]
     )).
@@ -366,22 +363,12 @@ function entry_predictor {
         "status", predRes["status"],
         "msg", "Prediction did not end at terminal condition, status: " + predRes["status"]
     ).
-    local yf to predRes["finalState"].
-    set yf[1] to yf[1] * sin(entry_heading_tol) / (entry_heading_tol/180*constant:pi + 1e-6).  // correction for crossrange
-    local unitRf to angleAxis(yf[1], -unitUy) * unitRref.
-    local vecRf to unitRf * yf[0].
-    local vrf to yf[2] * sin(yf[3]).
-    local vtf to yf[2] * cos(yf[3]).
-    local vecVf to vrf * unitRf + vtf * vCrs(unitRf, unitUy).
     return lexicon(
         "ok", true, "status", "COMPLETED",
         "time_entry", tt, "vecR_entry", vecR, "vecV_entry", vecV,
-        "re", y4_entry[0], "thetae", y4_entry[1], "ve", y4_entry[2], "gammae", y4_entry[3],
-        "time_final", predRes["t"], "vecR_final", vecRf, "vecV_final", vecVf,
-        "rf", yf[0], "thetaf", yf[1], "vf", yf[2], "gammaf", yf[3],
+        "time_final", predRes["t"], "vecR_final", predRes["finalVecR"], "vecV_final", predRes["finalVecV"],
         "trajE", predRes["trajE"],
-        "trajR", predRes["trajR"], "trajTheta", predRes["trajTheta"],
-        "trajV", predRes["trajV"], "trajGamma", predRes["trajGamma"],
+        "trajVecR", predRes["trajVecR"], "trajVecV", predRes["trajVecV"],
         "trajBank", predRes["trajBank"], "trajAOA", predRes["trajAOA"],
         "nsteps", predRes["nsteps"],
         "maxQdot", predRes["maxQdot"], "maxQdotTime", predRes["maxQdotTime"],
@@ -442,17 +429,26 @@ function entry_propagate_to_entry {
     ).
 }
 
-function entry_get_angle {
+function entry_signed_angle {
     parameter vec1.
     parameter vec2.
     parameter unitH.
     
-    set vec1 to vxcl(unitH, vec1).
-    set vec2 to vxcl(unitH, vec2).
     local theta to vang(vec1, vec2).
-    if vDot(vCrs(vec2, vec1), unitH) < 0 {
+    if vDot(vCrs(vec1, vec2), unitH) < 0 {
         set theta to -theta.
     }
+    return theta.
+}
+
+function entry_angle_to_target {
+    parameter vecR.
+    parameter vecV.
+    parameter vecRtgt.
+
+    local unitH to vCrs(vecR, vecV):normalized.
+    local theta to entry_signed_angle(vecR, vecRtgt, unitH).
+    if (theta < 0) set theta to theta + 360.
     return theta.
 }
 

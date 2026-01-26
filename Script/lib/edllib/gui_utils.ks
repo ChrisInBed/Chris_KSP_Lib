@@ -67,6 +67,10 @@ function edl_MakeEDLGUI {
         local _path to path("0:/entry_presets/" + presetName + ".json").
         if (exists(_path)) deletePath(_path).
         local _presetBody to lexicon(
+            "vessel", lexicon(
+                "mass", AFS:mass,
+                "area", AFS:area
+            ),
             "kclcontroller", kclcontroller,
             "aeroprofile", lexicon(
                 "CtrlSpeedSamples", AFS:CtrlSpeedSamples,
@@ -88,14 +92,14 @@ function edl_MakeEDLGUI {
                 "bank_i", entry_bank_i,
                 "bank_f", entry_bank_f,
                 "bank_max", AFS:bank_max,
-                "heading_tol", entry_heading_tol,
+                "heading_tol", AFS:heading_tol,
                 "Qdot_max", AFS:Qdot_max,
                 "acc_max", AFS:acc_max,
                 "dynp_max", AFS:dynp_max,
                 "L_min", AFS:L_min,
                 "k_QEGC", AFS:k_QEGC,
                 "k_C", AFS:k_C,
-                "t_reg", AFS:t_reg
+                "t_lag", AFS:t_lag
             )
         ).
         writeJSON(_presetBody, _path).
@@ -107,7 +111,11 @@ function edl_MakeEDLGUI {
             hudtext("Preset file not found!", 4, 2, 12, hudtextcolor, false).
             return.
         }
+        AFS:InitAtmModel().
         local _presetBody to readJSON(_path).
+        local _vesselInfo to _presetBody["vessel"].
+        set AFS:mass to _vesselInfo["mass"].
+        set AFS:area to _vesselInfo["area"].
         set kclcontroller to _presetBody["kclcontroller"].
         local _aeroProfile to _presetBody["aeroprofile"].
         set AFS:CtrlSpeedSamples to _aeroProfile["CtrlSpeedSamples"].
@@ -127,14 +135,14 @@ function edl_MakeEDLGUI {
         set entry_bank_i to _guidance["bank_i"].
         set entry_bank_f to _guidance["bank_f"].
         set AFS:bank_max to _guidance["bank_max"].
-        set entry_heading_tol to _guidance["heading_tol"].
+        set AFS:heading_tol to _guidance["heading_tol"].
         set AFS:Qdot_max to _guidance["Qdot_max"].
         set AFS:acc_max to _guidance["acc_max"].
         set AFS:dynp_max to _guidance["dynp_max"].
         set AFS:L_min to _guidance["L_min"].
         set AFS:k_QEGC to _guidance["k_QEGC"].
         set AFS:k_C to _guidance["k_C"].
-        set AFS:t_reg to _guidance["t_reg"].
+        set AFS:t_lag to _guidance["t_lag"].
         // Refresh GUI
         edl_MakeEDLGUI().
     }.
@@ -274,13 +282,13 @@ function edl_MakeEDLGUI {
     set gui_edl_bank_max_set:style:width to 50.
     set gui_edl_bank_max_set:onclick to {set AFS:bank_max to gui_edl_bank_max_input:text:tonumber.}.
 
-    declare global gui_edl_entry_heading_tol_box to gui_edlmainbox:addhbox().
-    declare global gui_edl_entry_heading_tol_label to gui_edl_entry_heading_tol_box:addlabel("Heading Tol (°):").
-    set gui_edl_entry_heading_tol_label:style:width to 150.
-    declare global gui_edl_entry_heading_tol_input to gui_edl_entry_heading_tol_box:addtextfield(entry_heading_tol:tostring).
-    declare global gui_edl_entry_heading_tol_set to gui_edl_entry_heading_tol_box:addbutton("set").
-    set gui_edl_entry_heading_tol_set:style:width to 50.
-    set gui_edl_entry_heading_tol_set:onclick to {set entry_heading_tol to gui_edl_entry_heading_tol_input:text:tonumber.}.
+    declare global gui_edl_heading_tol_box to gui_edlmainbox:addhbox().
+    declare global gui_edl_heading_tol_label to gui_edl_heading_tol_box:addlabel("Heading Tol (°):").
+    set gui_edl_heading_tol_label:style:width to 150.
+    declare global gui_edl_heading_tol_input to gui_edl_heading_tol_box:addtextfield(AFS:heading_tol:tostring).
+    declare global gui_edl_heading_tol_set to gui_edl_heading_tol_box:addbutton("set").
+    set gui_edl_heading_tol_set:style:width to 50.
+    set gui_edl_heading_tol_set:onclick to {set AFS:heading_tol to gui_edl_heading_tol_input:text:tonumber.}.
     
     declare global gui_edl_qdot_max_box to gui_edlmainbox:addhbox().
     declare global gui_edl_qdot_max_label to gui_edl_qdot_max_box:addlabel("M.Heatflux (kW):").
@@ -330,13 +338,13 @@ function edl_MakeEDLGUI {
     set gui_edl_k_c_set:style:width to 50.
     set gui_edl_k_c_set:onclick to {set AFS:k_C to gui_edl_k_c_input:text:tonumber.}.
 
-    declare global gui_edl_t_reg_box to gui_edlmainbox:addhbox().
-    declare global gui_edl_t_reg_label to gui_edl_t_reg_box:addlabel("Lag T (s):").
-    set gui_edl_t_reg_label:style:width to 150.
-    declare global gui_edl_t_reg_input to gui_edl_t_reg_box:addtextfield(AFS:t_reg:tostring).
-    declare global gui_edl_t_reg_set to gui_edl_t_reg_box:addbutton("set").
-    set gui_edl_t_reg_set:style:width to 50.
-    set gui_edl_t_reg_set:onclick to {set AFS:t_reg to gui_edl_t_reg_input:text:tonumber.}.
+    declare global gui_edl_t_lag_box to gui_edlmainbox:addhbox().
+    declare global gui_edl_t_lag_label to gui_edl_t_lag_box:addlabel("Lag T (s):").
+    set gui_edl_t_lag_label:style:width to 150.
+    declare global gui_edl_t_lag_input to gui_edl_t_lag_box:addtextfield(AFS:t_lag:tostring).
+    declare global gui_edl_t_lag_set to gui_edl_t_lag_box:addbutton("set").
+    set gui_edl_t_lag_set:style:width to 50.
+    set gui_edl_t_lag_set:onclick to {set AFS:t_lag to gui_edl_t_lag_input:text:tonumber.}.
 
     declare global gui_edl_planner_box to gui_edlmainbox:addvbox().
     declare global gui_edl_planner_msg to gui_edl_planner_box:addlabel("").
@@ -365,6 +373,7 @@ function edl_MakeEDLGUI {
     }.
     declare global gui_edl_planner_update_button to gui_edl_planner_box1:addbutton("Update Prediction").
     set gui_edl_planner_update_button:onclick to {
+        AFS:InitAtmModel().
         // Propagate to entry
         local tt to 0.
         local vecR to v(0,0,0).
@@ -399,12 +408,16 @@ function edl_MakeEDLGUI {
             return.
         }
         set gui_vecRpred_final to finalInfo["vecR_final"]:normalized * body:radius * 1.5.
+        local gammae to 90 - vAng(vecR, vecV).
+        local thetaf to entry_angle_to_target(vecR, vecV, finalInfo["vecR_final"]).
         set gui_edl_planner_msg:text to 
-            "Entry interface: V = " + round(finalInfo["ve"])
-            + " m/s, Path angle = " + round(finalInfo["gammae"], 2)
-            + ", Range = " + round(finalInfo["thetaf"]/180*constant:pi*body:radius*1e-3) + "km."
-            + ", Vf = " + round(finalInfo["vf"]) + "m/s."
-            + ", Hf = " + round((finalInfo["rf"]-body:radius)*1e-3, 1) + "km"
+            "Entry interface: V = " + round(vecVsrf:mag)
+            + " m/s, Path angle = " + round(gammae, 2)
+            + ", T = " + round(tt + finalInfo["time_final"]) + "s"
+            + ", thetaf = " + round(thetaf, 1)
+            + ", Range = " + round(thetaf/180*constant:pi*body:radius*1e-3) + "km"
+            + ", Vf = " + round(finalInfo["vecV_final"]:mag) + "m/s"
+            + ", Hf = " + round((finalInfo["vecR_final"]:mag - body:radius)*1e-3, 1) + "km"
             + ", M.HeatFlux = " + round(finalInfo["maxQdot"]*1e-3) + " kW"
             + ", M.Load = " + round(finalInfo["maxAcc"]/9.81, 2) + "g"
             + ", M.DynP = " + round(finalInfo["maxDynP"]*1e-3) + "kPa".

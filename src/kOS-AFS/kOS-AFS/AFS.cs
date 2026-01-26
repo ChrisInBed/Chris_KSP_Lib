@@ -8,103 +8,170 @@ using UnityEngine;
 
 namespace AFS
 {    
+    using PhyStateDerivative = PhyState;
     internal class SimAtmTrajArgs
     {
-        public double mu, R, mass, molarMass, area, atmHeight, bank_max;
+        // Celestial body parameters
+        public double mu, R, molarMass, atmHeight;
+        public double3 bodySpin;
+        public double[] AtmAltSamples, AtmTempSamples, AtmLogDensitySamples;
+        // Vessel parameters
+        public double mass, area;
         public Quaternion rotation;
         public bool AOAReversal;
         public double[] CtrlSpeedSamples, CtrlAOAsamples;
         public double[] AeroSpeedSamples, AeroLogDensitySamples;
         public double[,] AeroCdSamples, AeroClSamples;
-        public double[] AtmAltSamples, AltTempSamples, AtmLogDensitySamples;
-        public double k_QEGC, k_C, t_reg, Qdot_max, acc_max, dynp_max;
-        public double L_min, target_energy;
-        public double predict_max_step, predict_min_step, predict_tmax;
+        // Target parameters
+        public double target_energy;
+        public double3 Rtarget;
+        // Guidance parameters
+        public double L_min, k_QEGC, k_C, t_lag, Qdot_max, acc_max, dynp_max;
+        public double bank_max, heading_tol;
+        public bool bank_reversal;
+        public double predict_min_step, predict_max_step, predict_tmax;
         public double predict_traj_dSqrtE, predict_traj_dH;
         public SimAtmTrajArgs()
         {
-            // initialize defaults (CEV configuration)
+            // Celestial body parameters
             mu = 3.98589e14;  // Earth
             R = 6.371e6;
             molarMass = 0.02897;
+            atmHeight = 140e3;
+            bodySpin = double3.zero;
+            AtmAltSamples = new double[] { 0e3, 140e3 };
+            AtmTempSamples = new double[] { 296.0, 220.0 };
+            AtmLogDensitySamples = new double[] { Math.Log(1.2250), Math.Log(1.2250) - 140.0 / 8.5 };
+            // Vessel parameters
             mass = 6000;
             area = 12;
             rotation = Quaternion.identity;
             AOAReversal = false;
-            atmHeight = 140e3;
-            bank_max = 40.0 *Math.PI/180.0;
             CtrlSpeedSamples = new double[] { 600, 8000 };
             CtrlAOAsamples = new double[] { 15.0*Math.PI/180.0, 15.0*Math.PI/180.0 };
             AeroSpeedSamples = new double[] { 3000 };
             AeroLogDensitySamples = new double[] { -0.5 };
             AeroClSamples = new double[,] { { 0.3 } };
             AeroCdSamples = new double[,] { { 1.5 } };
-            AtmAltSamples = new double[] { 0e3, 140e3 };
-            AltTempSamples = new double[] { 296.0, 220.0 };
-            AtmLogDensitySamples = new double[] { Math.Log(1.2250), Math.Log(1.2250) - 140.0 / 8.5 };
+            // Target parameters
+            target_energy = AFSCore.GetSpecificEnergy(mu, R+10e3, 300);
+            Rtarget = new double3(R + 10e3, 0, 0);
+            // Guidance parameters
+            L_min = 0.5;
             k_QEGC = 1.0;
             k_C = 5.0;
-            t_reg = 90;
+            t_lag = 90;
             Qdot_max = 5e6;
             acc_max = 3 * 9.81;
             dynp_max = 15e3;
-            L_min = 0.5;
-            target_energy = AFSCore.GetSpecificEnergy(mu, R+10e3, 300);
+            bank_max = 70.0 *Math.PI/180.0;
+            heading_tol = 10.0 *Math.PI/180.0;
+            bank_reversal = false;
             predict_min_step = 0;
             predict_max_step = 1;
             predict_tmax = 3600;
             predict_traj_dSqrtE = 300.0;
             predict_traj_dH = 10e3;
-
-            AFSCore.InitAtmModel(this);
-            mass = FlightGlobals.ActiveVessel.GetTotalMass() * 1000;
-            area = FARAPI.ActiveVesselRefArea();
         }
     }
-    internal class BankPlanArgs
+    internal struct BankPlanArgs
     {
         public double bank_i, bank_f, energy_i, energy_f;
-        public BankPlanArgs()
-        {
-            // initialize defaults (CEV configuration)
-            bank_i = 20.0 * Math.PI / 180.0;
-            bank_f = 10.0 * Math.PI / 180.0;
-            energy_i = AFSCore.GetSpecificEnergy(3.98589e14, 6.371e6 + 140e3, 8000);
-            energy_f = AFSCore.GetSpecificEnergy(3.98589e14, 6.371e6 + 10e3, 300);
-        }
-        public BankPlanArgs(double bank_i, double bank_f, double energy_i, double energy_f)
+        public bool reversal;
+        public static BankPlanArgs Default => new BankPlanArgs(
+            20.0 * Math.PI / 180.0,
+            10.0 * Math.PI / 180.0,
+            AFSCore.GetSpecificEnergy(3.98589e14, 6.371e6 + 140e3, 8000),
+            AFSCore.GetSpecificEnergy(3.98589e14, 6.371e6 + 10e3, 300),
+            false
+        );
+        public BankPlanArgs(double bank_i, double bank_f, double energy_i, double energy_f, bool reversal)
         {
             this.bank_i = bank_i;
             this.bank_f = bank_f;
             this.energy_i = energy_i;
             this.energy_f = energy_f;
+            this.reversal = reversal;
         }
     }
+
+    [BurstCompile]
     internal struct PhyState
     {
-        public double4 values;
+        public double3 vecR;
+        public double3 vecV;
 
-        public double r => values[0];
-        public double theta => values[1];
-        public double v => values[2];
-        public double gamma => values[3];
-
-        // Initialize defaults (CEV configuration)
         public static PhyState Default => new PhyState(
-            (6371 + 140) * 1e3,
-            0,
-            8000,
-            -5.0 * Math.PI / 180.0
+            double3.zero, double3.zero
         );
 
-        public PhyState(double r, double theta, double v, double gamma)
+        public PhyState(double3 vecR, double3 vecV)
         {
-            values = new double4(r, theta, v, gamma);
+            this.vecR = vecR;
+            this.vecV = vecV;
         }
 
-        public PhyState(double4 newValues)
+        public double r { get => math.length(vecR); }
+        public double phi
         {
-            values = newValues;
+            get
+            {
+                double cosPhi = math.dot(math.normalizesafe(vecR), math.up());
+                cosPhi = 0.5*math.PI - math.acos(math.clamp(cosPhi, -1, 1));
+                return cosPhi;
+            }
+        }
+        public double theta
+        {
+            get
+            {
+                double3 bodyY = new double3(0, 1, 0);
+                double3 bodyZ = new double3(0, 0, 1);
+                double3 vecR1 = math.normalizesafe(vecR - math.dot(vecR, bodyY) * bodyY);
+                double angle = AFSCore.SignedAngle(bodyZ, vecR1, -bodyY);
+                if (angle < 0) angle = math.PI * 2 + angle;
+                return angle;
+            }
+        }
+        public double v { get => math.length(vecV); }
+        public double gamma
+        {
+            get
+            {
+                if (v < 1e-6) return 0;
+                double vr = math.dot(vecV, math.normalize(vecR));
+                return math.asin(math.clamp(vr / v, -1, 1));
+            }
+        }
+        public double psi
+        {
+            get
+            {
+                double3 localUp = math.normalizesafe(vecR);
+                double3 localForward = vecV - math.dot(vecV, localUp) * localUp;
+                double _l = math.length(localForward);
+                if (_l < 1e-6) return 0;
+                localForward = localForward / _l;
+                double3 bodyNorth = new double3(0, 1, 0);
+                double3 localNorth = bodyNorth - math.dot(bodyNorth, localUp) * localUp;
+                _l = math.length(localNorth);
+                if (_l < 1e-6) return math.dot(bodyNorth, localUp) > 0 ? 0 : math.PI;
+                localNorth = localNorth / _l;
+                return AFSCore.SignedAngle(localNorth, localForward, localUp);
+            }
+        }
+
+        public static PhyState operator+(PhyState a, PhyState b)
+        {
+            return new PhyState(a.vecR + b.vecR, a.vecV + b.vecV);
+        }
+        public static PhyState operator*(double scalar, PhyState state)
+        {
+            return new PhyState(scalar * state.vecR, scalar * state.vecV);
+        }
+        public static PhyState operator *(PhyState state, double scalar)
+        {
+            return new PhyState(scalar * state.vecR, scalar * state.vecV);
         }
     }
     internal class PhyTraj
@@ -139,27 +206,27 @@ namespace AFS
         private const double MinScale = 0.2;
         private const double MaxScale = 5.0;
         // RKF45 constants
-        private const double C04=25.0/216.0, C05=16.0/135.0;
-        private const double S1=1.0/4.0, Beta10=1.0/4.0, C14=0.0, C15=0.0;
-        private const double S2=3.0/8.0, Beta20=3.0/32.0, Beta21=9.0/32.0, C24=1408.0/2565.0, C25=6656.0/12825.0;
-        private const double S3=12.0/13.0, Beta30=1932.0/2197.0, Beta31=-7200.0/2197.0, Beta32=7296.0/2197.0, C34=2197.0/4104.0, C35=28561.0/56430.0;
-        private const double S4=1.0, Beta40=439.0/216.0, Beta41=-8.0, Beta42=3680.0/513.0, Beta43=-845.0/4104.0, C44=-1.0/5.0, C45=-9.0/50.0;
-        private const double S5=1.0/2.0, Beta50=-8.0/27.0, Beta51=2.0, Beta52=-3544.0/2565.0, Beta53=1859.0/4104.0, Beta54=-11.0/40.0, C54=0.0, C55=2.0/55.0;
+        private const double C04 = 25.0 / 216.0, C05 = 16.0 / 135.0;
+        private const double S1 = 1.0 / 4.0, Beta10 = 1.0 / 4.0, C14 = 0.0, C15 = 0.0;
+        private const double S2 = 3.0 / 8.0, Beta20 = 3.0 / 32.0, Beta21 = 9.0 / 32.0, C24 = 1408.0 / 2565.0, C25 = 6656.0 / 12825.0;
+        private const double S3 = 12.0 / 13.0, Beta30 = 1932.0 / 2197.0, Beta31 = -7200.0 / 2197.0, Beta32 = 7296.0 / 2197.0, C34 = 2197.0 / 4104.0, C35 = 28561.0 / 56430.0;
+        private const double S4 = 1.0, Beta40 = 439.0 / 216.0, Beta41 = -8.0, Beta42 = 3680.0 / 513.0, Beta43 = -845.0 / 4104.0, C44 = -1.0 / 5.0, C45 = -9.0 / 50.0;
+        private const double S5 = 1.0 / 2.0, Beta50 = -8.0 / 27.0, Beta51 = 2.0, Beta52 = -3544.0 / 2565.0, Beta53 = 1859.0 / 4104.0, Beta54 = -11.0 / 40.0, C54 = 0.0, C55 = 2.0 / 55.0;
         // Simulation constants
         private const double ENERGY_ERR_TOL = 1;
         // Atmospheric model constants
         private const double GAS_CONSTANT = 8.314462618; // J/(mol·K)
 
-        public class Context {
+        public class Context
+        {
             public double G, L, D, Qdot, acc, dynp;
+            public double bank;
         }
         public static double GetBankCommand(PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
         {
             double r = state.r;
-            double v = SafeValue(Math.Abs(state.v));
+            double v = state.v;
             double gamma = state.gamma;
-            double erg = GetSpecificEnergy(args.mu, r, v);
-
             double energy = GetSpecificEnergy(args.mu, r, v);
             double bankBase = bargs.bank_f + (bargs.bank_i - bargs.bank_f) * (energy - bargs.energy_f) / (bargs.energy_i - bargs.energy_f);
             double G = args.mu / r / r;
@@ -184,19 +251,19 @@ namespace AFS
                 double hs = GetScaleHeightEst(args, r - args.R);
                 // QEGC correction
                 double hdot = v * Math.Sin(gamma);
-                double hdotQEGC = -2.0 * G / SafeValue(v/hs * Math.Cos(bankBase)) * (Cd / SafeValue(Cl));
+                double hdotQEGC = -2.0 * G / SafeValue(v / hs * Math.Cos(bankBase)) * (Cd / SafeValue(Cl));
                 // Constraints correction
                 double Qdot = HeatFluxCoefficient * Math.Pow(v, 3.15) * Math.Sqrt(rho);
                 double v2 = v * v;
                 double denomQdot = Math.Max(0.5 / hs + 3.15 * G / v2, 1e-6);
-                double hdotQdot = -(args.Qdot_max / Math.Max(Qdot, 1e-6) - 1.0 + 3.15 * D * args.t_reg / v) / denomQdot / args.t_reg;
+                double hdotQdot = -(args.Qdot_max / Math.Max(Qdot, 1e-6) - 1.0 + 3.15 * D * args.t_lag / v) / denomQdot / args.t_lag;
 
                 double a = Math.Sqrt(L * L + D * D);
                 double denomAcc = Math.Max(1.0 / hs + 2.0 * G / v2, 1e-6);
-                double hdotAcc = -(args.acc_max / Math.Max(a, 1e-6) - 1.0 + 2.0 * D * args.t_reg / v) / denomAcc / args.t_reg;
+                double hdotAcc = -(args.acc_max / Math.Max(a, 1e-6) - 1.0 + 2.0 * D * args.t_lag / v) / denomAcc / args.t_lag;
 
                 double q = rho * v * v / 2.0;
-                double hdotDynP = -(args.dynp_max / Math.Max(q, 1e-6) - 1.0 + 2.0 * D * args.t_reg / v) / denomAcc / args.t_reg;
+                double hdotDynP = -(args.dynp_max / Math.Max(q, 1e-6) - 1.0 + 2.0 * D * args.t_lag / v) / denomAcc / args.t_lag;
 
                 double hdotC = Math.Max(Math.Max(hdot, hdotQdot), Math.Max(hdotAcc, hdotDynP));
                 double vNorm = hs / 10;
@@ -223,6 +290,8 @@ namespace AFS
                 }
             }
 
+            if (bargs.reversal) Bank = -Bank;
+
             return Bank;
         }
 
@@ -243,83 +312,12 @@ namespace AFS
         public static PhyState GetPhyState()
         {
             Vessel _vessel = FlightGlobals.ActiveVessel;
-            double h = _vessel.altitude;
-            double gamma = (90 - Vector3d.Angle(_vessel.CurrentPosition() - _vessel.mainBody.position, _vessel.srf_velocity)) / 180 * Math.PI;
-            double v = _vessel.srfSpeed;
-            return new PhyState(h + _vessel.mainBody.Radius, 0, v, gamma);
-        }
-
-        public static double GetAptBankCommand(SimAtmTrajArgs args, BankPlanArgs bargs)
-        {
-            Vessel _vessel = FlightGlobals.ActiveVessel;
-            double h = _vessel.altitude;
-            double density = _vessel.atmDensity;
-            double gamma = (90 - Vector3d.Angle(_vessel.CurrentPosition() - _vessel.mainBody.position, _vessel.srf_velocity)) / 180 * Math.PI;
-            double v = _vessel.srfSpeed;
-            if (density < 1e-9)
-            {
-                return GetBankCommand(new PhyState(h + args.R, 0, v, gamma), args, bargs, null);
-            }
-            double AOA = GetAOACommand(new PhyState(0, 0, v, 0), args);
-            GetFARAeroCoefs(h, AOA, v, out double Cd, out double Cl, args.rotation, args.AOAReversal);
-            double densityApt = density;
-            double CdApt = 0, ClApt = 0;
-            for (int i = 0; i < 2; ++i)
-            {
-                GetAeroCoefficients(args, v, Math.Log(density), out CdApt, out ClApt);
-                densityApt = density * Cd / CdApt;
-            }
-            if (Math.Abs(Cd) < 1e-8 || Math.Abs(CdApt) < 1e-8)
-            {
-                return GetBankCommand(new PhyState(h + args.R, 0, v, gamma), args, bargs, null);
-            }
-            double hApt = GetHeightEst(args, densityApt);
-            double hs = GetScaleHeightAt(h);
-            double hsApt = GetScaleHeightEst(args, hApt);
-            double G = args.mu / Math.Pow(args.R + h, 2);
-            double GApt = args.mu / Math.Pow(args.R + hApt, 2);
-            double factor = (v / hs + 2 * G / v) / (v / hsApt + 2 * GApt / v);
-            double gammaApt = Math.Asin(Clamp(factor * Math.Sin(gamma), -1, 1));
-            double BankApt = GetBankCommand(new PhyState(hApt + args.R, 0, v, gammaApt), args, bargs, null);
-            factor = factor * (Cl / Cd) / (ClApt / CdApt);
-            if ((!Double.IsFinite(factor)) || Math.Abs(factor)<1e-8) return BankApt;
-            double Bank = Math.Acos(Clamp(Math.Cos(BankApt) / factor, Math.Cos(args.bank_max), 1));
-            return Bank;
-        }
-
-        public static double GetAptAOACommand(SimAtmTrajArgs args)
-        {
-            return GetAOACommand(new PhyState(0, 0, FlightGlobals.ActiveVessel.srfSpeed, 0), args);
-        }
-
-        public static PhyState GetAtmPhyState(SimAtmTrajArgs args)
-        {
-            Vessel _vessel = FlightGlobals.ActiveVessel;
-            double h = _vessel.altitude;
-            double density = _vessel.atmDensity;
-            double gamma = (90 - Vector3d.Angle(_vessel.CurrentPosition() - _vessel.mainBody.position, _vessel.srf_velocity)) / 180 * Math.PI;
-            double v = _vessel.srfSpeed;
-            double AOA = GetAOACommand(new PhyState(0, 0, v, 0), args);
-            GetFARAeroCoefs(h, AOA, v, out double Cd, out _, args.rotation, args.AOAReversal);
-            double hApt = h;
-            double gammaApt = gamma;
-            if (density > 1e-9)
-            {
-                double densityApt = density;
-                for (int i=0; i<2; ++i)
-                {
-                    GetAeroCoefficients(args, v, Math.Log(density), out double CdApt, out _);
-                    densityApt = density * Cd / CdApt;
-                }
-                hApt = GetHeightEst(args, densityApt);
-                double hs = GetScaleHeightAt(h);
-                double hsApt = GetScaleHeightEst(args, hApt);
-                double G = args.mu / Math.Pow(args.R + h, 2);
-                double GApt = args.mu / Math.Pow(args.R + hApt, 2);
-                double factor = (v / hs + 2 * G / v) / (v / hsApt + 2 * GApt / v);
-                gammaApt = Math.Asin(Clamp(factor * Math.Sin(gamma), -1, 1));
-            }
-            return new PhyState(args.R + hApt, 0, v, gammaApt);
+            Vector3d vecR = _vessel.CurrentPosition() - _vessel.mainBody.position;
+            Vector3d vecV = _vessel.srf_velocity;
+            return new PhyState(
+                new double3(vecR.x, vecR.y, vecR.z),
+                new double3(vecV.x, vecV.y, vecV.z)
+            );
         }
 
         public static PredictResult PredictTrajectory(double t, PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs)
@@ -330,6 +328,9 @@ namespace AFS
             double Rold = state.r;
             double tmax = t + args.predict_tmax;
             double told = t;
+            // Initial bank
+            double headingErr = GetHeadingErr(state.vecR, state.vecV, args.Rtarget);
+            bargs.reversal = headingErr > 0;
             List<double> Eseq = new List<double>(); Eseq.Add(E);
             List<PhyState> stateSeq = new List<PhyState>(); stateSeq.Add(state);
             List<double> AOAseq = new List<double>();
@@ -340,18 +341,19 @@ namespace AFS
             Bankseq.Add(Bank);
 
             PhyState stateold = state;
-            double maxQdot=-1, maxQdotTime=-1;
-            double maxAcc=-1, maxAccTime=-1;
-            double maxDynP=-1, maxDynPTime=-1;
+            double maxQdot = -1, maxQdotTime = -1;
+            double maxAcc = -1, maxAccTime = -1;
+            double maxDynP = -1, maxDynPTime = -1;
             double tstep = args.predict_max_step;
             Rk45StepResult result;
+            Context context = new Context();
             while (t < tmax)
             {
                 ++nsteps;
-                result = RK45Step(t, state, tstep, args, bargs);
+                result = RK45Step(t, state, tstep, args, bargs, context);
                 while (!result.isValid)
                 {
-                    result = RK45Step(t, state, result.newStep, args, bargs);
+                    result = RK45Step(t, state, result.newStep, args, bargs, null);
                 }
                 if (result.Qdot > maxQdot)
                 {
@@ -373,17 +375,20 @@ namespace AFS
                 t = result.t; state = result.nextState;
                 E = GetSpecificEnergy(args.mu, state.r, state.v);
                 if (E < args.target_energy) break;
-                if (Math.Abs(Math.Sqrt(E-args.target_energy) - Math.Sqrt(Eold-args.target_energy)) > args.predict_traj_dSqrtE || Math.Abs(state.r - Rold) > args.predict_traj_dH)
+                if (Math.Abs(Math.Sqrt(E - args.target_energy) - Math.Sqrt(Eold - args.target_energy)) > args.predict_traj_dSqrtE || Math.Abs(state.r - Rold) > args.predict_traj_dH)
                 {
                     Eseq.Add(E);
                     stateSeq.Add(state);
                     AOA = GetAOACommand(state, args);
-                    Bank = GetBankCommand(state, args, bargs, null);
                     AOAseq.Add(AOA);
-                    Bankseq.Add(Bank);
+                    Bankseq.Add(context.bank);
                     Eold = E;
                     Rold = state.r;
                 }
+                // Bank reversal
+                headingErr = GetHeadingErr(state.vecR, state.vecV, args.Rtarget);
+                if (math.abs(headingErr) > args.heading_tol || math.abs(context.bank) < math.radians(0.01))
+                    bargs.reversal = headingErr > 0;
             }
             if (t >= tmax)
             {
@@ -391,12 +396,16 @@ namespace AFS
                 return new PredictResult
                 {
                     nsteps = nsteps,
-                    t = t, finalState = state,
+                    t = t,
+                    finalState = state,
                     traj = new PhyTraj { Eseq = Eseq.ToArray(), states = stateSeq.ToArray(), AOAseq = AOAseq.ToArray(), Bankseq = Bankseq.ToArray() },
                     status = PredictStatus.TIMEOUT,
-                    maxQdot = maxQdot, maxQdotTime = maxQdotTime,
-                    maxAcc = maxAcc, maxAccTime = maxAccTime,
-                    maxDynP = maxDynP, maxDynPTime = maxDynPTime
+                    maxQdot = maxQdot,
+                    maxQdotTime = maxQdotTime,
+                    maxAcc = maxAcc,
+                    maxAccTime = maxAccTime,
+                    maxDynP = maxDynP,
+                    maxDynPTime = maxDynPTime
                 };
             }
             // Reaches terminal energy condition, Newton-Raphson method to find the root
@@ -405,22 +414,23 @@ namespace AFS
             {
                 double r = state.r;
                 double v = state.v;
-				double Err = GetSpecificEnergy(args.mu, r, v) - args.target_energy;
+                double gamma = state.gamma;
+                double Err = GetSpecificEnergy(args.mu, r, v) - args.target_energy;
                 if (Math.Abs(Err) < ENERGY_ERR_TOL) break;
 
-				double G = args.mu / (r * r);
+                double G = args.mu / (r * r);
                 double logRho = GetLogDensityEst(args, r - args.R);
-				double rho = Math.Exp(logRho);
-				double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
-				GetAeroCoefficients(args, v, logRho, out double Cd, out _);
-				double D = aeroCoef * Cd;
+                double rho = Math.Exp(logRho);
+                double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
+                GetAeroCoefficients(args, v, logRho, out double Cd, out _);
+                double D = aeroCoef * Cd;
 
-                double rdot = v * Math.Sin(state.gamma);
-                double vdot = -D - G * Math.Sin(state.gamma);
+                double rdot = v * Math.Sin(gamma);
+                double vdot = -D - G * Math.Sin(gamma);
                 double Edot = args.mu / r / r * rdot + v * vdot;
 
                 t -= Err / Edot;
-                result = RK45Step(told, stateold, t - told, args, bargs);
+                result = RK45Step(told, stateold, t - told, args, bargs, context);
                 state = result.nextState;
 
                 ++numiter;
@@ -431,20 +441,23 @@ namespace AFS
                 Eseq.Add(E);
                 stateSeq.Add(state);
                 AOA = GetAOACommand(state, args);
-                Bank = GetBankCommand(state, args, bargs, null);
                 AOAseq.Add(AOA);
-                Bankseq.Add(Bank);
+                Bankseq.Add(context.bank);
             }
             return new PredictResult
             {
                 nsteps = nsteps,
-                t = t, finalState = state,
+                t = t,
+                finalState = state,
                 traj = new PhyTraj { Eseq = Eseq.ToArray(), states = stateSeq.ToArray(), AOAseq = AOAseq.ToArray(), Bankseq = Bankseq.ToArray() },
                 status = PredictStatus.COMPLETED,
-                maxQdot = maxQdot, maxQdotTime = maxQdotTime,
-				maxAcc = maxAcc, maxAccTime = maxAccTime,
-				maxDynP = maxDynP, maxDynPTime = maxDynPTime
-			};
+                maxQdot = maxQdot,
+                maxQdotTime = maxQdotTime,
+                maxAcc = maxAcc,
+                maxAccTime = maxAccTime,
+                maxDynP = maxDynP,
+                maxDynPTime = maxDynPTime
+            };
         }
 
         public static double GetSpecificEnergy(double mu, double r, double v)
@@ -506,41 +519,31 @@ namespace AFS
             return value;
         }
 
-        private class PhyStateDerivative
-		{
-            public PhyStateDerivative(double rdot, double thetadot, double vdot, double gammadot)
-            {
-                values = new double4(rdot, thetadot, vdot, gammadot);
-            }
-            public double4 values;
-            public double rdot { get => values[0]; }
-            public double thetadot { get => values[1]; }
-            public double vdot { get => values[2]; }
-            public double gammadot { get => values[3]; }
-		}
-
+        [BurstCompile]
         private static PhyStateDerivative ComputeDerivatives(double t, PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
         {
-            double r = state.r;
-            //double theta = state.theta;
-            double v = state.v;
-            double gamma = state.gamma;
-
-            if (context == null)
-            {
-                context = new Context();
-            }
-
+            if (context == null) context = new Context();
             double bank = GetBankCommand(state, args, bargs, context);
-            double safeR = SafeValue(r);
-            double safeV = SafeValue(v);
-
-            double rdot = v * Math.Sin(gamma);
-            double thetadot = v * Math.Cos(gamma) / safeR;
-            double vdot = -context.D - context.G * Math.Sin(gamma);
-            double gammadot = (context.L * Math.Cos(bank) - (context.G - v * v / safeR) * Math.Cos(gamma)) / safeV;
-
-            return new PhyStateDerivative(rdot, thetadot, vdot, gammadot);
+            context.bank = bank;
+            double3 localUp = math.normalize(state.vecR);
+            double3 G = -context.G * localUp;
+            double3 D = double3.zero;
+            double3 L = double3.zero;
+            if (state.v > 1e-6)
+            {
+                double3 unitWindForward = math.normalize(state.vecV);
+                double3 unitWindRight = math.cross(localUp, unitWindForward);
+                double _l = math.length(unitWindRight);
+                if (_l < 1e-12) unitWindRight = math.normalize(math.cross(math.forward(), unitWindForward));
+                else unitWindRight = unitWindRight / _l;
+                double3 unitWindUp = math.cross(unitWindForward, unitWindRight);
+                D = -context.D * unitWindForward;
+                L = context.L * (math.cos(bank) * unitWindUp + math.sin(bank) * unitWindRight);
+            }
+            double3 COR = -2 * math.cross(args.bodySpin, state.vecV);
+            double3 CEN = -math.cross(args.bodySpin, math.cross(args.bodySpin, state.vecR));
+            double3 acc = G + D + L + COR + CEN;
+            return new PhyStateDerivative(state.vecV, acc);
         }
 
         private struct Rk45StepResult
@@ -553,19 +556,19 @@ namespace AFS
         }
 
         [BurstCompile]
-        private static Rk45StepResult RK45Step(double t, PhyState state, double tstep, SimAtmTrajArgs args, BankPlanArgs bargs)
+        private static Rk45StepResult RK45Step(double t, PhyState state, double tstep, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
         {
-            Context context = new Context();
+            if (context == null) context = new Context();
             PhyStateDerivative k0 = ComputeDerivatives(t, state, args, bargs, context);
-            PhyStateDerivative k1 = ComputeDerivatives(t+S1*tstep, new PhyState(state.values+Beta10*k0.values), args, bargs, null);
-            PhyStateDerivative k2 = ComputeDerivatives(t+S2*tstep, new PhyState(state.values+Beta20*k0.values+Beta21*k1.values), args, bargs, null);
-            PhyStateDerivative k3 = ComputeDerivatives(t+S3*tstep, new PhyState(state.values+Beta30*k0.values+Beta31*k1.values+Beta32*k2.values), args, bargs, null);
-            PhyStateDerivative k4 = ComputeDerivatives(t+S4*tstep, new PhyState(state.values+Beta40*k0.values+Beta41*k1.values+Beta42*k2.values+Beta43*k3.values), args, bargs, null);
-            PhyStateDerivative k5 = ComputeDerivatives(t+S5*tstep, new PhyState(state.values+Beta50*k0.values+Beta51*k1.values+Beta52*k2.values+Beta53*k3.values+Beta54*k4.values), args, bargs, null);
+            PhyStateDerivative k1 = ComputeDerivatives(t + S1 * tstep, state + Beta10 * k0, args, bargs, null);
+            PhyStateDerivative k2 = ComputeDerivatives(t + S2 * tstep, state + Beta20 * k0 + Beta21 * k1, args, bargs, null);
+            PhyStateDerivative k3 = ComputeDerivatives(t + S3 * tstep, state + Beta30 * k0 + Beta31 * k1 + Beta32 * k2, args, bargs, null);
+            PhyStateDerivative k4 = ComputeDerivatives(t + S4 * tstep, state + Beta40 * k0 + Beta41 * k1 + Beta42 * k2 + Beta43 * k3, args, bargs, null);
+            PhyStateDerivative k5 = ComputeDerivatives(t + S5 * tstep, state + Beta50 * k0 + Beta51 * k1 + Beta52 * k2 + Beta53 * k3 + Beta54 * k4, args, bargs, null);
 
-            PhyState y4 = new PhyState(state.values+tstep*(C04*k0.values+C14*k1.values+C24*k2.values+C34*k3.values+C44*k4.values+C54*k5.values));
-            PhyState y5 = new PhyState(state.values+tstep*(C05*k0.values+C15*k1.values+C25*k2.values+C35*k3.values+C45*k4.values+C55*k5.values));
-            double errorV = Math.Abs((y4.v-y5.v)/(AbsVTol+RelVTol*Math.Abs(y5.v)));
+            PhyState y4 = state + tstep * (C04 * k0 + C14 * k1 + C24 * k2 + C34 * k3 + C44 * k4 + C54 * k5);
+            PhyState y5 = state + tstep * (C05 * k0 + C15 * k1 + C25 * k2 + C35 * k3 + C45 * k4 + C55 * k5);
+            double errorV = Math.Abs((y4.v - y5.v) / (AbsVTol + RelVTol * Math.Abs(y5.v)));
             double newStep = Clamp(StepSafety * Math.Pow(errorV, -0.2), MinScale, MaxScale) * tstep;
             bool isValid = (errorV <= 1.0) || (newStep <= args.predict_min_step);  // If new step size is too small, we just accept the result.
             newStep = Clamp(newStep, args.predict_min_step, args.predict_max_step);
@@ -577,7 +580,7 @@ namespace AFS
             return Math.Max(min, Math.Min(max, value));
         }
 
-        private static float SignedAngle(Vector3 from, Vector3 to, Vector3 axis)
+        public static float SignedAngle(Vector3 from, Vector3 to, Vector3 axis)
         {
             Vector3 cross = Vector3.Cross(from, to);
             float dot = Vector3.Dot(from, to);
@@ -585,6 +588,39 @@ namespace AFS
             if (Vector3.Dot(axis, cross) < 0.0f)
                 angle = -angle;
             return angle;
+        }
+
+        [BurstCompile]
+        public static double SignedAngle(double3 from, double3 to, double3 axis)
+        {
+            double3 cross = math.cross(from, to);
+            double dot = math.dot(from, to);
+            double angle = math.atan2(math.length(cross), dot);
+            if (math.dot(axis, cross) < 0.0)
+                angle = -angle;
+            return angle;
+        }
+
+        [BurstCompile]
+        public static double GetHeadingErr(double3 vecR, double3 vecV, double3 vecRtgt)
+        {
+            if (math.length(vecV) < 1e-6) return 0;
+            double3 unitV = math.normalize(vecV);
+            double3 unitR = math.normalize(vecR);
+            double3 unitH = math.cross(unitR, unitV);
+            double _l = math.length(unitH);
+            if (_l < 1e-8) return 0;
+            unitH = unitH / _l;
+            double3 unitRtgt = math.normalize(vecRtgt);
+            double3 unitHRef = math.cross(unitR, unitRtgt);
+            _l = math.length(unitHRef);
+            if (_l < 1e-8) return 0;
+            unitHRef = unitHRef / _l;
+            // If the target is faraway behind, flip the reference heading vector
+            // To track a major arc rather than the minor arc
+            if (math.dot(unitR, unitRtgt) < 0.94 && math.dot(unitHRef, unitH) < 0) unitHRef = -unitHRef;
+
+            return SignedAngle(unitHRef, unitH, unitR);
         }
 
         public static double GetFARAOA(Vector3d vel, Quaternion rot, bool AOAReversal)
@@ -676,7 +712,7 @@ namespace AFS
             double g = FlightGlobals.ActiveVessel.mainBody.gravParameter / r / r;
             double T = GetTemperatureAt(altitude);
             double MW = FlightGlobals.ActiveVessel.mainBody.atmosphereMolarMass;
-            return (GAS_CONSTANT * T)/(MW * g);
+            return (GAS_CONSTANT * T) / (MW * g);
         }
 
         public static void InitAtmModel(SimAtmTrajArgs args)
@@ -686,8 +722,9 @@ namespace AFS
             args.mu = FlightGlobals.ActiveVessel.mainBody.gravParameter;
             args.molarMass = FlightGlobals.ActiveVessel.mainBody.atmosphereMolarMass;
             args.atmHeight = FlightGlobals.ActiveVessel.mainBody.atmosphereDepth;
+            args.bodySpin = Vector3dToDouble3(FlightGlobals.ActiveVessel.mainBody.angularVelocity);
             // Sampling altitude, get density and temperatures
-            const int nSamples = 21;
+            const int nSamples = 129;
             double[] altSamples = new double[nSamples];
             double[] tempSamples = new double[nSamples];
             double[] logDensitySamples = new double[nSamples];
@@ -703,7 +740,7 @@ namespace AFS
                 logDensitySamples[i] = Math.Log(D);
             }
             args.AtmAltSamples = altSamples;
-            args.AltTempSamples = tempSamples;
+            args.AtmTempSamples = tempSamples;
             args.AtmLogDensitySamples = logDensitySamples;
         }
 
@@ -712,16 +749,16 @@ namespace AFS
             int idx = FindUpperBound(args.AtmAltSamples, altitude);
             if (idx == 0)
             {
-                return args.AltTempSamples[0];
+                return args.AtmTempSamples[0];
             }
             else if (idx == args.AtmAltSamples.Length)
             {
-                return args.AltTempSamples[args.AltTempSamples.Length - 1];
+                return args.AtmTempSamples[args.AtmTempSamples.Length - 1];
             }
             else
             {
                 double t = (altitude - args.AtmAltSamples[idx - 1]) / (args.AtmAltSamples[idx] - args.AtmAltSamples[idx - 1]);
-                return args.AltTempSamples[idx - 1] + t * (args.AltTempSamples[idx] - args.AltTempSamples[idx - 1]);
+                return args.AtmTempSamples[idx - 1] + t * (args.AtmTempSamples[idx] - args.AtmTempSamples[idx - 1]);
             }
         }
 
@@ -730,13 +767,13 @@ namespace AFS
             int idx = FindUpperBound(args.AtmAltSamples, altitude);
             if (idx == 0)
             {
-                double hs = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AltTempSamples[0]);
-                return args.AtmLogDensitySamples[0] - (args.AtmAltSamples[0] - altitude) / hs;
+                double hs = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AtmTempSamples[0]);
+                return args.AtmLogDensitySamples[0] - (altitude - args.AtmAltSamples[0]) / hs;
             }
             else if (idx == args.AtmAltSamples.Length)
             {
-                double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AltTempSamples[args.AtmAltSamples.Length - 1]);
-                return args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1] - (args.AtmAltSamples[args.AtmAltSamples.Length - 1] - altitude) / hs;
+                double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AtmTempSamples[args.AtmAltSamples.Length - 1]);
+                return args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1] - (altitude - args.AtmAltSamples[args.AtmAltSamples.Length - 1]) / hs;
             }
             else
             {
@@ -759,13 +796,13 @@ namespace AFS
             int idx = FindUpperBound(args.AtmLogDensitySamples, logD, Comparer<double>.Create((a, b) => b.CompareTo(a)));
             if (idx == 0)
             {
-                double hs = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AltTempSamples[0]);
-                return args.AtmAltSamples[0] - hs * (args.AtmLogDensitySamples[0] - logD);
+                double hs = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AtmTempSamples[0]);
+                return args.AtmAltSamples[0] - hs * (logD - args.AtmLogDensitySamples[0]);
             }
             else if (idx == args.AtmLogDensitySamples.Length)
             {
-                double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AltTempSamples[args.AtmAltSamples.Length - 1]);
-                return args.AtmAltSamples[args.AtmAltSamples.Length - 1] - hs * (args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1] - logD);
+                double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AtmTempSamples[args.AtmAltSamples.Length - 1]);
+                return args.AtmAltSamples[args.AtmAltSamples.Length - 1] - hs * (logD -args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1]);
             }
             else
             {
@@ -785,6 +822,16 @@ namespace AFS
         public static double GetSafeDouble(double value)
         {
             return Double.IsFinite(value) ? value : 0.0;
+        }
+
+        public static Vector3d Double3ToVector3d(double3 v)
+        {
+            return new Vector3d(v.x, v.y, v.z);
+        }
+
+        public static double3 Vector3dToDouble3(Vector3d v)
+        {
+            return new double3(v.x, v.y, v.z);
         }
     }
 }

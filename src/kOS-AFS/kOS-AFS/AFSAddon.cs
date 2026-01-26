@@ -11,6 +11,7 @@ using FerramAerospaceResearch;
 using System.Linq;
 using UnityEngine;
 using kOS.Suffixed;
+using Unity.Mathematics;
 
 namespace kOS.AddOns.AFSAddon
 {
@@ -30,7 +31,7 @@ namespace kOS.AddOns.AFSAddon
             public Exception Exception;
             public volatile bool IsCompleted;
         }
-        
+
         public Addon(SharedObjects shared) : base(shared)
         {
             InitializeSuffixes();
@@ -50,52 +51,54 @@ namespace kOS.AddOns.AFSAddon
             AddSuffix(new string[] { "DynamicPressure" }, new Suffix<ScalarDoubleValue>(GetDynamicPressure, "current dynamic pressure of the current vessel"));
             AddSuffix(new string[] { "Density" }, new Suffix<ScalarDoubleValue>(GetDensity, "current air density of the current vessel"));
 
-            // Get&Set args (scalars)
+            // Celestial body parameters
             AddSuffix(new string[] { "mu" }, new SetSuffix<ScalarDoubleValue>(GetMu, SetMu, "Gravity constant of central celestral"));
             AddSuffix(new string[] { "R" }, new SetSuffix<ScalarDoubleValue>(GetR, SetR, "Planet radius"));
             AddSuffix(new string[] { "molar_mass" }, new SetSuffix<ScalarDoubleValue>(GetMolarMass, SetMolarMass, "Atmospheric average molar mass"));
+            AddSuffix(new string[] { "atm_height" }, new SetSuffix<ScalarDoubleValue>(GetAtmHeight, SetAtmHeight, "Height of the ceiling of the atmosphere"));
+            AddSuffix(new string[] { "bodySpin" }, new SetSuffix<Vector>(GetBodySpin, SetBodySpin, "The spin angular vector of the central body"));
+            AddSuffix(new string[] { "AtmAltSamples" }, new SetSuffix<ListValue>(GetAtmAltSamples, SetAtmAltSamples, "Altitude samples (For density profile)"));
+            AddSuffix(new string[] { "AtmLogDensitySamples" }, new SetSuffix<ListValue>(GetAtmLogDensitySamples, SetAtmLogDensitySamples, "Log Density samples"));
+            AddSuffix(new string[] { "AtmTempSamples" }, new SetSuffix<ListValue>(GetAtmTempSamples, SetAtmTempSamples, "Temperature samples"));
+
+            // Vessel parameters
             AddSuffix(new string[] { "mass" }, new SetSuffix<ScalarDoubleValue>(GetMass, SetMass, "Vehicle mass"));
             AddSuffix(new string[] { "area" }, new SetSuffix<ScalarDoubleValue>(GetArea, SetArea, "Reference area"));
             AddSuffix(new string[] { "rotation" }, new SetSuffix<Direction>(GetRotation, SetRotation, "Rotation of the vessel"));
             AddSuffix(new string[] { "AOAReversal" }, new SetSuffix<BooleanValue>(GetAOAReversal, SetAOAReversal, "The sign of AOA angle, false mean positive, true mean negative"));
-            AddSuffix(new string[] { "atm_height" }, new SetSuffix<ScalarDoubleValue>(GetAtmHeight, SetAtmHeight, "Height of the ceiling of the atmosphere"));
-            AddSuffix(new string[] { "bank_max" }, new SetSuffix<ScalarDoubleValue>(GetBankMax, SetBankMax, "Max bank angle"));
+            AddSuffix(new string[] { "CtrlSpeedSamples" }, new SetSuffix<ListValue>(GetCtrlSpeedSamples, SetCtrlSpeedSamples, "Speed samples (For AOA profile)"));
+            AddSuffix(new string[] { "CtrlAOAsamples" }, new SetSuffix<ListValue>(GetCtrlAOASamples, SetCtrlAOASamples, "AOA samples"));
+            AddSuffix(new string[] { "AeroSpeedSamples" }, new SetSuffix<ListValue>(GetAeroSpeedSamples, SetAeroSpeedSamples, "Speed samples (For aerodynamic profile"));
+            AddSuffix(new string[] { "AeroLogDensitySamples" }, new SetSuffix<ListValue>(GetAeroLogDensitySamples, SetAeroLogDensitySamples, "Log density samples (For aerodynamic profile"));
+            AddSuffix(new string[] { "SetAeroDsFromAlt" }, new OneArgsSuffix<ListValue>(SetAeroDsFromAlt, "Set AeroLogDensitySamples from altitudes"));
+            AddSuffix(new string[] { "AeroCdSamples" }, new SetSuffix<ListValue>(GetAeroCdSamples, SetAeroCdSamples, "2D matrix of drag coefficient samples"));
+            AddSuffix(new string[] { "AeroClSamples" }, new SetSuffix<ListValue>(GetAeroClSamples, SetAeroClSamples, "2D matrix of lift coefficient samples"));
+
+            // Target parameters
+            AddSuffix(new string[] { "target_energy" }, new SetSuffix<ScalarDoubleValue>(GetTargetEnergy, SetTargetEnergy, "Target energy"));
+            AddSuffix(new string[] { "RTarget" }, new SetSuffix<Vector>(GetRTarget, SetRTarget, "Position of target"));
+
+            // Guidance parameters
+            AddSuffix(new string[] { "L_min" }, new SetSuffix<ScalarDoubleValue>(GetLMin, SetLMin, "Minimum lift"));
             AddSuffix(new string[] { "k_QEGC" }, new SetSuffix<ScalarDoubleValue>(GetK_QEGC, SetK_QEGC, "Heat flux gain constant"));
             AddSuffix(new string[] { "k_C" }, new SetSuffix<ScalarDoubleValue>(GetK_C, SetK_C, "Constraint gain constant"));
-            AddSuffix(new string[] { "t_reg" }, new SetSuffix<ScalarDoubleValue>(GetTReg, SetTReg, "Regulation timescale"));
+            AddSuffix(new string[] { "t_lag" }, new SetSuffix<ScalarDoubleValue>(GetTLag, SetTLag, "Constraint prediction time"));
             AddSuffix(new string[] { "Qdot_max" }, new SetSuffix<ScalarDoubleValue>(GetQdotMax, SetQdotMax, "Max heat flux"));
             AddSuffix(new string[] { "acc_max" }, new SetSuffix<ScalarDoubleValue>(GetAccMax, SetAccMax, "Max acceleration"));
             AddSuffix(new string[] { "dynp_max" }, new SetSuffix<ScalarDoubleValue>(GetDynpMax, SetDynpMax, "Max dynamic pressure"));
-            AddSuffix(new string[] { "L_min" }, new SetSuffix<ScalarDoubleValue>(GetLMin, SetLMin, "Minimum lift"));
-            AddSuffix(new string[] { "target_energy" }, new SetSuffix<ScalarDoubleValue>(GetTargetEnergy, SetTargetEnergy, "Target energy"));
+            AddSuffix(new string[] { "bank_max" }, new SetSuffix<ScalarDoubleValue>(GetBankMax, SetBankMax, "Max bank angle"));
+            AddSuffix(new string[] { "heading_tol" }, new SetSuffix<ScalarDoubleValue>(GetHeadingTol, SetHeadingTol, "Heading error tolerance"));
+            AddSuffix(new string[] { "bank_reversal" }, new SetSuffix<BooleanValue>(GetBankReversal, SetBankReversal, "Bank reversal"));
             AddSuffix(new string[] { "predict_min_step" }, new SetSuffix<ScalarDoubleValue>(GetPredictMinStep, SetPredictMinStep, "Predictor min step size"));
             AddSuffix(new string[] { "predict_max_step" }, new SetSuffix<ScalarDoubleValue>(GetPredictMaxStep, SetPredictMaxStep, "Predictor max step size"));
             AddSuffix(new string[] { "predict_tmax" }, new SetSuffix<ScalarDoubleValue>(GetPredictTMax, SetPredictTMax, "Predictor max time"));
             AddSuffix(new string[] { "predict_traj_dSqrtE" }, new SetSuffix<ScalarDoubleValue>(GetPredictDSqrtE, SetPredictDSqrtE, "Trajector sampling interval in energy in predictor"));
             AddSuffix(new string[] { "predict_traj_dH" }, new SetSuffix<ScalarDoubleValue>(GetPredictDH, SetPredictDH, "Trajector sampling interval in height in predictor"));
 
-            // Arrays (as List)
-            // Aerodynamic coefficient profiles
-            AddSuffix(new string[] { "AeroSpeedSamples" }, new SetSuffix<ListValue>(GetAeroSpeedSamples, SetAeroSpeedSamples, "Speed samples (For aerodynamic profile"));
-            AddSuffix(new string[] { "AeroLogDensitySamples" }, new SetSuffix<ListValue>(GetAeroLogDensitySamples, SetAeroLogDensitySamples, "Log density samples (For aerodynamic profile"));
-            AddSuffix(new string[] { "AeroCdSamples" }, new SetSuffix<ListValue>(GetAeroCdSamples, SetAeroCdSamples, "2D matrix of drag coefficient samples"));
-            AddSuffix(new string[] { "AeroClSamples" }, new SetSuffix<ListValue>(GetAeroClSamples, SetAeroClSamples, "2D matrix of lift coefficient samples"));
-            // AOA profiles
-            AddSuffix(new string[] { "CtrlSpeedSamples" }, new SetSuffix<ListValue>(GetCtrlSpeedSamples, SetCtrlSpeedSamples, "Speed samples (For AOA profile)"));
-            AddSuffix(new string[] { "CtrlAOAsamples" }, new SetSuffix<ListValue>(GetCtrlAOASamples, SetCtrlAOASamples, "AOA samples"));
-            // Atmosphere density and temperature profile
-            AddSuffix(new string[] { "AtmAltSamples" }, new SetSuffix<ListValue>(GetAtmAltSamples, SetAtmAltSamples, "Altitude samples (For density profile)"));
-            AddSuffix(new string[] { "AtmLogDensitySamples" }, new SetSuffix<ListValue>(GetAtmLogDensitySamples, SetAtmLogDensitySamples, "Log Density samples"));
-            AddSuffix(new string[] { "SetAtmDsFromAlt" }, new OneArgsSuffix<ListValue>(SetAtmDsFromAlt, "Set AtmLogDensitySamples from altitudes"));
-            AddSuffix(new string[] { "AtmTempSamples" }, new SetSuffix<ListValue>(GetAtmTempSamples, SetAtmTempSamples, "Temperature samples"));
-
             // Sync operations
-            AddSuffix(new string[] { "GetBankCmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetBankCmd, "Takes y4 state and guidance parameters, output Bank command"));
-            AddSuffix(new string[] { "GetAOACmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetAOACmd, "Takes y4 state, output AOA command"));
-            AddSuffix(new string[] { "GetY4State" }, new NoArgsSuffix<Lexicon>(GetY4State, "Get current y4 state (set theta to 0)"));
-            AddSuffix(new string[] { "GetAptBankCmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetAptBankCmd, "Output adapted Bank command based on current state"));
-            AddSuffix(new string[] { "GetAptAOACmd" }, new NoArgsSuffix<Lexicon>(GetAptAOACmd, "Output adapted AOA command based on current state"));
-            AddSuffix(new string[] { "GetAptY4State" }, new NoArgsSuffix<Lexicon>(GetAptY4State, "Get current adapted y4 state (set theta to 0)"));
+            AddSuffix(new string[] { "GetBankCmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetBankCmd, "Takes state and guidance parameters, output Bank command"));
+            AddSuffix(new string[] { "GetAOACmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetAOACmd, "Takes state, output AOA command"));
+            AddSuffix(new string[] { "GetState" }, new NoArgsSuffix<Lexicon>(GetState, "Get current state"));
             AddSuffix(new string[] { "GetFARAeroCoefs" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefs, "Takes altitude, speed and AOA as input, output Cd and Cl"));
             AddSuffix(new string[] { "GetFARAeroCoefsEst" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefsEst, "Takes altitude, speed and AOA as input, output estimated Cd and Cl"));
             AddSuffix(new string[] { "GetDensityAt" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityAt, "Takes altitude as input, output air density in kg/m3"));
@@ -103,6 +106,7 @@ namespace kOS.AddOns.AFSAddon
             AddSuffix(new string[] { "GetAltEst" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetAltEst, "Takes density as input, output estimated altitude in m"));
             AddSuffix(new string[] { "InitAtmModel" }, new NoArgsVoidSuffix(InitAtmModel, "Initialize atmosphere model for current body"));
             AddSuffix(new string[] { "DirectionToAngleAxis" }, new OneArgsSuffix<Vector, Direction>(DirectionToAngleAxis, "Takes direction as input, output its angle axis form, where the magnitude of the vector is in radian unit"));
+            AddSuffix(new string[] { "GetHeadingErr" }, new OneArgsSuffix<ScalarValue, Lexicon>(GetHeadingErr, "Takes vecR, vecV and vecRtgt as input, output heading error in (-180, 180)"));
 
             // Async operations
             AddSuffix(new string[] { "AsyncSimAtmTraj" }, new OneArgsSuffix<ScalarValue, Lexicon>(StartSimAtmTraj, "Start a background atmosphere flight simulation; returns integer handle"));
@@ -157,9 +161,20 @@ namespace kOS.AddOns.AFSAddon
                 return resVec;
             else
                 return Vector.Zero;
-		}
+        }
 
-		private ScalarDoubleValue GetMu() { return new ScalarDoubleValue(simArgs.mu); }
+        private ScalarValue GetHeadingErr(Lexicon args)
+        {
+            double3 vecR = RequiredVectorArg(args, "vecR");
+            double3 vecV = RequiredVectorArg(args, "vecV");
+            double3 vecRtgt = RequiredVectorArg(args, "vecRtgt");
+            double headingErr = AFSCore.GetHeadingErr(vecR, vecV, vecRtgt);
+            headingErr = math.degrees(headingErr);
+            if (!Double.IsFinite(headingErr)) return ScalarValue.Create(0d);
+            return ScalarValue.Create(headingErr);
+        }
+
+        private ScalarDoubleValue GetMu() { return new ScalarDoubleValue(simArgs.mu); }
         private void SetMu(ScalarDoubleValue val) { simArgs.mu = val.GetDoubleValue(); }
 
         private ScalarDoubleValue GetR() { return new ScalarDoubleValue(simArgs.R); }
@@ -183,8 +198,17 @@ namespace kOS.AddOns.AFSAddon
         private ScalarDoubleValue GetAtmHeight() { return new ScalarDoubleValue(simArgs.atmHeight); }
         private void SetAtmHeight(ScalarDoubleValue val) { simArgs.atmHeight = val.GetDoubleValue(); }
 
-        private ScalarDoubleValue GetBankMax() { return new ScalarDoubleValue(simArgs.bank_max /Math.PI*180); }
-        private void SetBankMax(ScalarDoubleValue val) { simArgs.bank_max = val.GetDoubleValue() /180.0*Math.PI; }
+        private Vector GetBodySpin() { return Double3ToVector(simArgs.bodySpin); }
+        private void SetBodySpin(Vector val) { simArgs.bodySpin = VectorToDouble3(val); }
+
+        private ScalarDoubleValue GetBankMax() { return new ScalarDoubleValue(simArgs.bank_max / Math.PI * 180); }
+        private void SetBankMax(ScalarDoubleValue val) { simArgs.bank_max = val.GetDoubleValue() / 180.0 * Math.PI; }
+
+        private ScalarDoubleValue GetHeadingTol() { return new ScalarDoubleValue(simArgs.heading_tol / Math.PI * 180); }
+        private void SetHeadingTol(ScalarDoubleValue val) { simArgs.heading_tol = val.GetDoubleValue() / 180.0 * Math.PI; }
+
+        private BooleanValue GetBankReversal() { return new BooleanValue(simArgs.bank_reversal); }
+        private void SetBankReversal(BooleanValue val) { simArgs.bank_reversal = val.Value; }
 
         private ScalarDoubleValue GetK_QEGC() { return new ScalarDoubleValue(simArgs.k_QEGC); }
         private void SetK_QEGC(ScalarDoubleValue val) { simArgs.k_QEGC = val.GetDoubleValue(); }
@@ -192,8 +216,8 @@ namespace kOS.AddOns.AFSAddon
         private ScalarDoubleValue GetK_C() { return new ScalarDoubleValue(simArgs.k_C); }
         private void SetK_C(ScalarDoubleValue val) { simArgs.k_C = val.GetDoubleValue(); }
 
-        private ScalarDoubleValue GetTReg() { return new ScalarDoubleValue(simArgs.t_reg); }
-        private void SetTReg(ScalarDoubleValue val) { simArgs.t_reg = val.GetDoubleValue(); }
+        private ScalarDoubleValue GetTLag() { return new ScalarDoubleValue(simArgs.t_lag); }
+        private void SetTLag(ScalarDoubleValue val) { simArgs.t_lag = val.GetDoubleValue(); }
 
         private ScalarDoubleValue GetQdotMax() { return new ScalarDoubleValue(simArgs.Qdot_max); }
         private void SetQdotMax(ScalarDoubleValue val) { simArgs.Qdot_max = val.GetDoubleValue(); }
@@ -209,6 +233,9 @@ namespace kOS.AddOns.AFSAddon
 
         private ScalarDoubleValue GetTargetEnergy() { return new ScalarDoubleValue(simArgs.target_energy); }
         private void SetTargetEnergy(ScalarDoubleValue val) { simArgs.target_energy = val.GetDoubleValue(); }
+
+        private Vector GetRTarget() { return Double3ToVector(simArgs.Rtarget); }
+        private void SetRTarget(Vector val) { simArgs.Rtarget = VectorToDouble3(val); }
 
         private ScalarDoubleValue GetPredictMinStep() { return new ScalarDoubleValue(simArgs.predict_min_step); }
         private void SetPredictMinStep(ScalarDoubleValue val) { simArgs.predict_min_step = val.GetDoubleValue(); }
@@ -296,18 +323,11 @@ namespace kOS.AddOns.AFSAddon
             return result;
         }
 
-        private PhyState RequirePhyState(Lexicon args, string key = "y4")
+        private PhyState RequirePhyState(Lexicon args)
         {
-            double[] _y4 = RequireDoubleArrayArg(args, "y4");
-            if (!(_y4.Length == 4))
-                throw new KOSException($"Argument y4 must be a List of 4 numbers");
-            PhyState state = new PhyState(
-                _y4[0],
-                _y4[1] / 180 * Math.PI,
-                _y4[2],
-                _y4[3] / 180 * Math.PI
-            );
-            return state;
+            double3 vecR = RequiredVectorArg(args, "vecR");
+            double3 vecV = RequiredVectorArg(args, "vecV");
+            return new PhyState(vecR, vecV);
         }
         private BankPlanArgs RequireBankArgs(Lexicon args)
         {
@@ -315,7 +335,8 @@ namespace kOS.AddOns.AFSAddon
                 RequireDoubleArg(args, "bank_i") / 180 * Math.PI,
                 RequireDoubleArg(args, "bank_f") / 180 * Math.PI,
                 RequireDoubleArg(args, "energy_i"),
-                RequireDoubleArg(args, "energy_f")
+                RequireDoubleArg(args, "energy_f"),
+                simArgs.bank_reversal
             );
             return bargs;
         }
@@ -371,10 +392,10 @@ namespace kOS.AddOns.AFSAddon
         private ListValue GetAtmLogDensitySamples() { return ListFromDoubleArray(simArgs.AtmLogDensitySamples); }
         private void SetAtmLogDensitySamples(ListValue val) { simArgs.AtmLogDensitySamples = ExtractDoubleArray(val, "logdensitysamples"); }
 
-        private void SetAtmDsFromAlt(ListValue val)
+        private void SetAeroDsFromAlt(ListValue val)
         {
             double[] altSamples = ExtractDoubleArray(val, "alt samples");
-            for (int i=0; i<altSamples.Length; ++i)
+            for (int i = 0; i < altSamples.Length; ++i)
             {
                 double density = AFSCore.GetDensityAt(altSamples[i]);
                 altSamples[i] = density > Double.Epsilon ? Math.Log(density) : Double.MinValue * 0.5;
@@ -382,12 +403,12 @@ namespace kOS.AddOns.AFSAddon
             simArgs.AeroLogDensitySamples = altSamples;
         }
 
-        private ListValue GetAtmTempSamples() { return ListFromDoubleArray(simArgs.AltTempSamples); }
-        private void SetAtmTempSamples(ListValue val) { simArgs.AltTempSamples = ExtractDoubleArray(val, "temperaturesamples"); }
+        private ListValue GetAtmTempSamples() { return ListFromDoubleArray(simArgs.AtmTempSamples); }
+        private void SetAtmTempSamples(ListValue val) { simArgs.AtmTempSamples = ExtractDoubleArray(val, "temperaturesamples"); }
 
         private Lexicon GetBankCmd(Lexicon args)
         {
-            PhyState state = RequirePhyState(args, "y4");
+            PhyState state = RequirePhyState(args);
             BankPlanArgs bargs = RequireBankArgs(args);
             AFSCore.Context context = new AFSCore.Context();
             double BankCmd = AFSCore.GetBankCommand(state, simArgs, bargs, context);
@@ -398,53 +419,19 @@ namespace kOS.AddOns.AFSAddon
 
         private Lexicon GetAOACmd(Lexicon args)
         {
-            PhyState state = RequirePhyState(args, "y4");
+            PhyState state = RequirePhyState(args);
             double AOACmd = AFSCore.GetAOACommand(state, simArgs);
             Lexicon result = new Lexicon();
             result.Add(new StringValue("AOA"), new ScalarDoubleValue(AOACmd / Math.PI * 180));
             return result;
         }
 
-        private Lexicon GetY4State()
+        private Lexicon GetState()
         {
             PhyState state = AFSCore.GetPhyState();
-            ListValue y4list = new ListValue();
-            y4list.Add(new ScalarDoubleValue(state.r));
-            y4list.Add(new ScalarDoubleValue(state.theta * 180 / Math.PI));
-            y4list.Add(new ScalarDoubleValue(state.v));
-            y4list.Add(new ScalarDoubleValue(state.gamma * 180 / Math.PI));
             Lexicon result = new Lexicon();
-            result.Add(new StringValue("y4"), y4list);
-            return result;
-        }
-
-        private Lexicon GetAptBankCmd(Lexicon args)
-        {
-            BankPlanArgs bargs = RequireBankArgs(args);
-            double BankCmd = AFSCore.GetAptBankCommand(simArgs, bargs) * 180 / Math.PI;
-            Lexicon result = new Lexicon();
-            result.Add(new StringValue("Bank"), new ScalarDoubleValue(AFSCore.GetSafeDouble(BankCmd)));
-            return result;
-        }
-
-        private Lexicon GetAptAOACmd()
-        {
-            double AOACmd = AFSCore.GetAptAOACommand(simArgs);
-            Lexicon result = new Lexicon();
-            result.Add(new StringValue("AOA"), new ScalarDoubleValue(AOACmd / Math.PI * 180));
-            return result;
-        }
-
-        private Lexicon GetAptY4State()
-        {
-            PhyState state = AFSCore.GetAtmPhyState(simArgs);
-            ListValue y4list = new ListValue();
-            y4list.Add(new ScalarDoubleValue(state.r));
-            y4list.Add(new ScalarDoubleValue(state.theta * 180 / Math.PI));
-            y4list.Add(new ScalarDoubleValue(state.v));
-            y4list.Add(new ScalarDoubleValue(state.gamma * 180 / Math.PI));
-            Lexicon result = new Lexicon();
-            result.Add(new StringValue("y4"), y4list);
+            result.Add(new StringValue("vecR"), Double3ToVector(state.vecR));
+            result.Add(new StringValue("vecV"), Double3ToVector(state.vecV));
             return result;
         }
 
@@ -505,7 +492,7 @@ namespace kOS.AddOns.AFSAddon
             try
             {
                 t = RequireDoubleArg(args, "t");
-                state = RequirePhyState(args, "y4");
+                state = RequirePhyState(args);
                 bargs = RequireBankArgs(args);
             }
             catch (Exception ex)
@@ -522,37 +509,26 @@ namespace kOS.AddOns.AFSAddon
                     // Parse results
                     record.Result.Add(new StringValue("ok"), BooleanValue.True);
                     record.Result.Add(new StringValue("t"), new ScalarDoubleValue(simResult.t));
-                    record.Result.Add(new StringValue("finalState"), new ListValue<ScalarDoubleValue>()
-                    {
-                        new ScalarDoubleValue(simResult.finalState.r),
-                        new ScalarDoubleValue(simResult.finalState.theta*180/Math.PI),
-                        new ScalarDoubleValue(simResult.finalState.v),
-                        new ScalarDoubleValue(simResult.finalState.gamma*180/Math.PI)
-                    });
+                    record.Result.Add(new StringValue("finalVecR"), Double3ToVector(simResult.finalState.vecR));
+                    record.Result.Add(new StringValue("finalVecV"), Double3ToVector(simResult.finalState.vecV));
                     ListValue<ScalarDoubleValue> trajE = new ListValue<ScalarDoubleValue>();
-                    ListValue<ScalarDoubleValue> trajR = new ListValue<ScalarDoubleValue>();
-                    ListValue<ScalarDoubleValue> trajTheta = new ListValue<ScalarDoubleValue>();
-                    ListValue<ScalarDoubleValue> trajV = new ListValue<ScalarDoubleValue>();
-                    ListValue<ScalarDoubleValue> trajGamma = new ListValue<ScalarDoubleValue>();
                     ListValue<ScalarDoubleValue> trajAOA = new ListValue<ScalarDoubleValue>();
                     ListValue<ScalarDoubleValue> trajBank = new ListValue<ScalarDoubleValue>();
-                    for (int i=0; i<simResult.traj.Eseq.Length; ++i)
+                    ListValue<Vector> trajVecR = new ListValue<Vector>();
+                    ListValue<Vector> trajVecV = new ListValue<Vector>();
+                    for (int i = 0; i < simResult.traj.Eseq.Length; ++i)
                     {
                         trajE.Add(new ScalarDoubleValue(simResult.traj.Eseq[i]));
-                        trajR.Add(new ScalarDoubleValue(simResult.traj.states[i].r));
-                        trajTheta.Add(new ScalarDoubleValue(simResult.traj.states[i].theta *180/Math.PI));
-                        trajV.Add(new ScalarDoubleValue(simResult.traj.states[i].v));
-                        trajGamma.Add(new ScalarDoubleValue(simResult.traj.states[i].gamma *180/Math.PI));
                         trajAOA.Add(new ScalarDoubleValue(simResult.traj.AOAseq[i] * 180 / Math.PI));
                         trajBank.Add(new ScalarDoubleValue(simResult.traj.Bankseq[i] * 180 / Math.PI));
+                        trajVecR.Add(Double3ToVector(simResult.traj.states[i].vecR));
+                        trajVecV.Add(Double3ToVector(simResult.traj.states[i].vecV));
                     }
                     record.Result.Add(new StringValue("trajE"), trajE);
-                    record.Result.Add(new StringValue("trajR"), trajR);
-                    record.Result.Add(new StringValue("trajTheta"), trajTheta);
-                    record.Result.Add(new StringValue("trajV"), trajV);
-                    record.Result.Add(new StringValue("trajGamma"), trajGamma);
                     record.Result.Add(new StringValue("trajAOA"), trajAOA);
                     record.Result.Add(new StringValue("trajBank"), trajBank);
+                    record.Result.Add(new StringValue("trajVecR"), trajVecR);
+                    record.Result.Add(new StringValue("trajVecV"), trajVecV);
                     switch (simResult.status)
                     {
                         case PredictStatus.COMPLETED:
@@ -686,6 +662,30 @@ namespace kOS.AddOns.AFSAddon
 
             return result.ToArray();
         }
-    }
 
+        private static double3 RequiredVectorArg(Lexicon args, string name)
+        {
+            if (!args.TryGetValue(new StringValue(name), out var val))
+                throw new KOSException($"Argument '{name}' is required");
+            if (!(val is Vector vec))
+                throw new KOSException($"Argument '{name}' must be a Vector");
+            return VectorToDouble3(vec);
+        }
+
+        private static Vector Double3ToVector(double3 d3)
+        {
+            Vector v = new Vector(
+                Double.IsFinite(d3.x) ? d3.x : 0.0,
+                Double.IsFinite(d3.y) ? d3.y : 0.0,
+                Double.IsFinite(d3.z) ? d3.z : 0.0
+            );
+            return v;
+        }
+
+        private static double3 VectorToDouble3(Vector v)
+        {
+            double3 d3 = new double3(v.X, v.Y, v.Z);
+            return d3;
+        }
+    }
 }

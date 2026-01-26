@@ -81,7 +81,7 @@ function get_target_attitude {
 }
 
 if P_guidance {
-	wait until nd:eta <= 40 + burntime/2 + ullage_time.
+	wait until nd:eta <= 80 + burntime/2 + ullage_time.
 	SAS OFF.
 	RCS ON.
 	print "Aligning pose".
