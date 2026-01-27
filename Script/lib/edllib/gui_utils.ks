@@ -289,6 +289,11 @@ function edl_MakeEDLGUI {
     declare global gui_edl_heading_tol_set to gui_edl_heading_tol_box:addbutton("set").
     set gui_edl_heading_tol_set:style:width to 50.
     set gui_edl_heading_tol_set:onclick to {set AFS:heading_tol to gui_edl_heading_tol_input:text:tonumber.}.
+    declare global gui_edl_heading_tol_forceReversal to gui_edl_heading_tol_box:addbutton("Force Reversal").
+    set gui_edl_heading_tol_forceReversal:style:width to 140.
+    set gui_edl_heading_tol_forceReversal:onclick to {
+        set AFS:bank_reversal to (not AFS:bank_reversal).
+    }.
     
     declare global gui_edl_qdot_max_box to gui_edlmainbox:addhbox().
     declare global gui_edl_qdot_max_label to gui_edl_qdot_max_box:addlabel("M.Heatflux (kW):").
@@ -663,6 +668,16 @@ function fc_MakeKCLGUI {
             set ship:control:pilotrolltrim to 0.
         }
     }.
+    declare global gui_kcl_pitch_damper_button to gui_kcl_enable_box:addbutton("Pitch Damper Only").
+    set gui_kcl_pitch_damper_button:onclick to {
+        set gui_kcl_pitch_kp_input:text to "0".
+        set kclcontroller["PitchTorqueController"]["PID"]:kp to 0.
+        set gui_kcl_pitch_ki_input:text to "0".
+        set kclcontroller["PitchTorqueController"]["PID"]:ki to 0.
+        set gui_kcl_pitch_kd_input:text to "0.1".
+        set kclcontroller["PitchTorqueController"]["PID"]:kd to 0.1.
+    }.
+    set gui_kcl_pitch_damper_button:style:width to 150.
 
     // Rotation Rate Controller Parameters
     gui_kclmain:addlabel("<b>Rotational Rate Controller</b>").

@@ -328,9 +328,6 @@ namespace AFS
             double Rold = state.r;
             double tmax = t + args.predict_tmax;
             double told = t;
-            // Initial bank
-            double headingErr = GetHeadingErr(state.vecR, state.vecV, args.Rtarget);
-            bargs.reversal = headingErr > 0;
             List<double> Eseq = new List<double>(); Eseq.Add(E);
             List<PhyState> stateSeq = new List<PhyState>(); stateSeq.Add(state);
             List<double> AOAseq = new List<double>();
@@ -386,7 +383,7 @@ namespace AFS
                     Rold = state.r;
                 }
                 // Bank reversal
-                headingErr = GetHeadingErr(state.vecR, state.vecV, args.Rtarget);
+                double headingErr = GetHeadingErr(state.vecR, state.vecV, args.Rtarget);
                 if (math.abs(headingErr) > args.heading_tol || math.abs(context.bank) < math.radians(0.01))
                     bargs.reversal = headingErr > 0;
             }

@@ -93,7 +93,6 @@ function entry_initialize {
         set entry_target_geo to body:geopositionof(body:position + unitRtgt * body:radius).
     }
     set AFS:target_energy to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
-    set AFS:RTarget to entry_target_geo:position - body:position.
     set AFS:heading_tol to 10.
     set AFS:bank_reversal to false.
     // path constraints
@@ -126,7 +125,6 @@ function entry_set_target {
     local dlat to new_df * cos(new_headingf) / body:radius /constant:pi*180.
     local dlon to new_df / cos(new_target_geo:lat) * sin(new_headingf) / body:radius /constant:pi*180.
     set entry_target_geo to body:geopositionlatlng(new_target_geo:lat + dlat, new_target_geo:lng + dlon).
-    set AFS:RTarget to entry_target_geo:position - body:position.
 }
 
 function entry_set_AOAprofile {
@@ -150,10 +148,19 @@ function entry_get_control {
         "bank_i", gst["bank_i"], "bank_f", gst["bank_f"],
         "energy_i", gst["energy_i"], "energy_f", gst["energy_f"]
     ))["Bank"].
-    
+    set bank_cmd to abs(bank_cmd).
+
+    // Post bank command adjustment to keep bank_i tracking bank_i_ref
+    local bank_i_ref to gst["bank_i_ref"] + (gst["bank_f_ref"] - gst["bank_i_ref"])
+        * (gst["energy_i"] - gst["energy_i_ref"]) / (gst["energy_f_ref"] - gst["energy_i_ref"]).
+    local cosBankiErr to cos(gst["bank_i"]) - cos(bank_i_ref).
+    local cosBankCmd to cos(bank_cmd) + 0.1 * cosBankiErr.
+    set bank_cmd to arcCos(max(cos(AFS:bank_max), min(1, cosBankCmd))).
+
     // bank reversal
     local headingErr to AFS:GetHeadingErr(lexicon("vecR", vecR, "vecV", vecV, "vecRtgt", AFS:RTarget)).
     if (abs(headingErr) > AFS:heading_tol or abs(bank_cmd) < 0.01) set AFS:bank_reversal to headingErr > 0.
+    if (AFS:bank_reversal) set bank_cmd to -bank_cmd.
 
     // linear interpolation for AOA command
     local AOA_cmd to AFS:GetAOACmd(lexicon("vecR", vecR, "vecV", vecV))["AOA"].
@@ -246,7 +253,11 @@ function entry_initialize_guidance {
         "bank_i", bank_i,
         "bank_f", bank_f,
         "energy_i", energy_i,
-        "energy_f", energy_f
+        "energy_f", energy_f,
+        "bank_i_ref", bank_i,
+        "bank_f_ref", bank_f,
+        "energy_i_ref", energy_i,
+        "energy_f_ref", energy_f
     ).
 
     return lexicon(
@@ -298,6 +309,8 @@ function entry_step_guidance {
     local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
     local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
     set thetaErr to thetaf1 - theta_target.
+    if (thetaErr > 180) set thetaErr to thetaErr - 360.
+    else if (thetaErr < -180) set thetaErr to thetaErr + 360.
     local thetaErrDBank to (thetaf2 - thetaf1) / 0.1.
     // update gst
     set bank_now to bank_now - max(-1, min(1, thetaErr / msafedivision(thetaErrDBank))).
@@ -322,9 +335,13 @@ function entry_predictor {
     parameter gst.
     parameter PlanMode is true.
 
+    set AFS:RTarget to entry_target_geo:position - body:position.
     if (PlanMode) {
-        // In plan mode, vecV is orbital velocity
-        // And the program will propagate to entry interface first
+        // In plan mode:
+        // 1. vecV is orbital velocity
+        // 2. The program will propagate to entry interface first
+        // 3. Set initial bank reversal
+
         // propagate to entry interface
         local entryInfo to entry_propagate_to_entry(tt, vecR, vecV).
         if (not entryInfo["ok"]) return lexicon(
@@ -340,6 +357,10 @@ function entry_predictor {
         local _toBodyFixed to angleAxis(-body:angularvel:mag*180/constant:pi*tt, body:angularvel).
         set vecR to _toBodyFixed * vecR.
         set vecV to _toBodyFixed * vecV - vCrs(body:angularvel, vecR).
+
+        // Set initial bank reversal
+        local headingErr to AFS:GetHeadingErr(lexicon("vecR", vecR, "vecV", vecV, "vecRtgt", AFS:RTarget)).
+        set AFS:bank_reversal to (headingErr > 0).
     }
 
     // Propagate to final state
