@@ -11,5 +11,4 @@ Script/entry_presets/*
 *.pdb
 *.dll
 
-!Script/entry_presets/Apollo.json
-!Script/entry_presets/shuttle.json
+!Script/entry_presets/*.json
