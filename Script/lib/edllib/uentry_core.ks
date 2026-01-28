@@ -212,7 +212,7 @@ function entry_initialize_guidance {
             "bank_f", bank_f,
             "energy_i", energy_i,
             "energy_f", energy_f
-        ), true).
+        ), false).
         if (not result1["ok"]) {
             print "Entry predictor error: (" + result1["status"] + ") "
                 + result1["msg"] AT(0, 15).
@@ -230,7 +230,7 @@ function entry_initialize_guidance {
                 "bank_f", bank_f,
                 "energy_i", energy_i,
                 "energy_f", energy_f
-            ), true).
+            ), false).
             if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
             local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
             local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
