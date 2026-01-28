@@ -2,7 +2,7 @@
 坎巴拉太空计划先进制导控制研究。
 
 Chris_KSP_Lib是一个强大的自动驾驶模组，其中包含的PEGLand和UEntry程序可以让您在月球或地球上精确着陆航天器。
-请参见[安装方法](#安装)安装模组和脚本，阅读[教程](./docs/README.md)学习使用。
+请参见[安装方法](#安装)安装模组和脚本，阅读[教程](./docs/中文/README.md)学习使用。
 
 ![](./docs/pictures/coverpage.png)
 
@@ -30,4 +30,4 @@ Chris_KSP_Lib是一个强大的自动驾驶模组，其中包含的PEGLand和UEn
 
 ## 使用教程
 
-[使用教程](./docs/README.md)
+[使用教程](./docs/中文/README.md)

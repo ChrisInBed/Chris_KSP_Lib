@@ -21,7 +21,7 @@
 - 攻角 (Angle of Attack, AOA, α)：飞行器气动平面和气流方向的夹角。对于大多数飞行器，升力和阻力随攻角增大而增加；
 - 倾侧角 (Bank Angle, σ)：飞行器升力方向和垂直平面的夹角。
 
-<img src=./pictures/UEntry/bank_scheme.png width=70%>
+<img src=../pictures/UEntry/bank_scheme.png width=70%>
 
 但实际操作中，再入航天器通常主要控制**倾侧角**，而**攻角**仅作为辅助控制，或完全不控制攻角，这主要有三个原因。
 
@@ -50,7 +50,7 @@ UEntry采用标准的预测-校正制导方法。在一个制导周期内，UEnt
 
 尽管UEntry能够对物理状态进行某种程度上的约束，但要清楚轨迹上的物理状态很大程度上取决于再入开始时的状态（再入界面，Entry Interface）。如果没有合适的初值，UEntry很难从高温、过载和超压中挽救飞船。
 
-<img src=./pictures/UEntry/reentry_corridor.jpg width=60%>
+<img src=../pictures/UEntry/reentry_corridor.jpg width=60%>
 
 这是航天飞机的典型再入约束剖面，纵轴是阻力，横轴是速度。热流峰值发生在再入过程的早期，此时飞船尚位于空气极其稀薄的大气层边界，没有足够的升力可用，制导几乎无法控制热流峰值。因此您需要提前规划好再入轨道，让再入界面处的飞行路径角处于合理的范围。如果飞行路径角过大，飞船将快速扎进大气，造成不可控的超温和过载；如果路径角过小，飞船将被大气弹回太空。
 
@@ -77,14 +77,14 @@ run uentry.  // 运行UEntry
 
 ⚠**注意**：注意天体自转。如果你安装了Principia，请使用体固参考系查看轨迹。
 
-<img src=./pictures/UEntry/waypointmanager.png width=50%>
-<img src=./pictures/UEntry/target.png width=50%>
+<img src=../pictures/UEntry/waypointmanager.png width=50%>
+<img src=../pictures/UEntry/target.png width=50%>
 
 ### Step 2. 计算气动参数
 
 在UEntry界面中点击`Open Aerodynamic Profile GUI`按钮，弹出启动参数设置界面
 
-![](./pictures/UEntry/aerodynamic_profile.png)
+![](../pictures/UEntry/aerodynamic_profile.png)
 
 #### 2-1. 设定再入姿态
 
@@ -123,7 +123,7 @@ UEntry计算一定高度和速度范围内的样本点的气动参数，在制�
 
 ⚠**注意**：UEntry的大气内轨迹预测器上限是3600秒，如果该时间后飞行器仍无法完成减速，预测器将会给出`TIMEOUT`结果，这通常意味着飞行器减速不足，被弹回太空了。请尝试减小飞掠高度、增大`Initial Bank` `Final Bank` `Max Bank`，并检查约束参数。
 
-<img src=./pictures/UEntry/planner.png width=100%>
+<img src=../pictures/UEntry/planner.png width=100%>
 
 **制导参数汇总**
 
@@ -150,10 +150,11 @@ UEntry计算一定高度和速度范围内的样本点的气动参数，在制�
 
 - `shuttle`: 航天飞机LEO返回的制导预设，模型来自benjee10的Shuttle Orbiter Construction Kit
 - `Apollo`: Apollo指令舱从月球返回的制导预设，模型来自ROCapsules
+- `Gemini`: Gemini返回舱从LEO返回的制导预设，模型来自ROCapsules
 
 ⚠**注意**：飞行器质量、气动外形对再入轨迹的影响很大，如果你的飞行器状态和预设不同，这会导致较大的误差
 
-<img src=./pictures/UEntry/presets.png width=50%>
+<img src=../pictures/UEntry/presets.png width=50%>
 
 ### Step 5. 激活再入制导
 
@@ -176,10 +177,14 @@ UEntry内置飞控(KCL Controller)，但同一套飞控参数可能无法同时�
 - 飞行器滚转的速度过快/过慢
     - 请调整`Rotational Rate Controller`的`Upper`，此项指示最高允许的转动速率。`Upper = 5`代表每秒最多转5°
 
+⚠**注意**：其他自动驾驶，如SAS, MechJeb Smart A.S.S., Atmosphere Autopilot等，会和UEntry争夺控制权，导致飞船剧烈摇摆或完全失控。请关闭它们。
+
+⚠**注意**：在航天器能量低于用户设定的终端状态的能量之后，UEntry程序结束并放开控制权。如果你的航天器在低空不是气动静稳定的，它可能会失控，请迅速打开其他自动驾驶稳定航天器姿态。
+
 Tips: 在高空阶段，气动控制面提供的力矩不足，飞船需要RCS来控制姿态。但随着高度降低，需要的力矩越来越大，此时再开启RCS会导致严重的燃料浪费。你需要逐步关闭各个RCS喷口的力度，从RCS平缓地过渡到气动控制面控制。
 
 Tips: 返回舱在大气中有天然的平衡攻角，如果你的航天器试图平衡攻角以外的值，将会消耗大量RCS燃料。你可以在适当的时候点击`Pitch Damper Only`按钮，飞控系统就不再试图追踪命令攻角了。此时飞船的俯仰控制仅作为阻尼器使用，几乎不消耗燃料。
 
-![](./pictures/UEntry/kcl.png)
+Tips: 点击`EMERGENCY SUPPRESS`将暂时断开kOS对航天器的控制。当UEntry表现奇怪时，你可以用这个功能手动接管航天器控制
 
-点击`EMERGENCY SUPPRESS`将暂时断开kOS对航天器的控制。
+![](../pictures/UEntry/kcl.png)

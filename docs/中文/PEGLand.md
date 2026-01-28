@@ -43,7 +43,7 @@ run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，�
 - `descent distance`: 目标着陆点正上方的轨道高度。从过高的轨道开始下降，航天器需要向下俯仰加速，才能在有限时间内触及地面；而对于过低的轨道，航天器需要花费燃料维持高度。
 - `lateral distance`: 着陆点偏离轨道平面的距离。PEGLand需要控制偏航角修正法向误差，法向距离过大会增加燃料消耗，甚至导致制导发散。
 
-![](./pictures/PEGLand/gui_analyze_orbit.png)
+![](../pictures/PEGLand/gui_analyze_orbit.png)
 
 在大多数情况下，你可以在PEGLand GUI中一键操作完成制导设置，并且可以在着陆过程中动态地调整参数。基本设置包含
 
@@ -54,7 +54,7 @@ run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，�
 - `Roll`: 航天器滚转角
 - `Emergency Suppress`: 紧急停止。立刻停止kOS对飞行器的姿态和油门控制，将控制权交还给你。
 
-<img src=./pictures/PEGLand/gui_explained_chi.png width=60%>
+<img src=../pictures/PEGLand/gui_explained_chi.png width=60%>
 
 ### 调整着陆点
 
@@ -62,7 +62,7 @@ run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，�
 
 `Find landing site within`按钮是更自动化的方法，它会在原来的目标周围一定范围内随机撒点，并寻找最平坦的着陆点。它还会告诉你新着陆点的坡度。
 
-![](./pictures/PEGLand/gui_sample_site.png)
+![](../pictures/PEGLand/gui_sample_site.png)
 
 **注意：**
 
@@ -75,9 +75,9 @@ run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，�
 
 下降段目标需要人工设定，在大部分情况下默认设置足够满足要求。但也许你需要调整这些参数使接近段表现更符合预期：
 
-<img src=./pictures/PEGLand/des2app.jpg width=60%>
+<img src=../pictures/PEGLand/des2app.jpg width=60%>
 
-![](./pictures/PEGLand/gui_explained_destarget.png)
+![](../pictures/PEGLand/gui_explained_destarget.png)
 
 主下降段目标由四个参数定义：
 
@@ -94,7 +94,7 @@ run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，�
 
 2. 无论是GUI还是命令行模式下，PEGLand都会试图读取激活的导航点。你可以通过WaypointManager设置导航点，这样就可以免去手工输入经纬度的麻烦
 
-   <img src=./pictures/PEGLand/waypointmanager.png width=60%>
+   <img src=../pictures/PEGLand/waypointmanager.png width=60%>
 
 3. 对于浅节流和不节流发动机，很遗憾我无法保证着陆精度（NASA的那帮天才也不能），不过你可以在坎巴拉中先模拟着陆一次，再根据着陆误差调整着陆点，这样可以把误差缩小到100米
 
@@ -102,4 +102,4 @@ run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，�
 
 5. 目前PEGLand仅支持单级火箭着陆，但你可以在着陆过程中切换引擎或分级，随后按下"0"键，程序会更新引擎参数。未来PEGLand不会针对多级火箭优化，虽然数学上可行，但预测未来分级的引擎参数超级麻烦
 
-6. 在kOS终端输入命令时，其他的mod可能会被意外激活，比如**Advanced fly-by-wire (P)**。这些自动驾驶类mod会和kOS争夺控制权，导致飞船剧烈摇摆。**关闭其他自动驾驶，比如SAS，MechJeb和Advanced fly-by-wire**。
+6. 在kOS终端输入命令时，其他的mod可能会被意外激活，比如**Atmosphere Autopilot (P)**。这些自动驾驶类mod会和kOS争夺控制权，导致飞船剧烈摇摆。**关闭其他自动驾驶，比如SAS，MechJeb和Atmosphere Autopilot**。
