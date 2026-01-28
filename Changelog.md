@@ -65,3 +65,16 @@
   - `exe_node.ks`
   - `exe_pulse_node.ks`
   - `pegland.ks`
+
+## 2026/01/19 v0.8.4
+
+- Fixed bug in PEGLand terminal phases
+
+## 2026/01/28 v0.9
+
+Major version update
+
+- Added GPLv3 license
+- Added high-performace calculation backend `AFS`
+- Added `UEntry`
+- Reformed documentations
