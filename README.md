@@ -24,9 +24,16 @@ See [Installation](#installation) for installation instructions, and read the [T
 
 ## Installation
 
-After installing all mod dependencies, download the installation package from the [latest release](https://github.com/ChrisInBed/Chris_KSP_Lib/releases/latest) (`Chris_GNC_Suite-v<VERSION NUMBER>.zip`). After extraction, you will see two folders:
+### Manual Installation
 
-- `Script`: Move it to the `<KSP Root Directory>\Ships\` folder. When complete, the path `<KSP Root Directory>\Ships\Script\pegland.ks` should exist.
+First install all mod dependencies, then download the installation package from:
+
+- [SpaceDock](https://spacedock.info/mod/4126/Chris%20GNC%20Suite)
+- [Github Releases](https://github.com/ChrisInBed/Chris_KSP_Lib/releases/latest) (`Chris_GNC_Suite-v<VERSION>.zip`)
+
+After extraction, you will see two folders:
+
+- `Ships`: Move it to the `<KSP Root Directory>\` folder. When complete, the path `<KSP Root Directory>\Ships\Script\pegland.ks` should exist.
 - `GameData`: Move it to the `<KSP Root Directory>\` folder. When complete, the path `<KSP Root Directory>\GameData\kOS-Addons\AFS\kOS-AFS.dll` should exist.
 
 ## Tutorial
