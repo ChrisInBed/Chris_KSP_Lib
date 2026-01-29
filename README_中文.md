@@ -24,9 +24,9 @@ Chris GNC Suite是一个强大的自动驾驶模组，其中包含的PEGLand和U
 
 ## 安装
 
-安装全部模组依赖后，从最新的release中选择`Chris_KSP_Lib.zip`项目下载安装包，解压后可以看到两个文件夹：
+安装全部模组依赖后，从[最新的发布](https://github.com/ChrisInBed/Chris_KSP_Lib/releases/latest)中选择`Chris_GNC_Suite-v<版本号>.zip`项目下载安装包，解压后可以看到两个文件夹：
 
-- `Script`: 把它移动到`<游戏根目录>\Ships\`文件夹中，完成后`<游戏根目录>\Ships\Script\pegland.ks`这个路径是存在的。
+- `Ships`: 把它移动到`<游戏根目录>\`文件夹中，完成后`<游戏根目录>\Ships\Script\pegland.ks`这个路径是存在的。
 - `GameData`: 把它移动到`<游戏根目录>\`文件夹中，完成后`<游戏根目录>\GameData\kOS-Addons\AFS\kOS-AFS.dll`这个路径是存在的。
 
 ## 使用教程
