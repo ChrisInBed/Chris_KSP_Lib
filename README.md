@@ -17,6 +17,7 @@ See [Installation](#installation) for installation instructions, and read the [T
 
 - KSP 1.12.5
 - kOS: Scriptable Autopilot System 1.4.0.0
+- KSPBurst Compiler 1.5.5.2 (Required by UEntry)
 - Ferram Aerospace Research Continued 0.16.1.2 (Required by UEntry)
 - WaypointManager (Recommended for PEGLand and UEntry)
 - Atmosphere Flight Simulator (Included in installation package)
