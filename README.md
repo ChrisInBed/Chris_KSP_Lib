@@ -1,7 +1,7 @@
-# Chris_KSP_Lib
+# Chris GNC Suite
 Advanced guidance and control research for Kerbal Space Program.
 
-Chris_KSP_Lib is a powerful autopilot mod containing PEGLand and UEntry programs that enable precise spacecraft landings on the Moon or Earth.
+Chris GNC Suite is a powerful autopilot mod containing PEGLand and UEntry programs that enable precise spacecraft landings on the Moon or Earth.
 See [Installation](#installation) for installation instructions, and read the [Tutorial](./docs/English/README.md) to learn how to use it.
 
 ![](./docs/pictures/coverpage.png)

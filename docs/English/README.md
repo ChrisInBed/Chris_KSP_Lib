@@ -1,4 +1,4 @@
-Welcome to Chris_KSP_Lib tutorial!
+Welcome to Chris GNC Suite tutorial!
 
 - [Automatic maneuver node execution, circular orbit planning](./Miscellaneous.md)
 - [PEGLand: Powered pinpoint landing on airless bodies](./PEGLand.md)
