@@ -20,9 +20,12 @@ Chris GNC Suite是一个强大的自动驾驶模组，其中包含的PEGLand和U
 - KSPBurst Compiler 1.5.5.2 (Required by UEntry)
 - Ferram Aerospace Research Continued 0.16.1.2 (Required by UEntry)
 - WaypointManager (Recommended for PEGLand and UEntry)
-- Atmosphere Flight Simulator (已集成在安装包中)
 
 ## 安装
+
+### 通过CKAN安装
+
+使用CKAN搜索`Chris GNC Suite`并安装，kOS脚本和计算后端DLL文件将被自动安装到位。
 
 ### 手动安装
 

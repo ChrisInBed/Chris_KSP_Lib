@@ -20,9 +20,12 @@ See [Installation](#installation) for installation instructions, and read the [T
 - KSPBurst Compiler 1.5.5.2 (Required by UEntry)
 - Ferram Aerospace Research Continued 0.16.1.2 (Required by UEntry)
 - WaypointManager (Recommended for PEGLand and UEntry)
-- Atmosphere Flight Simulator (Included in installation package)
 
 ## Installation
+
+### Via CKAN
+
+Search for `Chris GNC Suite` and install. All scripts and DLLs will be automatically put into the right places.
 
 ### Manual Installation
 
