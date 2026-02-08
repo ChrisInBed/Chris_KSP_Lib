@@ -12,6 +12,8 @@ See [Installation](#installation) for installation instructions, and read the [T
 - [[KSP/RSS/RO]PEGLand v0.3: 早期探测器一键自动定点落月](https://www.bilibili.com/video/BV1ZJdZY6EwE)
 - [[KSP/RSS/RO]PEGLand v0.3阿波罗登月特别版：厘米级优雅着陆](https://www.bilibili.com/video/BV1wGdZYjEgm)
 - [[KSP/RSS/RO]PEGLand 0.7: 通用定点着陆制导，支持目视修正](https://www.bilibili.com/video/BV1yUT6z4ExF)
+- [UEntry: 如何专业且优雅地把航天飞机飞回跑道(Part 1)](https://www.bilibili.com/video/BV1dAcFz5ECu)
+- [UEntry: 如何驾驶梦舟飞船从月球飞回文昌(Part2)](https://www.bilibili.com/video/BV1QncPzEEKC)
 
 ## MOD List
 
