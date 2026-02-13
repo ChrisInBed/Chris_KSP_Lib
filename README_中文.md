@@ -6,6 +6,10 @@ Chris GNC Suite是一个强大的自动驾驶模组，其中包含的PEGLand和U
 
 ![](./docs/pictures/coverpage.png)
 
+**这一代码分支包含其他开源项目的脚本：**
+
+- **PEGAS**: 来自 [Noiredd](https://github.com/Noiredd/PEGAS) 的火箭发射制导脚本
+
 ## 视频演示
 
 - [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)

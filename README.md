@@ -6,6 +6,10 @@ See [Installation](#installation) for installation instructions, and read the [T
 
 ![](./docs/pictures/coverpage.png)
 
+**This branch contains scripts from some other open-source project**:
+
+- **PEGAS**: Ascent guidance script from [Noiredd](https://github.com/Noiredd/PEGAS)
+
 ## Videos
 
 - [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
