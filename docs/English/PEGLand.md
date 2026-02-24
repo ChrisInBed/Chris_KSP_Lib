@@ -6,11 +6,13 @@ Reference: [An explicit solution to the exoatmospheric powered flight guidance a
 
 ## Algorithm Principles
 
+From a proper pre-landing orbit, PEGLand ignite the engines
+
 PEGLand contains three guidance phases:
 
-- **Descent Phase**: Decelerates from landing orbit and descends, aiming near the landing point. First estimates the ignition position, then after coasting to the ignition position, uses the PEG algorithm to iteratively predict the landing point and update control parameters, achieving fuel-optimal descent. The descent phase is accurate if the spacecraft engine has 60% throttle capability;
+- **Descent Phase**: Decelerates from landing orbit and descends, aiming near the landing point. First estimates the ignition position, then after coasting to the ignition position, uses the PEG algorithm to iteratively predict the landing point and update control parameters, achieving fuel-optimal descent. **The program will command the engines burn at almost constant throttle, until the descent phase target is reached, which is near the surface. There is no coasting phase, the whole descent phase is finished with exactly one ignition.** The descent phase is accurate if the spacecraft engine has 60% throttle capability. If the engine's throttling capability is insufficient, to ensure safety, the altitude and speed at descent phase target will be prioritized over landing accuracy;
 - **Approach Phase**: Slowly moves from near the landing point to 50cm above the landing point. Uses the same quadratic guidance algorithm as the Apollo missions to reduce landing error to the decimeter level. The approach phase requires the spacecraft to have deep-throttling engines capable of hovering; if conditions are not met, the approach phase can be skipped;
-- **Final Phase**: Descends slowly from above the landing point, eliminates lateral velocity, and touches down at 5cm/s.
+- **Final Phase**: Descends slowly from above the landing point, eliminates horizontal velocity, and touches down at 5cm/s.
 
 ## Using PEGLand
 
@@ -30,7 +32,7 @@ Parameters:
 **Examples:**
 
 ```kOS
-run pegland.  // Open PEGLand GUI
+run pegland.  // Open PEGLand GUI. (RECOMMENDED)
 run pegland(0,1,1). // Don't open GUI, start engine descent immediately, add approach phase
 run pegland(0,0,0,V(0,0,0),"descent"). // Don't open GUI, use engines labeled "descent" for calculations
 run pegland(0,0,0,V(-50,10,1)).  // Move target: 50m south, 10m east, 1m up
@@ -38,7 +40,9 @@ run pegland(0,0,0,V(-50,10,1)).  // Move target: 50m south, 10m east, 1m up
 
 ## PEGLand GUI
 
-Before activating PEGLand guidance and starting iterative calculations, I strongly recommend you click the `Analyze Orbit` button to quickly analyze your landing orbit and check if you meet landing conditions. It will give you two indicators with recommended value ranges. Within the recommended range, fuel requirements for the landing process are basically the same. But if you deviate too far, it will cause serious fuel waste or even guidance divergence.
+PEG algorithm is not magic, it works only if certain physical constraints are met, which means it is your responsibility to drive the spacecraft to a proper pre-landing orbit.
+
+Before activating PEGLand guidance and starting iterative calculations, I strongly recommend you click the `Analyze Orbit` button to quickly analyze your landing orbit and check the landing conditions. It will give you two indicators with recommended value ranges. Within the recommended range, fuel requirements for the landing process are basically the same. But if you deviate too far, it will cause serious fuel waste or even guidance divergence.
 
 - `descent distance`: Orbital altitude directly above the target landing point. Descending from too high an orbit requires the spacecraft to pitch down and accelerate to reach the ground in a limited time; for too low an orbit, the spacecraft needs to spend fuel maintaining altitude.
 - `lateral distance`: Distance of the landing point from the orbital plane. PEGLand needs to control yaw angle to correct normal errors; excessive normal distance increases fuel consumption and may even cause guidance divergence.
@@ -69,7 +73,7 @@ The `Find landing site within` button is a more automated method that will rando
 - Only descent and approach phases allow landing point adjustments
 - Excessive landing point adjustments may cause guidance divergence
 - Try to adjust when still far from the landing point
-- For spacecraft without throttle capability, adjusting the landing point has limited significance
+- For spacecraft without throttle capability, adjustment of landing site may lead to unexpected outcome.
 
 ### Adjusting Descent Phase Targets
 
@@ -90,16 +94,16 @@ Approach phase duration is approximately $4.5\times LT/VLT$. Longer approach pha
 
 ## Tips
 
-1. Ensure the spacecraft meets landing requirements: sufficient Δv. If final stage thrust-to-weight ratio range includes 1, recommend adding approach phase for more elegant landing
+1. Ensure the spacecraft meets landing requirements: sufficient Δv. If final stage thrust-to-weight ratio range includes 1, recommend adding approach phase for more elegant landing;
 
-2. Whether in GUI or command-line mode, PEGLand will try to read the active waypoint. You can set waypoints through WaypointManager, saving the trouble of manually entering latitude and longitude
+2. Whether in GUI or command-line mode, PEGLand will try to read the active waypoint. You can set waypoints through WaypointManager, saving the trouble of manually entering latitude and longitude;
 
    <img src=../pictures/PEGLand/waypointmanager.png width=60%>
 
-3. For shallow-throttling and non-throttling engines, unfortunately I cannot guarantee landing accuracy (NASA's geniuses can't either), but you can simulate a landing once in Kerbal, then adjust the landing point based on landing error, which can reduce error to 100 meters
+3. For non-throttling engines or engines with limited throttling ability, unfortunately I cannot guarantee landing accuracy (neither can the geniuses at NASA), but you can simulate a landing once in Kerbal, then adjust the landing point based on landing error, which can reduce error to 100 meters;
 
-4. If the lower bound of thrust-to-weight ratio at final landing is higher than 2, be careful - this is more dangerous than Falcon 9's suicide burn
+4. If the lower bound of thrust-to-weight ratio at final landing is too high, be careful - this might be more dangerous than Falcon 9's suicide burn;
 
-5. Currently PEGLand only supports single-stage rocket landings, but you can switch engines or stage during landing, then press the "0" key, and the program will update engine parameters. PEGLand will not be optimized for multi-stage rockets in the future - while mathematically feasible, predicting engine parameters for future stages is super troublesome
+5. Currently PEGLand only supports single-stage rocket landings, but you can switch engines or stage during landing, then press the "0" key, and the program will update engine parameters. PEGLand will not be optimized for multi-stage rockets in the future - while mathematically feasible, predicting engine parameters for future stages is super troublesome;
 
 6. When entering commands in the kOS terminal, other mods may be accidentally activated, such as **Atmosphere Autopilot (P)**. These autopilot mods will compete with kOS for control, causing the ship to shake violently. **Turn off other autopilots like SAS, MechJeb, and Atmosphere Autopilot**.
