@@ -1,10 +1,10 @@
 # UEntry: Universal Atmospheric Lift Reentry Guidance
 
-`uentry` is one of the most exciting programs in this mod. From 1960-1980s, NASA developed reentry guidance programs for their capsules and space shuttles, but limited by the computing power of the time, the guidance algorithms were full of empirical parameters and various clever tricks. Today we can run more advanced guidance algorithms on personal computers, using the same algorithm to guide the reentry process of multiple spacecraft. This algorithm is improved from the reentry guidance algorithm published by Lu et al. in 2013. UEntry can achieve:
+`uentry` is one of the most exciting programs in this mod. From 1960-1980s, NASA developed reentry guidance programs for their capsules and space shuttles, but limited by the computing power of the time, the guidance algorithms were full of empirical parameters and clever workarounds. Today we can run more advanced guidance algorithms on personal computers, using the same algorithm to guide the reentry process of various spacecraft. This algorithm is improved from the reentry guidance algorithm published by Lu et al. in 2013. UEntry can achieve:
 
-- High lift-to-drag ratio/low lift-to-drag ratio spacecraft, precise pinpoint guidance for reentry from low orbit/flyby trajectory into the atmosphere
-- Considers heat flux, g-load, and dynamic pressure constraints to ensure safe reentry
-- Reentry trajectory planner: Plans maneuver nodes before reentry, predicts feasible landing sites, plans reentry process in advance
+- High lift-to-drag ratio/low lift-to-drag ratio spacecraft, precise pinpoint guidance for reentry from low orbit/flyby trajectory into the atmosphere;
+- Considers heat flux, g-load, and dynamic pressure constraints to ensure safe reentry;
+- Reentry trajectory planner: Helps planning maneuver nodes before reentry, predicts feasible landing sites, plans reentry process in advance
 
 Reference: [Entry Guidance: A Unified Method](https://arc.aiaa.org/doi/10.2514/1.62605)
 
@@ -12,9 +12,9 @@ Reference: [Entry Guidance: A Unified Method](https://arc.aiaa.org/doi/10.2514/1
 
 ### Lift Reentry
 
-Early capsules used **ballistic reentry** to return to the ground. When the capsule fell into denser atmosphere, drag suddenly increased, causing the ship to slow down. The trajectory was then pulled down by gravity, leading to increased descent rate, which further increased drag. This death spiral continued until the ship's velocity was reduced sufficiently, forcing the brave pioneers inside to endure about 10G of g-load - even the best pilots couldn't reduce this number by a fraction.
+Early capsules used **ballistic reentry** to return to the ground. When the capsule fell into denser atmosphere, drag suddenly increased, causing the ship to slow down. The trajectory was then pulled down more by gravity, leading to increased descent rate, which further increased drag. This death spiral continued until the ship's velocity was reduced sufficiently, forcing the brave pioneers inside to endure about 10G of g-load - even the best pilots couldn't reduce this number by a fraction.
 
-So engineers came up with an idea: they shifted the capsule's center of gravity to one side, causing a natural angle of attack during reentry. The capsule in the atmosphere now experiences not only drag but also **lift**. This precious lift allows us to counter gravity and prevent the spacecraft from descending too quickly, enjoying smoother braking in the thin upper atmosphere. Meanwhile, since pilots can control the lift direction, they can plan the reentry trajectory to some extent, making the landing point more precise than ballistic reentry. Capsules using lift reentry can control landing range within a few kilometers, while ballistic reentry has landing errors of tens of kilometers. The space shuttle's lift-to-drag ratio is even better than capsules, capable of reducing peak reentry heat flux by more than 50%, so the space shuttle doesn't need a heavy heat shield.
+So engineers came up with an idea: they shifted the capsule's center of gravity to one side, causing a natural angle of attack during reentry. The capsule in the atmosphere now experiences not only drag but also **lift force**. This precious lift allows us to counter gravity and prevent the spacecraft from descending too quickly, enjoying smoother braking in the thin upper atmosphere. Meanwhile, since pilots can control the lift direction, they can plan the reentry trajectory to some extent, making the landing point more precise than ballistic reentry. Capsules using lift reentry can land with an accuracy within a few kilometers, while ballistic reentry has landing errors of tens of kilometers. The space shuttle's lift-to-drag ratio is even better than capsules, capable of reducing peak reentry heat flux by more than 50%, so the space shuttle doesn't need a heavy heat shield.
 
 ### Lift Reentry Vehicle Control
 
@@ -25,13 +25,13 @@ So engineers came up with an idea: they shifted the capsule's center of gravity 
 
 However, in actual operation, reentry vehicles usually primarily control **bank angle**, while **angle of attack** serves only as auxiliary control or is not controlled at all. There are three main reasons for this:
 
-1. Angle of attack is more difficult to control and maintain. Vehicles rely on RCS and aerodynamic control surfaces to control angle of attack, which can provide limited control torque, so the vehicle's usable angle of attack range is limited. Outside the trim angle of attack, if using RCS control, it will consume large amounts of RCS fuel. Capsule-type spacecraft have almost no pitch control at all; they rely purely on the trim angle of attack caused by center of gravity offset to provide lift. In contrast, bank angle control is much more convenient - the vehicle only needs to roll to the corresponding angle without additional torque to maintain it.
-2. Aerodynamic parameters are complex functions of angle of attack and velocity. Without comprehensive understanding of the spacecraft's aerodynamic properties, changing angle of attack makes the trajectory difficult to predict. Bank angle is independent of aerodynamic parameters and only affects lift direction, making guidance calculations much simpler.
-3. The safe angle of attack range for reentry vehicles is very narrow; they can only withstand the high temperature of the forward plasma within specific angle of attack ranges. The space shuttle's angle of attack during the early reentry segment is strictly limited with a movable range of only 2°.
+1. AOA is more difficult to control and maintain. Vehicles rely on RCS and aerodynamic control surfaces to control AOA, which can provide limited control torque, so the vehicle's usable AOA range is limited. Outside the trim AOA, if using RCS control, it will consume large amounts of RCS fuel. Capsule-type spacecraft have almost no pitch control at all; they rely purely on the trim AOA caused by center of gravity offset to provide lift. In contrast, bank angle control is much more convenient - the vehicle only needs to roll to the corresponding angle without additional torque to maintain it.
+2. Aerodynamic parameters are complicated functions of air density, AOA and velocity. Without comprehensive understanding of the spacecraft's aerodynamic properties, changing AOA makes the trajectory difficult to predict. Bank angle is independent of aerodynamic parameters and only affects lift direction, making guidance calculations much simpler.
+3. The safe range of AOA for reentry vehicles is very narrow; they can only withstand the high temperature of the forward plasma within specific AOA ranges. The space shuttle's AOA during the early reentry segment is strictly limited with a movable range of only 2°.
 
 Bank angle can control lift direction. When bank angle is 0, the lift component in the gravity direction is maximum, and the ship will enter the atmosphere more slowly or even bounce back to space; when bank angle is 90°, the lift component in the gravity direction is 0, and the ship's altitude profile behaves like ballistic reentry. The guidance algorithm controls descent rate by adjusting bank angle. Descent rate affects future drag, and drag affects range and landing point position, making it possible to achieve landing point control by controlling bank angle.
 
-In UEntry's basic strategy, the angle of attack command is predefined by the user as a function of velocity:
+In UEntry's basic strategy, the AOA command is predefined by the user as a function of velocity:
 
 $$\alpha_{cmd}=\alpha_{cmd}(v)$$
 
@@ -45,7 +45,7 @@ UEntry uses a standard predictor-corrector guidance method. In one guidance cycl
 
 Beyond the basic strategy, UEntry also introduces two additional constraint terms: **Quasi-Equilibrium Gliding Condition (QEGC)** and **physical boundary constraints**.
 
-- QEGC is introduced to make the trajectory smoother. High-lift vehicles like to skip along the atmospheric boundary, which isn't friendly for landing point control, so the QEGC constraint term is needed to penalize large changes in flight path angle. The strength of this constraint is controlled by the $k_{QEGC}$ parameter.
+- QEGC is introduced to make the trajectory smoother. High-lift vehicles like to skip along the atmospheric boundary, which isn't friendly for landing point control, so the QEGC constraint term is needed to penalize quick changes in flight path angle. The strength of this constraint is controlled by the $k_{QEGC}$ parameter.
 - Physical boundary constraints control heat flux, g-load, and dynamic pressure to not exceed user-specified boundaries. UEntry dynamically predicts heat flux, g-load, and dynamic pressure after a future period (T-Lag) during reentry. If any of them exceeds the boundary value, the physical constraint term applies a penalty to the excess. The strength of this constraint is controlled by the $k_C$ parameter. Note this is not a hard boundary - the ship's state may still exceed these boundaries.
 
 Although UEntry can constrain physical states to some extent, it's clear that physical states on the trajectory largely depend on the state at reentry initiation (Entry Interface). Without appropriate initial values, UEntry can hardly save the ship from high temperature, g-load, and overpressure.
@@ -71,7 +71,7 @@ switch to 0.  // Switch to the flight center's document system
 run uentry.  // Run UEntry
 ```
 
-Use the Waypoint Manager mod to set and activate a waypoint, which should be located near the orbital plane. Then in the UEntry interface's `Target` section, set reasonable terminal altitude, velocity, and distance and bearing from the target point. The meaning in the figure below is: the reentry segment target is located at 280° bearing (10° west of north) 50 kilometers from the activated waypoint, altitude 20 kilometers, velocity 500m/s.
+Use the Waypoint Manager mod to set and activate a waypoint, which should be located near the orbital plane. Then in the UEntry interface's `Target` section, set reasonable terminal altitude, velocity, and distance and bearing from the target point. The meaning in the figure below is: the reentry segment target is located at 280° bearing (10° north of west) 50 kilometers from the activated waypoint, altitude 20 kilometers, velocity 500m/s.
 
 After setting, click `Update Target` to update the reentry segment target.
 
@@ -107,19 +107,19 @@ UEntry calculates aerodynamic parameters for sample points within a certain alti
 
 After setting, click `Update Profiles` to update the angle of attack curve and calculate grid points. When the grid size is 64x64, this step takes about a few seconds to complete.
 
-⚠**Note**: Can only calculate aerodynamic parameters for the **current spacecraft**, cannot predict aerodynamic parameters for future stages. For example, for the Apollo spacecraft, you need to separate the service module first before getting the command module's aerodynamic parameters. You can do this: save -> separate service module -> calculate aerodynamic parameters and save (see [this section](#step-4-saveload-parameters) for save method) -> load back to state before separation -> load previously calculated aerodynamic parameters.
+⚠**Note**: Can only calculate aerodynamic parameters for the **current spacecraft**, cannot predict aerodynamic parameters for future stages. For example, for the Apollo spacecraft, you need to separate the service module first before getting the command module's aerodynamic parameters. You can do this: save the game -> separate service module -> calculate aerodynamic parameters and save them (see [this section](#step-4-saveload-parameters) for save method) -> load game back before separation -> load previously calculated aerodynamic parameters.
 
-⚠**Note**: You cannot calculate atmospheric aerodynamic parameters for a target body while in another body's sphere of influence. Please wait until the spacecraft enters the target body's SOI before calculating.
+⚠**Note**: You cannot calculate atmospheric aerodynamic parameters for a target body while in another body's SOI. Please wait until the spacecraft enters the target body's SOI before calculating.
 
 ### Step 3. Plan Reentry Maneuver and Parameters
 
 Accurate and safe reentry = reasonable reentry orbit + reasonable guidance parameters
 
-Set appropriate guidance parameters in the Guidance Parameters section of the UEntry interface (the role of each guidance parameter is shown in the table below). If you think the current ship is not on a suitable reentry orbit, you can open your favorite planner to plan a maneuver node. The two buttons at the bottom of the UEntry interface can predict the endpoint position under the current maneuver node and parameter settings (green for predicted point, red for target point), and display them on the map. Try setting different maneuver nodes and guidance parameters until the green and red arrows roughly coincide and the info box shows appropriate status.
+Set appropriate guidance parameters in the Guidance Parameters section of the UEntry interface (the role of each guidance parameter is shown in the table below). If you think the current ship is not on a suitable reentry orbit, you can open your favorite planner to plan a maneuver node. The two buttons at the bottom of the UEntry interface can predict the endpoint position under the current maneuver node and parameter settings (green for predicted point, red for target point), and display them on the map. Try setting different maneuver nodes and guidance parameters until the green and red arrows roughly coincide and the info box shows appropriate reentry profile.
 
 ⚠**Note**: You cannot calculate landing position on the target body while in another body's sphere of influence. Please wait until the spacecraft enters the target body's SOI before planning.
 
-⚠**Note**: UEntry's predictor is based on Keplerian orbit calculations. If you use Principia, gravitational perturbations from other bodies will cause deviations. You can select the `Display orbit patch` option in the Principia interface to view the deviation between Keplerian orbit and n-body gravity orbit, and wait until the deviation is small enough before planning.
+⚠**Note**: UEntry's predictor is based on Keplerian orbit calculations. If you use Principia, gravitational perturbations will cause deviations. You can select the `Display orbit patch` option in the Principia interface to view the deviation between Keplerian orbit and n-body gravity orbit, and wait until the deviation is small enough before planning.
 
 ⚠**Note**: UEntry's atmospheric trajectory predictor has an upper limit of 3600 seconds. If the vehicle still cannot complete deceleration after this time, the predictor will give a `TIMEOUT` result, which usually means the vehicle has insufficient deceleration and has bounced back to space. Try reducing flyby altitude, increasing `Initial Bank` `Final Bank` `Max Bank`, and check constraint parameters.
 
