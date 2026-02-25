@@ -17,6 +17,25 @@ FUNCTION rodrigues {
 	RETURN outVector.
 }
 
+FUNCTION engineFacingOffset {
+	local elist to list().
+	list engines in elist.
+	local _facing to ship:facing.
+	local _thrustvec to v(0, 0, 0).
+	for e in elist {
+		if (e:ignition) {
+			set _thrustvec to _thrustvec + e:thrust * e:facing:vector.
+		}
+	}
+	if (_thrustvec:mag < 1e-3) return R(0,0,0).
+	local _thrust to _thrustvec:mag.
+	// get rotation from ship facing to thrust vector
+	local _topvector to vCrs(_thrustvec, _facing:starvector):normalized.
+	local _RotT to lookDirUp(_thrustvec, _topvector).
+	local TiS to _RotT:inverse * _facing.
+	return TiS.
+}
+
 //	Returns a kOS direction for given aim vector and roll angle
 FUNCTION aimAndRoll {
 	DECLARE PARAMETER aimVec.	//	Expects a vector
@@ -999,7 +1018,7 @@ FUNCTION upfgSteeringControl {
 		}
 		ELSE IF upfgConverged {
 			//	Only now we're good to go
-			SET steeringVector TO aimAndRoll(vecYZ(upfgOutput[1]["vector"]), steeringRoll).
+			SET steeringVector TO aimAndRoll(vecYZ(upfgOutput[1]["vector"]), steeringRoll) * engineFacingOffset().
 			SET usc_lastGoodVector TO upfgOutput[1]["vector"].
 			SET upfgEngaged TO TRUE.
 		}
