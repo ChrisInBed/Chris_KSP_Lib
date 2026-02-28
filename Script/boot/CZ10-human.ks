@@ -15,7 +15,7 @@ GLOBAL CoreInfo to lexicon(
 	"throttleDownTime", 60,
 	"throttleDownLevel", 0.64
 ).
-GLOBAL CoreThruttleTarget to 100 * (CoreInfo:throttleDownLevel - CoreInfo:throttleMinLevel) / (1 - CoreInfo:throttleMinLevel).
+GLOBAL CoreThrottleTarget to 100 * (CoreInfo:throttleDownLevel - CoreInfo:throttleMinLevel) / (1 - CoreInfo:throttleMinLevel).
 
 local _initialStateConfig to make_throttle_stage_config(BoosterInfo, CoreInfo).
 

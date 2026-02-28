@@ -1,4 +1,4 @@
-GLOBAL CoreThruttleTarget IS 1.
+GLOBAL CoreThrottleTarget IS 1.
 GLOBAL vehicle IS LIST(
 					LEXICON(
 						"name", "main stage",

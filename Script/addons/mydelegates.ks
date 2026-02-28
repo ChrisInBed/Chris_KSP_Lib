@@ -2,7 +2,7 @@ declare global CoreThrottleDown to {
 	local myengs to list().
 	list engines in myengs.
 	for e in myengs {
-		if e:tag:contains("core") { set e:thrustlimit to CoreThruttleTarget. }
+		if e:tag:contains("core") { set e:thrustlimit to CoreThrottleTarget. }
 	}
 }.
 declare global CoreThrottleUp to {
