@@ -6,6 +6,8 @@ runOncePath("0:/lib/chrismath.ks").
 declare global hudtextsize to 15.
 declare global hudtextcolor to RGB(22/255, 255/255, 22/255).
 
+declare global _entrygui_preset to "".
+
 declare global AFS to addons:AFS.
 function edl_MakeEDLGUI {
     // EDL Main GUI
@@ -89,6 +91,7 @@ function edl_MakeEDLGUI {
                 "hf", entry_hf
             ),
             "guidance", lexicon(
+                "tracking_gain", entry_tracking_gain,
                 "bank_i", entry_bank_i,
                 "bank_f", entry_bank_f,
                 "bank_max", AFS:bank_max,
@@ -111,6 +114,7 @@ function edl_MakeEDLGUI {
             hudtext("Preset file not found!", 4, 2, 12, hudtextcolor, false).
             return.
         }
+        set _entrygui_preset to presetName.
         AFS:InitAtmModel().
         local _presetBody to readJSON(_path).
         local _vesselInfo to _presetBody["vessel"].
@@ -132,6 +136,7 @@ function edl_MakeEDLGUI {
         set entry_hf to _target["hf"].
         set AFS:target_energy to entry_get_spercific_energy(body:radius+entry_hf, entry_vf).
         local _guidance to _presetBody["guidance"].
+        if (_guidance:haskey("tracking_gain")) {set entry_tracking_gain to _guidance["tracking_gain"].}
         set entry_bank_i to _guidance["bank_i"].
         set entry_bank_f to _guidance["bank_f"].
         set AFS:bank_max to _guidance["bank_max"].
@@ -149,6 +154,7 @@ function edl_MakeEDLGUI {
     declare global gui_edl_load_box to gui_edlmainbox:addhbox().
     declare global gui_edl_load_label to gui_edl_load_box:addlabel("Load Preset:").
     declare global gui_edl_load_options to gui_edl_load_box:addpopupmenu().
+    set gui_edl_load_options:maxvisible to 15.
     set gui_edl_load_options:onclick to {
         set gui_edl_load_options:options to gui_edl_list_presets().
     }.
@@ -161,6 +167,11 @@ function edl_MakeEDLGUI {
     declare global gui_edl_save_label to gui_edl_save_box:addlabel("Save Preset As:").
     declare global gui_edl_save_input to gui_edl_save_box:addtextfield("").
     declare global gui_edl_save_button to gui_edl_save_box:addbutton("Save").
+    if (_entrygui_preset <> "") {
+        set gui_edl_load_options:options to gui_edl_list_presets().
+        // set gui_edl_load_options:value to _entrygui_preset.  // disabled because of a bug in popupmenu: "value" is a structure type, but preset name is a string
+        set gui_edl_save_input:text to _entrygui_preset.  // workaround: show the preset name in the save input field
+    }
     set gui_edl_save_button:onclick to {
         local _presetName to gui_edl_save_input:text.
         if (_presetName = "") {
@@ -182,6 +193,7 @@ function edl_MakeEDLGUI {
     declare global gui_edl_state_status to gui_edl_state_box1:addlabel("Status: "+guidance_stage).
     on guidance_stage {
         set gui_edl_state_status:text to "Status: " + guidance_stage.
+        return not done.
     }
     declare global gui_edl_state_alt to gui_edl_state_box1:addlabel("Altitude: 0 km").
     declare global gui_edl_state_speed to gui_edl_state_box1:addlabel("Speed: 0 m/s").
@@ -258,6 +270,13 @@ function edl_MakeEDLGUI {
 
     // Guidance Parameters
     gui_edlmainbox:addlabel("<b>Guidance Parameters</b>").
+    declare global gui_edl_trackgain_box to gui_edlmainbox:addhbox().
+    declare global gui_edl_trackgain_label to gui_edl_trackgain_box:addlabel("Tracking Gain:").
+    set gui_edl_trackgain_label:style:width to 150.
+    declare global gui_edl_trackgain_input to gui_edl_trackgain_box:addtextfield(round(entry_tracking_gain, 2):tostring).
+    declare global gui_edl_trackgain_set to gui_edl_trackgain_box:addbutton("set").
+    set gui_edl_trackgain_set:style:width to 50.
+    set gui_edl_trackgain_set:onclick to {set entry_tracking_gain to gui_edl_trackgain_input:text:tonumber.}.
     declare global gui_edl_entry_bank_i_box to gui_edlmainbox:addhbox().
     declare global gui_edl_entry_bank_i_label to gui_edl_entry_bank_i_box:addlabel("Initial Bank (°):").
     set gui_edl_entry_bank_i_label:style:width to 150.
@@ -519,6 +538,8 @@ function edl_MakeAeroGUI {
             hudtext("Cannot update aerodynamic profile while another process is running", 4, 2, hudtextsize, hudtextcolor, false).
             return.
         }
+        set AFS:mass to gui_aero_mass_input:text:tonumber.
+        set AFS:area to AFS:REFAREA.
         AFS:InitAtmModel().
         local CtrlSpeedSamples to str2arr(gui_aero_speedsamples_input:text).
         mscalarmul(CtrlSpeedSamples, 1e3).  // convert to m/s
@@ -541,8 +562,10 @@ function edl_MakeAeroGUI {
             round(gui_aero_altgrid_npoints_input:text:tonumber, 0),
             altSamples
         ).
+        local CdCorrection to gui_aero_cd_input:text:tonumber.
+        local ClCorrection to gui_aero_cl_input:text:tonumber.
         local batchsize to round(gui_aero_batchsize_input:text:tonumber(20), 0).
-        entry_async_set_aeroprofile(AeroSpeedSamples, altSamples, batchsize).
+        entry_async_set_aeroprofile(AeroSpeedSamples, altSamples, CdCorrection, ClCorrection, batchsize).
         when (true) then {
             local nV to AeroSpeedSamples:length().
             local nH to altSamples:length().
@@ -567,6 +590,17 @@ function edl_MakeAeroGUI {
     declare global gui_aero_AOAsamples_label to gui_aero_AOAsamples_box:addlabel("AOA Profile (°):").
     set gui_aero_AOAsamples_label:style:width to 150.
     declare global gui_aero_AOAsamples_input to gui_aero_AOAsamples_box:addtextfield(arr2str(AFS:CtrlAOASamples, 1)).
+
+    // Corrections to ship parameters
+    declare global gui_aero_correction_box to gui_aeromain:addhbox().
+    declare global gui_aero_mass_label to gui_aero_correction_box:addlabel("Mass (t)").
+    set gui_aero_mass_label:style:width to 150.
+    declare global gui_aero_mass_input to gui_aero_correction_box:addtextfield(round(ship:mass, 3):tostring).
+    declare global gui_aero_correction_box1 to gui_aeromain:addhbox().
+    declare global gui_aero_cd_label to gui_aero_correction_box1:addlabel("Cd Correction").
+    declare global gui_aero_cd_input to gui_aero_correction_box1:addtextfield("1").
+    declare global gui_aero_cl_label to gui_aero_correction_box1:addlabel("Cl Correction").
+    declare global gui_aero_cl_input to gui_aero_correction_box1:addtextfield("1").
 
     declare global gui_aero_speedgrid_box to gui_aeromain:addhbox().
     local _vmin to 0.

@@ -107,6 +107,21 @@ UEntry calculates aerodynamic parameters for sample points within a certain alti
 
 After setting, click `Update Profiles` to update the angle of attack curve and calculate grid points. When the grid size is 64x64, this step takes about a few seconds to complete.
 
+**Tip**: Due to some unknown reasons, the simulated aerodynamic parameters given by FARc deviate from the real-time parameters during reentry. When the systematic error of aerodynamic parameters is too large, the Bank_i parameter will gradually drift as errors accumulate, eventually exceeding the controllable range and causing pinpoint landing to fail:
+
+<img src=../pictures/UEntry/aero_debug.png width=60%>
+
+During reentry, these data in the kOS terminal window provide important aerodynamic debug information:
+
+- `FAR CD/CL` are the real-time aerodynamic parameters, which determine the actual forces on the spacecraft in the atmosphere at its current attitude;
+- `Calculated CD/CL` are the predicted aerodynamic parameters from the FAR simulation API, predicting aerodynamic forces at the current command AOA;
+- `Estimated CD/CL` are the aerodynamic parameters used by UEntry in trajectory prediction, fitted from `Calculated CD/CL`, for estimating aerodynamic forces at the current command AOA. The deviation between this data and `FAR CD/CL` causes trajectory prediction errors.
+
+UEntry provides two mechanisms to correct such deviations:
+
+1. Explicit correction: Modify the aerodynamic parameter correction factors `Cd Correction` and `Cl Correction`. They are multiplied onto `Estimated CD/CL` to obtain corrected aerodynamic parameters. For example, if you find that the average `FAR CL` during the critical deceleration phase of the space shuttle reentry is 80% of `Estimated CL`, you can change `Cl Correction` to 0.8 and then recalculate aerodynamic parameters;
+2. Implicit correction: UEntry suppresses Bank_i drift by tracking the reference bank angle curve. Therefore, when aerodynamic parameter deviations are small, you don't need to do anything — UEntry will automatically compensate bank command to suppress Bank_i drift. However, if you find this mechanism is not enough, you can force Bank_i back onto the reference trajectory by increasing the tracking gain. The tracking gain setting is located in the `Tracking Gain` field under the Guidance Parameters section of the UEntry main interface.
+
 ⚠**Note**: Can only calculate aerodynamic parameters for the **current spacecraft**, cannot predict aerodynamic parameters for future stages. For example, for the Apollo spacecraft, you need to separate the service module first before getting the command module's aerodynamic parameters. You can do this: save the game -> separate service module -> calculate aerodynamic parameters and save them (see [this section](#step-4-saveload-parameters) for save method) -> load game back before separation -> load previously calculated aerodynamic parameters.
 
 ⚠**Note**: You cannot calculate atmospheric aerodynamic parameters for a target body while in another body's SOI. Please wait until the spacecraft enters the target body's SOI before calculating.
