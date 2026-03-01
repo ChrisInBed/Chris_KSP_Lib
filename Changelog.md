@@ -78,3 +78,8 @@ Major version update
 - Added high-performace calculation backend `AFS`
 - Added `UEntry`
 - Reformed documentations
+
+## 2026/03/02 v0.9.1
+
+- Fixed some bugs in UEntry GUI
+- Added correction mechanism to aerodynamic coefficient calculation. It allows the user to correct prediction error in aerodynamic profile generation.

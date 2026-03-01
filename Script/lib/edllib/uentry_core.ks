@@ -6,17 +6,22 @@ declare global AFS to addons:AFS.
 declare global entry_aeroprofile_process to lexicon(
     "idle", true,
     "speedSamples", list(), "altSamples", list(),
+    "Cdfactor", 1, "Clfactor", 1,
     "batchsize", 20, "curIndex", 0,
     "Cdlist", list(), "Cllist", list()
 ).
 function entry_async_set_aeroprofile {
     parameter speedSamples.
     parameter altSamples.
+    parameter Cdfactor is 1.
+    parameter Clfactor is 1.
     parameter batchsize is 20.
 
     set entry_aeroprofile_process["idle"] to false.
     set entry_aeroprofile_process["speedSamples"] to speedSamples.
     set entry_aeroprofile_process["altSamples"] to altSamples.
+    set entry_aeroprofile_process["Cdfactor"] to Cdfactor.
+    set entry_aeroprofile_process["Clfactor"] to Clfactor.
     set entry_aeroprofile_process["batchsize"] to batchsize.
     set entry_aeroprofile_process["Cdlist"] to list().
     set entry_aeroprofile_process["Cllist"] to list().
@@ -38,8 +43,8 @@ function entry_async_set_aeroprofile {
             }
             local AOAcmd to AFS:GetAOACmd(lexicon("vecR", V(0,0,1), "vecV", V(speedSamples[iv],0,0)))["AOA"].
             local CLD to atm_get_CLD_at(AOAcmd, speedSamples[iv], altSamples[ih]).
-            entry_aeroprofile_process["Cdlist"][iv]:add(CLD["Cd"]).
-            entry_aeroprofile_process["Cllist"][iv]:add(CLD["Cl"]).
+            entry_aeroprofile_process["Cdlist"][iv]:add(CLD["Cd"] * entry_aeroprofile_process["Cdfactor"]).
+            entry_aeroprofile_process["Cllist"][iv]:add(CLD["Cl"] * entry_aeroprofile_process["Clfactor"]).
         }
         if (curEnd = nV * nH) {
             set AFS:AeroSpeedSamples to speedSamples.
@@ -107,6 +112,7 @@ function entry_initialize {
     set AFS:L_min to 0.5.
     set AFS:k_QEGC to 0.5.
     set AFS:k_C to 2.
+    declare global entry_tracking_gain to 0.2.
     set AFS:t_lag to 90.
 
     // Trajectory sampling parameters
@@ -154,7 +160,7 @@ function entry_get_control {
     local bank_i_ref to gst["bank_i_ref"] + (gst["bank_f_ref"] - gst["bank_i_ref"])
         * (gst["energy_i"] - gst["energy_i_ref"]) / (gst["energy_f_ref"] - gst["energy_i_ref"]).
     local cosBankiErr to cos(gst["bank_i"]) - cos(bank_i_ref).
-    local cosBankCmd to cos(bank_cmd) + 0.1 * cosBankiErr.
+    local cosBankCmd to cos(bank_cmd) + entry_tracking_gain * cosBankiErr.
     set bank_cmd to arcCos(max(cos(AFS:bank_max), min(1, cosBankCmd))).
 
     // bank reversal
