@@ -82,7 +82,7 @@ After setting, click `Update Target` to update the reentry segment target.
 
 ### Step 2. Calculate Aerodynamic Parameters
 
-Click the `Open Aerodynamic Profile GUI` button in the UEntry interface to open the startup parameter settings interface
+Click the `Open Aerodynamic Profile GUI` button in the UEntry interface to open the aerodynamic parameter settings interface
 
 ![](../pictures/UEntry/aerodynamic_profile.png)
 

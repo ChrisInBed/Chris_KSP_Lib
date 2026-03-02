@@ -82,7 +82,7 @@ run uentry.  // 运行UEntry
 
 ### Step 2. 计算气动参数
 
-在UEntry界面中点击`Open Aerodynamic Profile GUI`按钮，弹出启动参数设置界面
+在UEntry界面中点击`Open Aerodynamic Profile GUI`按钮，弹出气动参数设置界面
 
 ![](../pictures/UEntry/aerodynamic_profile.png)
 
