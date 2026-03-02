@@ -117,7 +117,7 @@ During reentry, these data in the kOS terminal window provide important aerodyna
 - `Calculated CD/CL` are the predicted aerodynamic parameters from the FAR simulation API, predicting aerodynamic forces at the current command AOA;
 - `Estimated CD/CL` are the aerodynamic parameters used by UEntry in trajectory prediction, fitted from `Calculated CD/CL`, for estimating aerodynamic forces at the current command AOA. The deviation between this data and `FAR CD/CL` causes trajectory prediction errors.
 
-UEntry provides two mechanisms to correct such deviations:
+Recently we also found that the aerodynamic force given by FARc is not consistent to the acceleration of the vessel (Fxxk you FAR!). UEntry provides two mechanisms to correct deviations caused by FARc bugs:
 
 1. Explicit correction: Modify the aerodynamic parameter correction factors `Cd Correction` and `Cl Correction`. They are multiplied onto `Estimated CD/CL` to obtain corrected aerodynamic parameters. For example, if you find that the average `FAR CL` during the critical deceleration phase of the space shuttle reentry is 80% of `Estimated CL`, you can change `Cl Correction` to 0.8 and then recalculate aerodynamic parameters;
 2. Implicit correction: UEntry suppresses Bank_i drift by tracking the reference bank angle curve. Therefore, when aerodynamic parameter deviations are small, you don't need to do anything — UEntry will automatically compensate bank command to suppress Bank_i drift. However, if you find this mechanism is not enough, you can force Bank_i back onto the reference trajectory by increasing the tracking gain. The tracking gain setting is located in the `Tracking Gain` field under the Guidance Parameters section of the UEntry main interface.
