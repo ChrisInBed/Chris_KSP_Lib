@@ -2,7 +2,7 @@
 
 GLOBAL SETTINGS IS LEXICON(
 	//	kOS_IPU controls how fast the kOS interpreter runs. Bumping this up is required to run the script fast enough.
-	"kOS_IPU", 400,
+	"kOS_IPU", 2000,
 
 	//	Which version of the CSER function to use. "new" implementation (by pand5461) has been extensively tested and is the default one.
 	//	In case of problems, you can try switching to "old" CSER, but remember to bump up the IPU to about 500.
@@ -12,7 +12,7 @@ GLOBAL SETTINGS IS LEXICON(
 	"pitchOverTimeLimit", 20,
 
 	//	UPFG will start attempting to converge that many seconds before its scheduled activation.
-	"upfgConvergenceDelay", 10,
+	"upfgConvergenceDelay", 5,
 
 	//	When time-to-go gets below that, keep attitude stable and simply count down time to cutoff.
 	"upfgFinalizationTime", 5,
