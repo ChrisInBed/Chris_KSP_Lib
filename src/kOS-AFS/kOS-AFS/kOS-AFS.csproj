@@ -38,6 +38,7 @@
     <Compile Include="AFS.cs" />
     <Compile Include="AFSAddon.cs" />
     <Compile Include="ASteeringManager.cs" />
+    <Compile Include="FlightControlUtils.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -12,6 +12,7 @@ using System.Linq;
 using UnityEngine;
 using kOS.Suffixed;
 using Unity.Mathematics;
+using kOS.Control;
 
 namespace kOS.AddOns.AFSAddon
 {
@@ -50,6 +51,8 @@ namespace kOS.AddOns.AFSAddon
             AddSuffix(new string[] { "GeeForce" }, new Suffix<ScalarDoubleValue>(GetGeeForce, "current acceleration of the current vessel"));
             AddSuffix(new string[] { "DynamicPressure" }, new Suffix<ScalarDoubleValue>(GetDynamicPressure, "current dynamic pressure of the current vessel"));
             AddSuffix(new string[] { "Density" }, new Suffix<ScalarDoubleValue>(GetDensity, "current air density of the current vessel"));
+            AddSuffix(new string[] { "MOI" }, new Suffix<Vector>(GetMOI, "Moment of inertia of current vessel"));
+            //AddSuffix(new string)
 
             // Celestial body parameters
             AddSuffix(new string[] { "mu" }, new SetSuffix<ScalarDoubleValue>(GetMu, SetMu, "Gravity constant of central celestral"));
@@ -146,6 +149,11 @@ namespace kOS.AddOns.AFSAddon
         private ScalarDoubleValue GetDensity()
         {
             return new ScalarDoubleValue(AFSCore.GetSafeDouble(FlightGlobals.ActiveVessel.atmDensity));
+        }
+
+        private Vector GetMOI()
+        {
+            var moi = SteeringManager.
         }
 
         private Vector DirectionToAngleAxis(Direction q)
