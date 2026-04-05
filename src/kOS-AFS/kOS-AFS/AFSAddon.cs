@@ -12,6 +12,7 @@ using System.Linq;
 using UnityEngine;
 using kOS.Suffixed;
 using Unity.Mathematics;
+using KSP.Localization;
 
 namespace kOS.AddOns.AFSAddon
 {
@@ -50,6 +51,7 @@ namespace kOS.AddOns.AFSAddon
             AddSuffix(new string[] { "GeeForce" }, new Suffix<ScalarDoubleValue>(GetGeeForce, "current acceleration of the current vessel"));
             AddSuffix(new string[] { "DynamicPressure" }, new Suffix<ScalarDoubleValue>(GetDynamicPressure, "current dynamic pressure of the current vessel"));
             AddSuffix(new string[] { "Density" }, new Suffix<ScalarDoubleValue>(GetDensity, "current air density of the current vessel"));
+            AddSuffix(new string[] { "Language" }, new Suffix<StringValue>(GetLanguage, "Game Language"));
 
             // Celestial body parameters
             AddSuffix(new string[] { "mu" }, new SetSuffix<ScalarDoubleValue>(GetMu, SetMu, "Gravity constant of central celestral"));
@@ -146,6 +148,12 @@ namespace kOS.AddOns.AFSAddon
         private ScalarDoubleValue GetDensity()
         {
             return new ScalarDoubleValue(AFSCore.GetSafeDouble(shared.Vessel.atmDensity));
+        }
+
+        private StringValue GetLanguage()
+        {
+            //string lang = Localizer.TryGetStringByTag("language", out string r) ? r : "en-us";
+            return new StringValue(Localizer.CurrentLanguage);
         }
 
         private Vector DirectionToAngleAxis(Direction q)
