@@ -83,3 +83,9 @@ Major version update
 
 - Fixed some bugs in UEntry GUI
 - Added correction mechanism to aerodynamic coefficient calculation. It allows the user to correct prediction error in aerodynamic profile generation.
+
+## 2026/04/06 v0.9.2
+
+- Add localization ability (EN-US and ZH-CN for now)
+- Improve orbit analysis equations in PEGLand
+- Eliminate dead loop in PEGLand initialization
