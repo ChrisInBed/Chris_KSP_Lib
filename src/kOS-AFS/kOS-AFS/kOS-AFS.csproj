@@ -43,17 +43,6 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="FerramAerospaceResearch">
-      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\Kerbal Space Program\GameData\FerramAerospaceResearch\Plugins\FerramAerospaceResearch.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.Burst">
-      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\Kerbal Space Program\GameData\000_KSPBurst\Plugins\Unity.Burst.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.Mathematics">
-      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\Kerbal Space Program\GameData\000_KSPBurst\Plugins\Unity.Mathematics.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\..\..\repos\KOS\src\kOS.Safe.Test\kOS.Safe.Test.csproj">
       <Project>{b55608f3-1667-9842-bd95-147f2a6e7b2d}</Project>
       <Name>kOS.Safe.Test</Name>
@@ -66,6 +55,24 @@
       <Project>{2b6ee586-e980-25ef-299a-3dcc30ba420e}</Project>
       <Name>kOS</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="FerramAerospaceResearch">
+      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\FerramAerospaceResearch\Plugins\FerramAerospaceResearch.dll</HintPath>
+    </Reference>
+    <Reference Include="KSPBurst">
+      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\000_KSPBurst\Plugins\KSPBurst.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Burst">
+      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\000_KSPBurst\Plugins\Unity.Burst.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Mathematics">
+      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\000_KSPBurst\Plugins\Unity.Mathematics.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\KSP_x64_Data\Managed\UnityEngine.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

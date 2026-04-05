@@ -12,6 +12,7 @@ using System.Linq;
 using UnityEngine;
 using kOS.Suffixed;
 using Unity.Mathematics;
+using KSP.Localization;
 
 namespace kOS.AddOns.AFSAddon
 {
@@ -50,6 +51,7 @@ namespace kOS.AddOns.AFSAddon
             AddSuffix(new string[] { "GeeForce" }, new Suffix<ScalarDoubleValue>(GetGeeForce, "current acceleration of the current vessel"));
             AddSuffix(new string[] { "DynamicPressure" }, new Suffix<ScalarDoubleValue>(GetDynamicPressure, "current dynamic pressure of the current vessel"));
             AddSuffix(new string[] { "Density" }, new Suffix<ScalarDoubleValue>(GetDensity, "current air density of the current vessel"));
+            AddSuffix(new string[] { "Language" }, new Suffix<StringValue>(GetLanguage, "Game Language"));
 
             // Celestial body parameters
             AddSuffix(new string[] { "mu" }, new SetSuffix<ScalarDoubleValue>(GetMu, SetMu, "Gravity constant of central celestral"));
@@ -118,34 +120,40 @@ namespace kOS.AddOns.AFSAddon
 
         private SimAtmTrajArgs simArgs = new SimAtmTrajArgs();
 
-        //private ScalarDoubleValue GetAOA() { return new ScalarDoubleValue(FARAPI.ActiveVesselAoA()); }
-        private ScalarDoubleValue GetAOA() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARAOA(FlightGlobals.ActiveVessel.srf_velocity, simArgs.rotation, simArgs.AOAReversal) * 180 / Math.PI)); }
-        //private ScalarDoubleValue GetAOS() { return new ScalarDoubleValue(FARAPI.ActiveVesselSideslip()); }
-        private ScalarDoubleValue GetAOS() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARAOS(FlightGlobals.ActiveVessel.srf_velocity, simArgs.rotation) * 180 / Math.PI)); }
-        private ScalarDoubleValue GetBank() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARBank(simArgs.rotation) * 180 / Math.PI)); }
-        private ScalarDoubleValue GetRefArea() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.ActiveVesselRefArea())); }
-        private ScalarDoubleValue GetCd() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.ActiveVesselDragCoeff())); }
-        private ScalarDoubleValue GetCl() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.ActiveVesselLiftCoeff())); }
+        //private ScalarDoubleValue GetAOA() { return new ScalarDoubleValue(FARAPI.VesselAoA(shared.Vessel)); }
+        private ScalarDoubleValue GetAOA() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARAOA(shared.Vessel, shared.Vessel.srf_velocity, simArgs.rotation, simArgs.AOAReversal) * 180 / Math.PI)); }
+        //private ScalarDoubleValue GetAOS() { return new ScalarDoubleValue(FARAPI.VesselSideslip(shared.Vessel)); }
+        private ScalarDoubleValue GetAOS() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARAOS(shared.Vessel, shared.Vessel.srf_velocity, simArgs.rotation) * 180 / Math.PI)); }
+        private ScalarDoubleValue GetBank() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.GetFARBank(shared.Vessel, simArgs.rotation) * 180 / Math.PI)); }
+        private ScalarDoubleValue GetRefArea() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.VesselRefArea(shared.Vessel))); }
+        private ScalarDoubleValue GetCd() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.VesselDragCoeff(shared.Vessel))); }
+        private ScalarDoubleValue GetCl() { return new ScalarDoubleValue(AFSCore.GetSafeDouble(FARAPI.VesselLiftCoeff(shared.Vessel))); }
         private ScalarDoubleValue GetHeatFlux()
         {
-            double rho = FlightGlobals.ActiveVessel.atmDensity;
-            double v = FlightGlobals.ActiveVessel.srf_velocity.magnitude;
+            double rho = shared.Vessel.atmDensity;
+            double v = shared.Vessel.srf_velocity.magnitude;
             return new ScalarDoubleValue(AFSCore.GetSafeDouble(AFSCore.HeatFluxCoefficient * Math.Pow(v, 3.15) * Math.Sqrt(rho)));
         }
 
         private ScalarDoubleValue GetGeeForce()
         {
-            return new ScalarDoubleValue(AFSCore.GetSafeDouble(FlightGlobals.ActiveVessel.geeForce));
+            return new ScalarDoubleValue(AFSCore.GetSafeDouble(shared.Vessel.geeForce));
         }
 
         private ScalarDoubleValue GetDynamicPressure()
         {
-            return new ScalarDoubleValue(AFSCore.GetSafeDouble(FlightGlobals.ActiveVessel.dynamicPressurekPa * 1000.0));
+            return new ScalarDoubleValue(AFSCore.GetSafeDouble(shared.Vessel.dynamicPressurekPa * 1000.0));
         }
 
         private ScalarDoubleValue GetDensity()
         {
-            return new ScalarDoubleValue(AFSCore.GetSafeDouble(FlightGlobals.ActiveVessel.atmDensity));
+            return new ScalarDoubleValue(AFSCore.GetSafeDouble(shared.Vessel.atmDensity));
+        }
+
+        private StringValue GetLanguage()
+        {
+            //string lang = Localizer.TryGetStringByTag("language", out string r) ? r : "en-us";
+            return new StringValue(Localizer.CurrentLanguage);
         }
 
         private Vector DirectionToAngleAxis(Direction q)
@@ -397,7 +405,7 @@ namespace kOS.AddOns.AFSAddon
             double[] altSamples = ExtractDoubleArray(val, "alt samples");
             for (int i = 0; i < altSamples.Length; ++i)
             {
-                double density = AFSCore.GetDensityAt(altSamples[i]);
+                double density = AFSCore.GetDensityAt(shared.Vessel, altSamples[i]);
                 altSamples[i] = density > Double.Epsilon ? Math.Log(density) : Double.MinValue * 0.5;
             }
             simArgs.AeroLogDensitySamples = altSamples;
@@ -428,7 +436,7 @@ namespace kOS.AddOns.AFSAddon
 
         private Lexicon GetState()
         {
-            PhyState state = AFSCore.GetPhyState();
+            PhyState state = AFSCore.GetPhyState(shared.Vessel);
             Lexicon result = new Lexicon();
             result.Add(new StringValue("vecR"), Double3ToVector(state.vecR));
             result.Add(new StringValue("vecV"), Double3ToVector(state.vecV));
@@ -440,7 +448,7 @@ namespace kOS.AddOns.AFSAddon
             double altitude = RequireDoubleArg(args, "altitude");
             double speed = RequireDoubleArg(args, "speed");
             double AOA = RequireDoubleArg(args, "AOA") / 180 * Math.PI;
-            AFSCore.GetFARAeroCoefs(altitude, AOA, speed, out double Cd, out double Cl, simArgs.rotation, simArgs.AOAReversal);
+            AFSCore.GetFARAeroCoefs(shared.Vessel, altitude, AOA, speed, out double Cd, out double Cl, simArgs.rotation, simArgs.AOAReversal);
             Lexicon result = new Lexicon();
             result.Add(new StringValue("Cd"), new ScalarDoubleValue(Cd));
             result.Add(new StringValue("Cl"), new ScalarDoubleValue(Cl));
@@ -461,7 +469,7 @@ namespace kOS.AddOns.AFSAddon
 
         private ScalarValue GetDensityAt(ScalarValue altitude)
         {
-            return ScalarValue.Create(AFSCore.GetSafeDouble(AFSCore.GetDensityAt(altitude.GetDoubleValue())));
+            return ScalarValue.Create(AFSCore.GetSafeDouble(AFSCore.GetDensityAt(shared.Vessel, altitude.GetDoubleValue())));
         }
 
         private ScalarValue GetDensityEst(ScalarValue altitude)
@@ -476,7 +484,7 @@ namespace kOS.AddOns.AFSAddon
 
         private void InitAtmModel()
         {
-            AFSCore.InitAtmModel(simArgs);
+            AFSCore.InitAtmModel(shared.Vessel, simArgs);
         }
 
         private ScalarValue StartSimAtmTraj(Lexicon args)

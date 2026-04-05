@@ -112,7 +112,7 @@ function entry_initialize {
     set AFS:L_min to 0.5.
     set AFS:k_QEGC to 0.5.
     set AFS:k_C to 2.
-    declare global entry_tracking_gain to 0.2.
+    declare global entry_tracking_gain to 2.
     set AFS:t_lag to 90.
 
     // Trajectory sampling parameters

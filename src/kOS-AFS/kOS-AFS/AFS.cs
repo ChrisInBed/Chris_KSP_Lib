@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using UnityEngine;
 
 namespace AFS
-{    
+{
     using PhyStateDerivative = PhyState;
     internal class SimAtmTrajArgs
     {
@@ -48,13 +48,13 @@ namespace AFS
             rotation = Quaternion.identity;
             AOAReversal = false;
             CtrlSpeedSamples = new double[] { 600, 8000 };
-            CtrlAOAsamples = new double[] { 15.0*Math.PI/180.0, 15.0*Math.PI/180.0 };
+            CtrlAOAsamples = new double[] { 15.0 * Math.PI / 180.0, 15.0 * Math.PI / 180.0 };
             AeroSpeedSamples = new double[] { 3000 };
             AeroLogDensitySamples = new double[] { -0.5 };
             AeroClSamples = new double[,] { { 0.3 } };
             AeroCdSamples = new double[,] { { 1.5 } };
             // Target parameters
-            target_energy = AFSCore.GetSpecificEnergy(mu, R+10e3, 300);
+            target_energy = AFSCore.GetSpecificEnergy(mu, R + 10e3, 300);
             Rtarget = new double3(R + 10e3, 0, 0);
             // Guidance parameters
             L_min = 0.5;
@@ -64,8 +64,8 @@ namespace AFS
             Qdot_max = 5e6;
             acc_max = 3 * 9.81;
             dynp_max = 15e3;
-            bank_max = 70.0 *Math.PI/180.0;
-            heading_tol = 10.0 *Math.PI/180.0;
+            bank_max = 70.0 * Math.PI / 180.0;
+            heading_tol = 10.0 * Math.PI / 180.0;
             bank_reversal = false;
             predict_min_step = 0;
             predict_max_step = 1;
@@ -117,7 +117,7 @@ namespace AFS
             get
             {
                 double cosPhi = math.dot(math.normalizesafe(vecR), math.up());
-                cosPhi = 0.5*math.PI - math.acos(math.clamp(cosPhi, -1, 1));
+                cosPhi = 0.5 * math.PI - math.acos(math.clamp(cosPhi, -1, 1));
                 return cosPhi;
             }
         }
@@ -161,11 +161,11 @@ namespace AFS
             }
         }
 
-        public static PhyState operator+(PhyState a, PhyState b)
+        public static PhyState operator +(PhyState a, PhyState b)
         {
             return new PhyState(a.vecR + b.vecR, a.vecV + b.vecV);
         }
-        public static PhyState operator*(double scalar, PhyState state)
+        public static PhyState operator *(double scalar, PhyState state)
         {
             return new PhyState(scalar * state.vecR, scalar * state.vecV);
         }
@@ -309,11 +309,10 @@ namespace AFS
             }
         }
 
-        public static PhyState GetPhyState()
+        public static PhyState GetPhyState(Vessel vessel)
         {
-            Vessel _vessel = FlightGlobals.ActiveVessel;
-            Vector3d vecR = _vessel.CurrentPosition() - _vessel.mainBody.position;
-            Vector3d vecV = _vessel.srf_velocity;
+            Vector3d vecR = vessel.CurrentPosition() - vessel.mainBody.position;
+            Vector3d vecV = vessel.srf_velocity;
             return new PhyState(
                 new double3(vecR.x, vecR.y, vecR.z),
                 new double3(vecV.x, vecV.y, vecV.z)
@@ -620,9 +619,9 @@ namespace AFS
             return SignedAngle(unitHRef, unitH, unitR);
         }
 
-        public static double GetFARAOA(Vector3d vel, Quaternion rot, bool AOAReversal)
+        public static double GetFARAOA(Vessel vessel, Vector3d vel, Quaternion rot, bool AOAReversal)
         {
-            Quaternion facing = FlightGlobals.ActiveVessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
+            Quaternion facing = vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
             Vector3 forward = facing * Vector3.forward;
             Vector3 down = facing * (-Vector3.up);
             //Vector3 right = facing * Vector3.right;
@@ -633,9 +632,9 @@ namespace AFS
             return AOAReversal ? -AOA : AOA;
         }
 
-        public static double GetFARAOS(Vector3d vel, Quaternion rot)
+        public static double GetFARAOS(Vessel vessel, Vector3d vel, Quaternion rot)
         {
-            Quaternion facing = FlightGlobals.ActiveVessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
+            Quaternion facing = vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
             Vector3 forward = facing * Vector3.forward;
             //Vector3 down = facing * (-Vector3.up);
             Vector3 right = facing * Vector3.right;
@@ -646,24 +645,22 @@ namespace AFS
             return AOS;
         }
 
-        public static double GetFARRoll(Quaternion rot)
+        public static double GetFARRoll(Vessel vessel, Quaternion rot)
         {
-            Vessel _vessel = FlightGlobals.ActiveVessel;
-            Quaternion facing = _vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
+            Quaternion facing = vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
             Vector3 forward = facing * Vector3.forward;
             //Vector3 down = facing * (-Vector3.up);
             Vector3 right = facing * Vector3.right;
-            Vector3 localUp = (_vessel.transform.position - _vessel.mainBody.transform.position).normalized;
+            Vector3 localUp = (vessel.transform.position - vessel.mainBody.transform.position).normalized;
             double Roll = SignedAngle(Vector3.Cross(localUp, forward).normalized, right, -forward);
             return Roll;
         }
 
-        public static double GetFARBank(Quaternion rot)
+        public static double GetFARBank(Vessel vessel, Quaternion rot)
         {
-            Vessel _vessel = FlightGlobals.ActiveVessel;
-            Quaternion facing = _vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
-            Vector3 localUp = (_vessel.transform.position - _vessel.mainBody.transform.position).normalized;
-            Vector3 windForward = _vessel.srf_velocity.normalized;
+            Quaternion facing = vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
+            Vector3 localUp = (vessel.transform.position - vessel.mainBody.transform.position).normalized;
+            Vector3 windForward = vessel.srf_velocity.normalized;
             Vector3 windRight = Vector3.Cross(localUp, windForward).normalized;
             Vector3 windUp = Vector3.Cross(windForward, windRight).normalized;
             Vector3 bankVec = facing * Vector3.up;
@@ -672,54 +669,53 @@ namespace AFS
             return Bank;
         }
 
-        public static void GetFARAeroCoefs(double altitude, double AOA, double speed, out double Cd, out double Cl, Quaternion rot, bool AOAReversal)
+        public static void GetFARAeroCoefs(Vessel vessel, double altitude, double AOA, double speed, out double Cd, out double Cl, Quaternion rot, bool AOAReversal)
         {
             if (AOAReversal) AOA = -AOA;
             if (rot == null) rot = Quaternion.identity;
-            double atmHeight = FlightGlobals.ActiveVessel.mainBody.atmosphereDepth;
-            double hs = GetScaleHeightAt(0);
-            double area = FARAPI.ActiveVesselRefArea();
+            double atmHeight = vessel.mainBody.atmosphereDepth;
+            double hs = GetScaleHeightAt(vessel, 0);
+            double area = FARAPI.VesselRefArea(vessel);
             if (altitude > atmHeight - hs) altitude = atmHeight - hs;
-            Vessel vessel = FlightGlobals.ActiveVessel;
             Quaternion facing = vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
             Vector3 unitV = facing * Quaternion.Euler((float)(AOA * 180.0 / Math.PI), 0, 0) * Vector3.forward;
             Vector3 unitL = facing * Quaternion.Euler((float)(AOA * 180.0 / Math.PI - 90), 0, 0) * Vector3.forward;
             FARAPI.CalculateVesselAeroForces(vessel, out Vector3 forceVec, out _, unitV * (float)speed, altitude);
-            double _factor = 0.5 * GetDensityAt(altitude) * speed * speed * area * 1e-3;
+            double _factor = 0.5 * GetDensityAt(vessel, altitude) * speed * speed * area * 1e-3;
             Cd = -Vector3.Dot(forceVec, unitV) / _factor;
             Cl = Vector3.Dot(forceVec, unitL) / _factor;
             //Debug.Log($"[kOS-AFS] altitude={altitude * 1e-3:F2}km; AOA={AOA * 180 / Math.PI:F2}d; V={speed * 1e-3:F3}km/s; Cd={Cd:F3}; Cl={Cl:F3}");
             return;
         }
 
-        public static double GetPressureAt(double altitude) { return FlightGlobals.ActiveVessel.mainBody.GetPressure(altitude) * 1e3; }
-        public static double GetTemperatureAt(double altitude) { return FlightGlobals.ActiveVessel.mainBody.GetTemperature(altitude); }
-        public static double GetDensityAt(double altitude)
+        public static double GetPressureAt(Vessel vessel, double altitude) { return vessel.mainBody.GetPressure(altitude) * 1e3; }
+        public static double GetTemperatureAt(Vessel vessel, double altitude) { return vessel.mainBody.GetTemperature(altitude); }
+        public static double GetDensityAt(Vessel vessel, double altitude)
         {
-            if (altitude > FlightGlobals.ActiveVessel.mainBody.atmosphereDepth) return 0;
-            double P = GetPressureAt(altitude);
-            double T = GetTemperatureAt(altitude);
+            if (altitude > vessel.mainBody.atmosphereDepth) return 0;
+            double P = GetPressureAt(vessel, altitude);
+            double T = GetTemperatureAt(vessel, altitude);
             if (T < 1e-3) T = 1e-3;
-            double MW = FlightGlobals.ActiveVessel.mainBody.atmosphereMolarMass;
+            double MW = vessel.mainBody.atmosphereMolarMass;
             return P * MW / (GAS_CONSTANT * T);
         }
-        public static double GetScaleHeightAt(double altitude)
+        public static double GetScaleHeightAt(Vessel vessel, double altitude)
         {
-            double r = altitude + FlightGlobals.ActiveVessel.mainBody.Radius;
-            double g = FlightGlobals.ActiveVessel.mainBody.gravParameter / r / r;
-            double T = GetTemperatureAt(altitude);
-            double MW = FlightGlobals.ActiveVessel.mainBody.atmosphereMolarMass;
+            double r = altitude + vessel.mainBody.Radius;
+            double g = vessel.mainBody.gravParameter / r / r;
+            double T = GetTemperatureAt(vessel, altitude);
+            double MW = vessel.mainBody.atmosphereMolarMass;
             return (GAS_CONSTANT * T) / (MW * g);
         }
 
-        public static void InitAtmModel(SimAtmTrajArgs args)
+        public static void InitAtmModel(Vessel vessel, SimAtmTrajArgs args)
         {
             // Set basic parameters
-            args.R = FlightGlobals.ActiveVessel.mainBody.Radius;
-            args.mu = FlightGlobals.ActiveVessel.mainBody.gravParameter;
-            args.molarMass = FlightGlobals.ActiveVessel.mainBody.atmosphereMolarMass;
-            args.atmHeight = FlightGlobals.ActiveVessel.mainBody.atmosphereDepth;
-            args.bodySpin = Vector3dToDouble3(FlightGlobals.ActiveVessel.mainBody.angularVelocity);
+            args.R = vessel.mainBody.Radius;
+            args.mu = vessel.mainBody.gravParameter;
+            args.molarMass = vessel.mainBody.atmosphereMolarMass;
+            args.atmHeight = vessel.mainBody.atmosphereDepth;
+            args.bodySpin = Vector3dToDouble3(vessel.mainBody.angularVelocity);
             // Sampling altitude, get density and temperatures
             const int nSamples = 129;
             double[] altSamples = new double[nSamples];
@@ -730,8 +726,8 @@ namespace AFS
             for (int i = 0; i < nSamples; ++i)
             {
                 altSamples[i] = i * dAlt;
-                T = GetTemperatureAt(altSamples[i]);
-                P = GetPressureAt(altSamples[i]);
+                T = GetTemperatureAt(vessel, altSamples[i]);
+                P = GetPressureAt(vessel, altSamples[i]);
                 D = P * args.molarMass / (GAS_CONSTANT * T);
                 tempSamples[i] = T;
                 logDensitySamples[i] = Math.Log(D);
@@ -799,7 +795,7 @@ namespace AFS
             else if (idx == args.AtmLogDensitySamples.Length)
             {
                 double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AtmTempSamples[args.AtmAltSamples.Length - 1]);
-                return args.AtmAltSamples[args.AtmAltSamples.Length - 1] - hs * (logD -args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1]);
+                return args.AtmAltSamples[args.AtmAltSamples.Length - 1] - hs * (logD - args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1]);
             }
             else
             {

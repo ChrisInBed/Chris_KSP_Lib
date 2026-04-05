@@ -115,6 +115,7 @@ function peg_get_initial_params {
     until false {
         // predictor
         local _last_vecRF to V(0,0,0).
+        local _inumiter to 0.
         until false {
             set vecVF to vecV0 + vecVGO + vecGAV1*T.
             set vecRF to vecR0 + vecV0*T + vecRGO + 0.5*vecGAV2*T^2.
@@ -130,6 +131,11 @@ function peg_get_initial_params {
             local _derGF to -__PEG_mu/_magRF^3 * (vecVF - 3*vDot(vecVF, vecRF)/_magRF^2 * vecRF).
             set vecGAV1 to (_vecGF + _vecG0)/2 - (_derGF - _derG0)*T/12.
             set vecGAV2 to (3*_vecGF + 7*_vecG0)/10 - (_derGF - 1.5*_derG0)*T/15.
+            set _inumiter to _inumiter + 1.
+            if (_inumiter > 32) {
+                print "PEG initialization iteration diverged (G integral), check your landing orbit parameters" AT(0, 16).
+                return 0.
+            }
         }
         // corrector
         // t2ign + T -> etaT: VL, RL_new = R(T_new-T)*(VL, RL); etaT = etaT + angle(RL, RL_new)
@@ -150,7 +156,7 @@ function peg_get_initial_params {
         set vecVGO to vecVL - vecV0 - vecGAV1*T.
         set unituK to vecVGO:normalized.
         set T to T + (vecVGO:mag - _integrals["Av"]) / (a0/(1-T/tau)*cos(omega*(T-_integrals["K"]) *180/constant:pi)).
-        if (abs(T) < 1e-6 or abs(T) > 1e6) {
+        if (abs(T) < 1e-6 or abs(T) > 1e6 or abs(omega*T*180/constant:pi) > 360) {
             print "PEG initialization iteration diverged, check your landing orbit parameters" AT(0, 16).
             return 0.  // 
         }
