@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FerramAerospaceResearch;
-using System.Linq;
 using UnityEngine;
 using kOS.Suffixed;
 using Unity.Mathematics;

@@ -34,6 +34,6 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("0.1.0.0")]
 [assembly: AssemblyFileVersion("0.1.0.0")]
-[assembly: KSPAssemblyDependency("KSPBurst", 1, 0)]
+//[assembly: KSPAssemblyDependency("KSPBurst", 1, 0)]
 [assembly: KSPAssemblyDependency("kOS", 1, 1)]
 [assembly: KSPAssemblyDependency("FerramAerospaceResearch", 0, 16)]
