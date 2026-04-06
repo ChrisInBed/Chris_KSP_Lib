@@ -1,8 +1,7 @@
 ﻿using FerramAerospaceResearch;
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
-using Unity.Burst;
+//using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -95,7 +94,7 @@ namespace AFS
         }
     }
 
-    [BurstCompile]
+    //[BurstCompile]
     internal struct PhyState
     {
         public double3 vecR;
@@ -515,7 +514,7 @@ namespace AFS
             return value;
         }
 
-        [BurstCompile]
+        //[BurstCompile]
         private static PhyStateDerivative ComputeDerivatives(double t, PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
         {
             if (context == null) context = new Context();
@@ -551,7 +550,7 @@ namespace AFS
             public double Qdot, acc, dynp;
         }
 
-        [BurstCompile]
+        //[BurstCompile]
         private static Rk45StepResult RK45Step(double t, PhyState state, double tstep, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
         {
             if (context == null) context = new Context();
@@ -586,7 +585,7 @@ namespace AFS
             return angle;
         }
 
-        [BurstCompile]
+        //[BurstCompile]
         public static double SignedAngle(double3 from, double3 to, double3 axis)
         {
             double3 cross = math.cross(from, to);
@@ -597,7 +596,7 @@ namespace AFS
             return angle;
         }
 
-        [BurstCompile]
+        //[BurstCompile]
         public static double GetHeadingErr(double3 vecR, double3 vecV, double3 vecRtgt)
         {
             if (math.length(vecV) < 1e-6) return 0;

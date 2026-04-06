@@ -60,12 +60,6 @@
     <Reference Include="FerramAerospaceResearch">
       <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\FerramAerospaceResearch\Plugins\FerramAerospaceResearch.dll</HintPath>
     </Reference>
-    <Reference Include="KSPBurst">
-      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\000_KSPBurst\Plugins\KSPBurst.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.Burst">
-      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\000_KSPBurst\Plugins\Unity.Burst.dll</HintPath>
-    </Reference>
     <Reference Include="Unity.Mathematics">
       <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\000_KSPBurst\Plugins\Unity.Mathematics.dll</HintPath>
     </Reference>
