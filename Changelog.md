@@ -89,3 +89,7 @@ Major version update
 - Add localization ability (EN-US and ZH-CN for now)
 - Improve orbit analysis equations in PEGLand
 - Eliminate dead loop in PEGLand initialization
+
+## 2026/04/06 v0.9.3
+
+- Solved BUG: Removed Burst Compiler code in `kOS-AFS`, to avoid FARc causing Unity Burst failure. [issue](https://github.com/KSPModdingLibs/KSPBurst/issues/14)
