@@ -307,12 +307,12 @@ function phase_descent {
         local __time_begin to time:seconds.
         set gst["T"] to gst["T"] - lo_tt.
         set gst["K"] to gst["K"] - lo_tt.
-        set gst["vecV0"] to ship:velocity:surface.
+        set gst["vecV0"] to ship:velocity:orbit.
         set gst["vecR0"] to -ship:body:position.
         set gst["throttle"] to std_throttle.
         set_descent_phase_target().
         peg_step_control(
-            lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", V(0,0,0)),
+            lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", vecbodyomega),
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
