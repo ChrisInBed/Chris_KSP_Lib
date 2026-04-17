@@ -32,6 +32,7 @@ declare global desRT to 0.
 declare global desLT to 0.
 declare global desVRT to 0.
 declare global desVLT to 0.
+declare global apprTime to 0.
 declare global TiS to R(0,0,0).  // Engine:facing:inverse * Ship:facing, default to be I matrix
 declare global f0 to 0.
 declare global ve to 0.
@@ -101,15 +102,17 @@ function initialize_guidance {
     set add_approach_phase to P_PREC.
     if add_approach_phase {
         set desRT to 100.
-        set desLT to 500.
-        set desVRT to 3.
-        set desVLT to 40.
+        set desLT to 200.
+        set desVRT to 0.
+        set desVLT to 0.
+        set apprTime to 8.
     }
     else {
         set desRT to 100.
         set desLT to 0.
         set desVRT to 3.
         set desVLT to 0.
+        set apprTime to 0.
     }
 
     if P_GUI {
@@ -302,7 +305,7 @@ function phase_descent {
     // outer loop: update control and throttle
     local num_iter to 0.
     local _old_ground_speed to ship:groundspeed.
-    until (gst["T"] - lo_tt < 0 or ship:body:distance < vecRL:mag or ship:groundspeed < vecVL_rht:z) {
+    until (gst["T"] - lo_tt < apprTime or ship:body:distance < vecRL:mag or ship:groundspeed < vecVL_rht:z) {
         if (break_guidance_cycle) return.
         local __time_begin to time:seconds.
         set gst["T"] to gst["T"] - lo_tt.

@@ -104,15 +104,17 @@ function gui_make_peglandgui {
         parameter newstate. set add_approach_phase to newstate.
         if newstate {
             set desRT to 100.
-            set desLT to 500.
-            set desVRT to 3.
-            set desVLT to 40.
+            set desLT to 200.
+            set desVRT to 0.
+            set desVLT to 0.
+            set apprTime to 8.
         }
         else {
             set desRT to 100.
             set desLT to 0.
             set desVRT to 3.
             set desVLT to 0.
+            set apprTime to 0.
         }
         gui_update_descent_settings_display().
     }.
@@ -269,6 +271,14 @@ function gui_make_peglandgui {
         set desLT to gui_settings_descent_LT:text:tonumber.
         set desVRT to gui_settings_descent_VRT:text:tonumber.
         set desVLT to gui_settings_descent_VLT:text:tonumber.
+        local _apprT to gui_settings_descent_apprT:text:tonumber.
+        if (_apprT < 0) {
+            set gui_settings_descent_apprT:text to round(apprTime, 2):tostring.
+            hudtext("Descent phase quit time must be non-negative", 4, 2, 12, hudtextcolor, false).
+        }
+        else {
+            set apprTime to _apprT.
+        }
     }.
     declare global gui_settings_descent_R_box to gui_settings_descent_box:addhlayout().
     declare global gui_settings_descent_RT_label to gui_settings_descent_R_box:addlabel(UI_LANG["peggui.lbl_rt"]).
@@ -280,6 +290,9 @@ function gui_make_peglandgui {
     declare global gui_settings_descent_VRT to gui_settings_descent_V_box:addtextfield("0").
     declare global gui_settings_descent_VLT_label to gui_settings_descent_V_box:addlabel(UI_LANG["peggui.lbl_vlt"]).
     declare global gui_settings_descent_VLT to gui_settings_descent_V_box:addtextfield("0").
+    declare global gui_settings_descent_apprT_box to gui_settings_descent_box:addhlayout().
+    declare global gui_settings_descent_apprT_label to gui_settings_descent_apprT_box:addlabel("Quit Time").
+    declare global gui_settings_descent_apprT to gui_settings_descent_apprT_box:addtextfield("0").
 
     declare global gui_settings_engine_box to gui_settings_box:addvlayout().
     declare global gui_settings_engine_title to gui_settings_engine_box:addlabel("<b>" + UI_LANG["peggui.lbl_engine_settings"] + "</b>").
@@ -404,6 +417,7 @@ function gui_update_descent_settings_display {
     set gui_settings_descent_LT:text to desLT:tostring.
     set gui_settings_descent_VRT:text to desVRT:tostring.
     set gui_settings_descent_VLT:text to desVLT:tostring.
+    set gui_settings_descent_apprT:text to round(apprTime, 2):tostring.
 }
 
 function gui_update_engine_settings_display {
