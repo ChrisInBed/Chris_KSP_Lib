@@ -151,9 +151,8 @@ function gui_make_peglandgui {
             hudtext(UI_LANG["peggui.err_no_waypoint"], 4, 2, 12, hudtextcolor, false).
             return.
         }
-        set gui_settings_target_lat:text to _target_geo:lat:tostring.
-        set gui_settings_target_lng:text to _target_geo:lng:tostring.
         set target_geo to _target_geo.
+        gui_update_target_settings_display().
     }.
     declare global gui_settings_target_show_button to gui_settings_target_button_box1:addcheckbox(UI_LANG["peggui.gui_show_target"], false).
     set gui_settings_target_show_button:ontoggle to {
