@@ -428,11 +428,20 @@ function analyze_initial_orbit {
         ).
     }
     local vecRL to target_geo:position-ship:body:position.
-    set vecRL to vecRL:normalized * (vecRL:mag + desRT).
-    local distH to abs(vDot(vecRL, unitUy)).
+    set vecRL to vecRL:normalized * (vecRL:mag + desRT + target_height).
+    // 1 round iteration to find target location after body rotation
     local etaL to etaref + __peg_get_angle(unitRref, vecRL, unitUy).
-    local vr_etaL to get_orbit_vr_at_theta(sma, ecc, etaL, mu).
-    local vt_etaL to get_orbit_vt_at_theta(sma, ecc, etaL, mu).
+    local t2ign to get_time_to_theta(sma, ecc, mu, 0, etaref, etaL).
+    set vecRL to get_ground_vecR_at_time(t2ign, vecRL, 0, vecbodyomega).
+    local distH to abs(vDot(vecRL, unitUy)).
+
+    // Gound speed
+    local _vecVRT to get_orbit_vecVR_at_theta(sma, ecc, unitUy, etaL, unitRref, etaref, mu).
+    local vecVT to _vecVRT[0].
+    local unitRT to _vecVRT[1]:normalized.
+    set vecVT to vecVT - vCrs(vecRL, vecbodyomega).  // Orbit to ground
+    local vr_etaL to vDot(vecVT, unitRT).
+    local vt_etaL to vxcl(unitRT, vecVT):mag.
     local lock v_etaL to sqrt(vr_etaL^2 + vt_etaL^2).
     local r_etaL to get_orbit_r_at_theta(sma, ecc, etaL).
     local distR to r_etaL - vecRL:mag.
