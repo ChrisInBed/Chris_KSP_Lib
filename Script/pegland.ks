@@ -33,6 +33,8 @@ declare global desLT to 0.
 declare global desVRT to 0.
 declare global desVLT to 0.
 declare global apprTime to 0.
+declare global desHShape to 0.
+declare global desLShape to 0.
 declare global TiS to R(0,0,0).  // Engine:facing:inverse * Ship:facing, default to be I matrix
 declare global f0 to 0.
 declare global ve to 0.
@@ -101,8 +103,8 @@ function initialize_guidance {
 
     set add_approach_phase to P_PREC.
     if add_approach_phase {
-        set desRT to 100.
-        set desLT to 200.
+        set desRT to 200.
+        set desLT to 500.
         set desVRT to 0.
         set desVLT to 0.
         set apprTime to 8.
@@ -114,6 +116,8 @@ function initialize_guidance {
         set desVLT to 0.
         set apprTime to 0.
     }
+    set desHShape to 0.
+    set desLShape to 0.
 
     if P_GUI {
         set guidance_active to false.
@@ -215,6 +219,11 @@ function phase_descent {
         local unitTHL to vCrs(vecRL, unitUy):normalized.
         set vecRL to vecRL - unitTHL * desLT.
         set vecVL_rht to V(-desVRT, 0, desVLT).
+        // Trajectory shaping: aim above the real target
+        local _dist to (vecRL + ship:body:position):mag.
+        if (_dist > desLShape) {
+            set vecRL to vecRL:normalized * (vecRL:mag + desHShape).
+        }
     }
     set_descent_phase_target().
     local gst to peg_get_initial_params(
@@ -335,6 +344,7 @@ function phase_descent {
         set num_iter to num_iter + 1.
         print "Iter: "+ num_iter+", T = " + round(gst["T"]) + ", dv = " + round(__peg_get_dv(throttle_control["thrust_target"]/ship:mass, ve, gst["T"])) + "     " AT(0,14).
         print "thro = " + round(gst["throttle"], 3) + ", E = " + round(gst["vecErr"]:mag/1000, 4) + " km    " AT(0,15).
+        print "Shaping: H = " + round(desHShape, 2) + ", L = " + round(desLShape, 2) + "    " AT(0,16).
         if P_GUI {
             gui_update_status_display(lexicon(
                 "status", "descent",

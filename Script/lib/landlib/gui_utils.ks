@@ -103,8 +103,8 @@ function gui_make_peglandgui {
     set gui_settings_add_approach_button:ontoggle to {
         parameter newstate. set add_approach_phase to newstate.
         if newstate {
-            set desRT to 100.
-            set desLT to 200.
+            set desRT to 200.
+            set desLT to 500.
             set desVRT to 0.
             set desVLT to 0.
             set apprTime to 8.
@@ -293,6 +293,20 @@ function gui_make_peglandgui {
     declare global gui_settings_descent_apprT_label to gui_settings_descent_apprT_box:addlabel("Quit Time").
     declare global gui_settings_descent_apprT to gui_settings_descent_apprT_box:addtextfield("0").
 
+    declare global gui_settings_desShaping_box to gui_settings_box:addvlayout().
+    declare global gui_settings_desShaping_title to gui_settings_desShaping_box:addlabel("<b>" + "Descent Trajectory Shaping" + "</b>").
+    declare global gui_settings_desShaping_button to gui_settings_desShaping_box:addbutton("Apply Shaping").
+    set gui_settings_desShaping_button:onclick to {
+        set desHShape to gui_settings_desShaping_H:text:tonumber.
+        set desLShape to gui_settings_desShaping_L:text:tonumber.
+    }.
+    declare global gui_settings_desShaping_box1 to gui_settings_desShaping_box:addhlayout().
+    declare global gui_settings_desShaping_H_label to gui_settings_desShaping_box1:addlabel("Aiming at").
+    declare global gui_settings_desShaping_H to gui_settings_desShaping_box1:addtextfield("0").
+    declare global gui_settings_desShaping_L_label to gui_settings_desShaping_box1:addlabel("m above target when ").
+    declare global gui_settings_desShaping_L to gui_settings_desShaping_box1:addtextfield("0").
+    declare global gui_settings_desShaping_L_label1 to gui_settings_desShaping_box1:addlabel("m away").
+
     declare global gui_settings_engine_box to gui_settings_box:addvlayout().
     declare global gui_settings_engine_title to gui_settings_engine_box:addlabel("<b>" + UI_LANG["peggui.lbl_engine_settings"] + "</b>").
     declare global gui_settings_engine_button_box1 to gui_settings_engine_box:addhlayout().
@@ -417,6 +431,8 @@ function gui_update_descent_settings_display {
     set gui_settings_descent_VRT:text to desVRT:tostring.
     set gui_settings_descent_VLT:text to desVLT:tostring.
     set gui_settings_descent_apprT:text to round(apprTime, 2):tostring.
+    set gui_settings_desShaping_H:text to desHShape:tostring.
+    set gui_settings_desShaping_L:text to desLShape:tostring.
 }
 
 function gui_update_engine_settings_display {
