@@ -71,7 +71,7 @@ GLOBAL UI_LANG IS LEXICON(
     "peggui.lbl_vrt",           "下降率 (VRT) (m/s) ",
     "peggui.lbl_vlt",           "水平速度 (VLT) (m/s) ",
     "peggui.hud_apprT",         "下降段预退出时间不能为负数",
-    "peggui.lbl_apprT",         "预退出时间",
+    "peggui.lbl_apprT",         "预退出时间 (s)",
     "peggui.desshaping_title",  "下降轨迹塑形",
     "peggui.apply_shaping_btn", "轨迹塑形",
     "peggui.shaping_aim",       "瞄准着陆点上方",

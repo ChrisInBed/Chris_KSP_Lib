@@ -76,7 +76,7 @@ GLOBAL UI_LANG IS LEXICON(
     "peggui.lbl_vrt", "VRT (m/s) ",
     "peggui.lbl_vlt", "VLT (m/s) ",
     "peggui.hud_apprT", "Descent phase quit time must be non-negative",
-    "peggui.lbl_apprT", "Quit Time",
+    "peggui.lbl_apprT", "Quit Time (s)",
     "peggui.desshaping_title", "Descent Trajectory Shaping",
     "peggui.apply_shaping_btn", "Apply Shaping",
     "peggui.shaping_aim", "Aiming at",
