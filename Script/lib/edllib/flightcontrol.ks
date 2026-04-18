@@ -1,3 +1,4 @@
+declare global enable_kcl_control is false.
 declare global enable_roll_torque is true.
 declare global enable_pitch_torque is true.
 declare global enable_yaw_torque is true.
@@ -7,6 +8,7 @@ declare global kclcontroller is KCLController_Init().
 // Input target Bank, AOA, Sideslip angles
 // Output torque commands (roll, pitch, yaw)
 function KCLController_Init {
+    set enable_kcl_control to true.
     return lexicon(
         "RotationRateController", RotationRateController_Init(0.5, 5, 0.05),
         "RollTorqueController", TorqueController_Init(0.4, 0, 0.02, 1, 0),
@@ -60,6 +62,7 @@ function KCLController_ApplyControl {
     // set fc_debug_currentAttitude_y to direcctionCurrent:upvector * 50.
     // set fc_debug_currentAttitude_z to direcctionCurrent:forevector * 50.
 
+    if (not enable_kcl_control) return.
     local torqueCmd to KCLController_GetControl(this, direcctionCurrent, directionTarget).
     // Apply torque commands
     if (enable_pitch_torque) set ship:control:pilotpitchtrim to torqueCmd:x.
@@ -104,11 +107,16 @@ function TorqueController_GetControl {
     return this["PID"]:update(time:seconds, rateCurrent).
 }
 
-function fc_DeactiveControl {
-    set ship:control:neutralize to true.
+function fc_DeactivateControl {
+    // set ship:control:neutralize to true.
+    set enable_kcl_control to false.
     set ship:control:pilotpitchtrim to 0.
     set ship:control:pilotrolltrim to 0.
     set ship:control:pilotyawtrim to 0.
+}
+
+function fc_ReactivateControl {
+    set enable_kcl_control to true.
 }
 
 function AeroFrameCmd2Attitude {

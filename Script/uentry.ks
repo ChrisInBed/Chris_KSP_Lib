@@ -129,7 +129,7 @@ function entry_phase {
         }
         wait 0.2.
     }
-    fc_DeactiveControl().
+    fc_DeactivateControl().
 }
 
 function main {
