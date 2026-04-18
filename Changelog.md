@@ -92,4 +92,11 @@ Major version update
 
 ## 2026/04/06 v0.9.3
 
-- Solved BUG: Removed Burst Compiler code in `kOS-AFS`, to avoid FARc causing Unity Burst failure. [issue](https://github.com/KSPModdingLibs/KSPBurst/issues/14)
+- Fixed Bug: Removed Burst Compiler code in `kOS-AFS`, to avoid FARc causing Unity Burst failure. [issue](https://github.com/KSPModdingLibs/KSPBurst/issues/14)
+
+## 2026/04/18 v0.9.4
+
+- Added trajectory shaping function in PEGLand
+- Improved descent phase target settings, added `Quit Time` parameter
+- Fixed Bug: When press the emergency suppress button in UEntry, the flight control cannot be suppressed.
+- Fixed Bug: Minor error in reference frame transformation in PEGLand

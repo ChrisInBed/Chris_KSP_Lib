@@ -45,6 +45,8 @@ function edl_MakeEDLGUI {
     set gui_edl_emergency_button:ontoggle to {
         parameter newstate.
         set config:suppressautopilot to newstate.
+        if (newstate) fc_DeactivateControl().
+        else fc_ReactivateControl().
     }.
     declare global gui_edl_kcl_button to gui_edlmainbox:addbutton(UI_LANG["uentryGui.gui_open_kcl"]).
     set gui_edl_kcl_button:onclick to {

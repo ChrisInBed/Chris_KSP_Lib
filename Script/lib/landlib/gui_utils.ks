@@ -103,16 +103,18 @@ function gui_make_peglandgui {
     set gui_settings_add_approach_button:ontoggle to {
         parameter newstate. set add_approach_phase to newstate.
         if newstate {
-            set desRT to 100.
+            set desRT to 200.
             set desLT to 500.
-            set desVRT to 3.
-            set desVLT to 40.
+            set desVRT to 0.
+            set desVLT to 0.
+            set apprTime to 8.
         }
         else {
             set desRT to 100.
             set desLT to 0.
             set desVRT to 3.
             set desVLT to 0.
+            set apprTime to 0.
         }
         gui_update_descent_settings_display().
     }.
@@ -149,9 +151,8 @@ function gui_make_peglandgui {
             hudtext(UI_LANG["peggui.err_no_waypoint"], 4, 2, 12, hudtextcolor, false).
             return.
         }
-        set gui_settings_target_lat:text to _target_geo:lat:tostring.
-        set gui_settings_target_lng:text to _target_geo:lng:tostring.
         set target_geo to _target_geo.
+        gui_update_target_settings_display().
     }.
     declare global gui_settings_target_show_button to gui_settings_target_button_box1:addcheckbox(UI_LANG["peggui.gui_show_target"], false).
     set gui_settings_target_show_button:ontoggle to {
@@ -269,6 +270,14 @@ function gui_make_peglandgui {
         set desLT to gui_settings_descent_LT:text:tonumber.
         set desVRT to gui_settings_descent_VRT:text:tonumber.
         set desVLT to gui_settings_descent_VLT:text:tonumber.
+        local _apprT to gui_settings_descent_apprT:text:tonumber.
+        if (_apprT < 0) {
+            set gui_settings_descent_apprT:text to round(apprTime, 2):tostring.
+            hudtext(UI_LANG["peggui.hud_apprT"], 4, 2, 12, hudtextcolor, false).
+        }
+        else {
+            set apprTime to _apprT.
+        }
     }.
     declare global gui_settings_descent_R_box to gui_settings_descent_box:addhlayout().
     declare global gui_settings_descent_RT_label to gui_settings_descent_R_box:addlabel(UI_LANG["peggui.lbl_rt"]).
@@ -280,6 +289,23 @@ function gui_make_peglandgui {
     declare global gui_settings_descent_VRT to gui_settings_descent_V_box:addtextfield("0").
     declare global gui_settings_descent_VLT_label to gui_settings_descent_V_box:addlabel(UI_LANG["peggui.lbl_vlt"]).
     declare global gui_settings_descent_VLT to gui_settings_descent_V_box:addtextfield("0").
+    declare global gui_settings_descent_apprT_box to gui_settings_descent_box:addhlayout().
+    declare global gui_settings_descent_apprT_label to gui_settings_descent_apprT_box:addlabel(UI_LANG["peggui.lbl_apprT"]).
+    declare global gui_settings_descent_apprT to gui_settings_descent_apprT_box:addtextfield("0").
+
+    declare global gui_settings_desShaping_box to gui_settings_box:addvlayout().
+    declare global gui_settings_desShaping_title to gui_settings_desShaping_box:addlabel("<b>" + UI_LANG["peggui.desshaping_title"] + "</b>").
+    declare global gui_settings_desShaping_button to gui_settings_desShaping_box:addbutton(UI_LANG["peggui.apply_shaping_btn"]).
+    set gui_settings_desShaping_button:onclick to {
+        set desHShape to gui_settings_desShaping_H:text:tonumber.
+        set desLShape to gui_settings_desShaping_L:text:tonumber.
+    }.
+    declare global gui_settings_desShaping_box1 to gui_settings_desShaping_box:addhlayout().
+    declare global gui_settings_desShaping_H_label to gui_settings_desShaping_box1:addlabel(UI_LANG["peggui.shaping_aim"]).
+    declare global gui_settings_desShaping_H to gui_settings_desShaping_box1:addtextfield("0").
+    declare global gui_settings_desShaping_L_label to gui_settings_desShaping_box1:addlabel(UI_LANG["peggui.shaping_above"]).
+    declare global gui_settings_desShaping_L to gui_settings_desShaping_box1:addtextfield("0").
+    declare global gui_settings_desShaping_L_label1 to gui_settings_desShaping_box1:addlabel(UI_LANG["peggui.shaping_away"]).
 
     declare global gui_settings_engine_box to gui_settings_box:addvlayout().
     declare global gui_settings_engine_title to gui_settings_engine_box:addlabel("<b>" + UI_LANG["peggui.lbl_engine_settings"] + "</b>").
@@ -404,6 +430,9 @@ function gui_update_descent_settings_display {
     set gui_settings_descent_LT:text to desLT:tostring.
     set gui_settings_descent_VRT:text to desVRT:tostring.
     set gui_settings_descent_VLT:text to desVLT:tostring.
+    set gui_settings_descent_apprT:text to round(apprTime, 2):tostring.
+    set gui_settings_desShaping_H:text to desHShape:tostring.
+    set gui_settings_desShaping_L:text to desLShape:tostring.
 }
 
 function gui_update_engine_settings_display {
@@ -428,11 +457,20 @@ function analyze_initial_orbit {
         ).
     }
     local vecRL to target_geo:position-ship:body:position.
-    set vecRL to vecRL:normalized * (vecRL:mag + desRT).
-    local distH to abs(vDot(vecRL, unitUy)).
+    set vecRL to vecRL:normalized * (vecRL:mag + desRT + target_height).
+    // 1 round iteration to find target location after body rotation
     local etaL to etaref + __peg_get_angle(unitRref, vecRL, unitUy).
-    local vr_etaL to get_orbit_vr_at_theta(sma, ecc, etaL, mu).
-    local vt_etaL to get_orbit_vt_at_theta(sma, ecc, etaL, mu).
+    local t2ign to get_time_to_theta(sma, ecc, mu, 0, etaref, etaL).
+    set vecRL to get_ground_vecR_at_time(t2ign, vecRL, 0, vecbodyomega).
+    local distH to abs(vDot(vecRL, unitUy)).
+
+    // Gound speed
+    local _vecVRT to get_orbit_vecVR_at_theta(sma, ecc, unitUy, etaL, unitRref, etaref, mu).
+    local vecVT to _vecVRT[0].
+    local unitRT to _vecVRT[1]:normalized.
+    set vecVT to vecVT - vCrs(vecRL, vecbodyomega).  // Orbit to ground
+    local vr_etaL to vDot(vecVT, unitRT).
+    local vt_etaL to vxcl(unitRT, vecVT):mag.
     local lock v_etaL to sqrt(vr_etaL^2 + vt_etaL^2).
     local r_etaL to get_orbit_r_at_theta(sma, ecc, etaL).
     local distR to r_etaL - vecRL:mag.

@@ -32,6 +32,9 @@ declare global desRT to 0.
 declare global desLT to 0.
 declare global desVRT to 0.
 declare global desVLT to 0.
+declare global apprTime to 0.
+declare global desHShape to 0.
+declare global desLShape to 0.
 declare global TiS to R(0,0,0).  // Engine:facing:inverse * Ship:facing, default to be I matrix
 declare global f0 to 0.
 declare global ve to 0.
@@ -46,7 +49,6 @@ declare global g0 to 0.
 declare global __gap_throttle to 0.  // between phases, throttle will be locked to this value
 declare global __refT to 0.  // reference time for ship-raw reference frame
 declare global vecbodyomega to V(0, 0, 0).  // body angular velocity
-global lock lo_toInertial to angleAxis(vecbodyomega:mag*180/constant:pi*(time:seconds-__refT), -vecbodyomega:normalized).  // ship-raw to inertial reference frame
 declare global sma to 0.
 declare global ecc to 0.
 declare global unitRref to V(0, 0, 0).
@@ -101,17 +103,21 @@ function initialize_guidance {
 
     set add_approach_phase to P_PREC.
     if add_approach_phase {
-        set desRT to 100.
+        set desRT to 200.
         set desLT to 500.
-        set desVRT to 3.
-        set desVLT to 40.
+        set desVRT to 0.
+        set desVLT to 0.
+        set apprTime to 8.
     }
     else {
         set desRT to 100.
         set desLT to 0.
         set desVRT to 3.
         set desVLT to 0.
+        set apprTime to 0.
     }
+    set desHShape to 0.
+    set desLShape to 0.
 
     if P_GUI {
         set guidance_active to false.
@@ -209,16 +215,20 @@ function phase_descent {
     local vecVL_rht to V(0, 0, 0).
     function set_descent_phase_target {
         set vecRL to target_geo:position-ship:body:position.
-        set vecRL to vecRL:normalized * (vecRL:mag + desRT).
+        set vecRL to vecRL:normalized * (vecRL:mag + desRT + target_height).
         local unitTHL to vCrs(vecRL, unitUy):normalized.
         set vecRL to vecRL - unitTHL * desLT.
         set vecVL_rht to V(-desVRT, 0, desVLT).
+        // Trajectory shaping: aim above the real target
+        local _dist to (vecRL + ship:body:position):mag.
+        if (_dist > desLShape) {
+            set vecRL to vecRL:normalized * (vecRL:mag + desHShape).
+        }
     }
-    local __toInertial to lo_toInertial.
     set_descent_phase_target().
     local gst to peg_get_initial_params(
-        lexicon("vecRL", __toInertial * vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", vecbodyomega),
-        lexicon("sma", sma, "ecc", ecc, "unitUy", __toInertial * unitUy, "unitRref", __toInertial * unitRref, "etaref", etaref),
+        lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", vecbodyomega),
+        lexicon("sma", sma, "ecc", ecc, "unitUy", unitUy, "unitRref", unitRref, "etaref", etaref),
         lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1)
     ).
     if (gst = 0) {
@@ -252,17 +262,6 @@ function phase_descent {
     local ignition_time to time:seconds.
     local lock __lo_thetanow to etaref + __peg_get_angle(unitRref, -ship:body:position, unitUy).
     if not ignite_now {set ignition_time to get_time_to_theta(sma, ecc, mu, time:seconds, __lo_thetanow, theta0).}
-    // convert to body-fixed reference frame (at ignition time)
-    local __toBodyfixed to angleAxis(vecbodyomega:mag*180/constant:pi*(__refT-ignition_time), -vecbodyomega:normalized).
-    set gst["unituK"] to __toBodyfixed * gst["unituK"].
-    set gst["deruK"] to __toBodyfixed * gst["deruK"].
-    set gst["vecV0"] to __toBodyfixed * gst["vecV0"].
-    set gst["vecVF"] to __toBodyfixed * gst["vecVF"].
-    set gst["vecR0"] to __toBodyfixed * gst["vecR0"].
-    set gst["vecRF"] to __toBodyfixed * gst["vecRF"].
-    set gst["vecGAV1"] to __toBodyfixed * gst["vecGAV1"].
-    set gst["vecGAV2"] to __toBodyfixed * gst["vecGAV2"].
-    set gst["unitHref"] to __toBodyfixed * gst["unitHref"].
 
     print UI_LANG["pegmain.msg_converged"] AT(0,12).
     set guidance_status to "Waiting for ignition".
@@ -315,17 +314,17 @@ function phase_descent {
     // outer loop: update control and throttle
     local num_iter to 0.
     local _old_ground_speed to ship:groundspeed.
-    until (gst["T"] - lo_tt < 0 or ship:body:distance < vecRL:mag or ship:groundspeed < vecVL_rht:z) {
+    until (gst["T"] - lo_tt < apprTime or ship:body:distance < vecRL:mag or ship:groundspeed < vecVL_rht:z) {
         if (break_guidance_cycle) return.
         local __time_begin to time:seconds.
         set gst["T"] to gst["T"] - lo_tt.
         set gst["K"] to gst["K"] - lo_tt.
-        set gst["vecV0"] to ship:velocity:surface.
+        set gst["vecV0"] to ship:velocity:orbit.
         set gst["vecR0"] to -ship:body:position.
         set gst["throttle"] to std_throttle.
         set_descent_phase_target().
         peg_step_control(
-            lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", V(0,0,0)),
+            lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", vecbodyomega),
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
@@ -345,6 +344,7 @@ function phase_descent {
         set num_iter to num_iter + 1.
         print "Iter: "+ num_iter+", T = " + round(gst["T"]) + ", dv = " + round(__peg_get_dv(throttle_control["thrust_target"]/ship:mass, ve, gst["T"])) + "     " AT(0,14).
         print "thro = " + round(gst["throttle"], 3) + ", E = " + round(gst["vecErr"]:mag/1000, 4) + " km    " AT(0,15).
+        print "Shaping: H = " + round(desHShape, 2) + ", L = " + round(desLShape, 2) + "    " AT(0,16).
         if P_GUI {
             gui_update_status_display(lexicon(
                 "status", "descent",

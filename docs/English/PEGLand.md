@@ -77,20 +77,27 @@ The `Find landing site within` button is a more automated method that will rando
 
 ### Adjusting Descent Phase Targets
 
-Descent phase targets need to be set manually, though in most cases the default settings are sufficient. But you may need to adjust these parameters to make approach phase performance more as expected:
+Descent phase targets need to be set manually, though in most cases the default settings are sufficient. But you may need to adjust these parameters to make approach phase performance more as expected. In PEGLand, the transition condition from descent phase to approach phase is kind of complicated. Descent phase doesn't aim at the actual target, instead, it will create a virtual target nearby. You need to assign where and how fast the virtual target is, to ensure approach phase have a good start. Before your vessel reach the virtual target (`Quit Time` ahead of reaching it), the descent phase quit and approach phase (or final phase) take over.
 
 <img src=../pictures/PEGLand/des2app.jpg width=60%>
 
 ![](../pictures/PEGLand/gui_explained_destarget.png)
 
-Main descent phase targets are defined by four parameters:
+Main descent phase targets are defined by five parameters:
 
-- `RT`: Altitude above ground
+- `RT`: Height above target
 - `VRT`: Vertical descent velocity
 - `LT`: Horizontal distance from target
 - `VLT`: Horizontal velocity
+- `Quit Time`: When to finish descent phase
 
-Approach phase duration is approximately $4.5\times LT/VLT$. Longer approach phase duration wastes fuel and throttle may exceed physical limits; shorter duration may result in insufficient landing accuracy.
+Creating a good start state for approach phase can save you fuel and improve landing accuracy. When the approach phase starts, longer distance and slower horizontal speed will make approach phase longer. Longer approach phase duration wastes fuel and throttle may exceed physical limits; shorter duration may result in insufficient landing accuracy.
+
+**Descent Trajectory Shaping**
+
+When you are flying low, there is apparent risk hitting into terrain, as PEG algorithm cannot perceive obstructs along the trajectory. However, PEGLand does provide you tool to shape the trajectory. When you are still far away from the descent target, the shaping tool create a shaping target above the descent target, thus raise your trajectory. Once you've passed distance threshold, the guidance switches to descent target immediately.
+
+For example, if there is a mountain with altitude of 1.5 km in the course, 5km from the landing target, and you are sure to collide into it if you do nothing special. You can aim at several hundreds meters above the target when you are 5 km away.
 
 ## Tips
 
