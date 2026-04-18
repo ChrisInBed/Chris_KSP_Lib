@@ -4,6 +4,8 @@ Advanced guidance and control research for Kerbal Space Program.
 Chris GNC Suite is a powerful autopilot mod containing PEGLand and UEntry programs that enable precise spacecraft landings on the Moon or Earth.
 See [Installation](#installation) for installation instructions, and read the [Tutorial](./docs/English/README.md) to learn how to use it.
 
+**KSP Forum Thread:** [Chris GNC Suite](https://forum.kerbalspaceprogram.com/topic/229673-1125chris-gnc-suite-advanced-guidance-and-control-research-for-kerbal-space-program/)
+
 ![](./docs/pictures/coverpage.png)
 
 ## Videos

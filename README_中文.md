@@ -4,6 +4,8 @@
 Chris GNC Suite是一个强大的自动驾驶模组，其中包含的PEGLand和UEntry程序可以让您在月球或地球上精确着陆航天器。
 请参见[安装方法](#安装)安装模组和脚本，阅读[教程](./docs/中文/README.md)学习使用。
 
+**KSP论坛页面:** [Chris GNC Suite](https://forum.kerbalspaceprogram.com/topic/229673-1125chris-gnc-suite-advanced-guidance-and-control-research-for-kerbal-space-program/)
+
 ![](./docs/pictures/coverpage.png)
 
 ## 视频演示
