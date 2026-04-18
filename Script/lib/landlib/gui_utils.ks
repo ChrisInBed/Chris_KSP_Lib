@@ -273,7 +273,7 @@ function gui_make_peglandgui {
         local _apprT to gui_settings_descent_apprT:text:tonumber.
         if (_apprT < 0) {
             set gui_settings_descent_apprT:text to round(apprTime, 2):tostring.
-            hudtext("Descent phase quit time must be non-negative", 4, 2, 12, hudtextcolor, false).
+            hudtext(UI_LANG["peggui.hud_apprT"], 4, 2, 12, hudtextcolor, false).
         }
         else {
             set apprTime to _apprT.
@@ -290,22 +290,22 @@ function gui_make_peglandgui {
     declare global gui_settings_descent_VLT_label to gui_settings_descent_V_box:addlabel(UI_LANG["peggui.lbl_vlt"]).
     declare global gui_settings_descent_VLT to gui_settings_descent_V_box:addtextfield("0").
     declare global gui_settings_descent_apprT_box to gui_settings_descent_box:addhlayout().
-    declare global gui_settings_descent_apprT_label to gui_settings_descent_apprT_box:addlabel("Quit Time").
+    declare global gui_settings_descent_apprT_label to gui_settings_descent_apprT_box:addlabel(UI_LANG["peggui.lbl_apprT"]).
     declare global gui_settings_descent_apprT to gui_settings_descent_apprT_box:addtextfield("0").
 
     declare global gui_settings_desShaping_box to gui_settings_box:addvlayout().
-    declare global gui_settings_desShaping_title to gui_settings_desShaping_box:addlabel("<b>" + "Descent Trajectory Shaping" + "</b>").
-    declare global gui_settings_desShaping_button to gui_settings_desShaping_box:addbutton("Apply Shaping").
+    declare global gui_settings_desShaping_title to gui_settings_desShaping_box:addlabel("<b>" + UI_LANG["peggui.desshaping_title"] + "</b>").
+    declare global gui_settings_desShaping_button to gui_settings_desShaping_box:addbutton(UI_LANG["peggui.apply_shaping_btn"]).
     set gui_settings_desShaping_button:onclick to {
         set desHShape to gui_settings_desShaping_H:text:tonumber.
         set desLShape to gui_settings_desShaping_L:text:tonumber.
     }.
     declare global gui_settings_desShaping_box1 to gui_settings_desShaping_box:addhlayout().
-    declare global gui_settings_desShaping_H_label to gui_settings_desShaping_box1:addlabel("Aiming at").
+    declare global gui_settings_desShaping_H_label to gui_settings_desShaping_box1:addlabel(UI_LANG["peggui.shaping_aim"]).
     declare global gui_settings_desShaping_H to gui_settings_desShaping_box1:addtextfield("0").
-    declare global gui_settings_desShaping_L_label to gui_settings_desShaping_box1:addlabel("m above target when ").
+    declare global gui_settings_desShaping_L_label to gui_settings_desShaping_box1:addlabel(UI_LANG["peggui.shaping_above"]).
     declare global gui_settings_desShaping_L to gui_settings_desShaping_box1:addtextfield("0").
-    declare global gui_settings_desShaping_L_label1 to gui_settings_desShaping_box1:addlabel("m away").
+    declare global gui_settings_desShaping_L_label1 to gui_settings_desShaping_box1:addlabel(UI_LANG["peggui.shaping_away"]).
 
     declare global gui_settings_engine_box to gui_settings_box:addvlayout().
     declare global gui_settings_engine_title to gui_settings_engine_box:addlabel("<b>" + UI_LANG["peggui.lbl_engine_settings"] + "</b>").
