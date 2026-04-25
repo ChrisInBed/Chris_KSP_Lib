@@ -47,6 +47,8 @@ Before activating PEGLand guidance and starting iterative calculations, I strong
 - `descent distance`: Orbital altitude directly above the target landing point. Descending from too high an orbit requires the spacecraft to pitch down and accelerate to reach the ground in a limited time; for too low an orbit, the spacecraft needs to spend fuel maintaining altitude.
 - `lateral distance`: Distance of the landing point from the orbital plane. PEGLand needs to control yaw angle to correct normal errors; excessive normal distance increases fuel consumption and may even cause guidance divergence.
 
+`Analyze Orbit` takes the next maneuver node into account. If you are not in a proper landing orbit, you plan a maneuver node and hit `Analyze Orbit` again.
+
 ![](../pictures/PEGLand/gui_analyze_orbit.png)
 
 In most cases, you can complete guidance setup with one click in the PEGLand GUI and dynamically adjust parameters during landing. Basic settings include:

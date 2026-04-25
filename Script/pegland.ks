@@ -25,9 +25,9 @@ declare global add_approach_phase to false.
 declare global target_rotation to 0.
 declare global target_geo to ship:geoposition.
 declare global target_height to 0.
-declare global unitRtgt to V(0, 0, 0).
-declare global unitHtgt to V(0, 0, 0).
-declare global unitTtgt to V(0, 0, 0).
+declare global unitRtgt to up:forevector.
+declare global unitHtgt to up:topvector.
+declare global unitTtgt to up:starvector.
 declare global desRT to 0.
 declare global desLT to 0.
 declare global desVRT to 0.
@@ -76,21 +76,10 @@ function initialize_guidance {
     set start_phase to "descent".
     set guidance_status to "inactive".
 
-    set __refT to time:seconds.
-    set unitRref to -ship:body:position:normalized.
-    set etaref to ship:orbit:trueanomaly.
-    set unitUy to vCrs(ship:velocity:orbit, unitRref):normalized.
-    set vecbodyomega to -ship:body:angularVel.
-    set sma to ship:orbit:semimajoraxis.
-    set ecc to ship:orbit:eccentricity.
-    set mu to ship:body:mu.
-    set g0 to mu / ship:body:radius^2.
+    update_orbit_data().
 
     set target_rotation to 0.
     // update_target_geo().
-    set unitRtgt to (target_geo:position - body:position):normalized.
-    set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
-    set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
 
     local elist to list().
     if P_ENGINE = "current" {
@@ -129,6 +118,18 @@ function initialize_guidance {
         gui_update_descent_settings_display().
         gui_update_engine_settings_display().
     }
+}
+
+function update_orbit_data {
+    set __refT to time:seconds.
+    set unitRref to -ship:body:position:normalized.
+    set etaref to ship:orbit:trueanomaly.
+    set unitUy to vCrs(ship:velocity:orbit, unitRref):normalized.
+    set vecbodyomega to -ship:body:angularVel.
+    set sma to ship:orbit:semimajoraxis.
+    set ecc to ship:orbit:eccentricity.
+    set mu to ship:body:mu.
+    set g0 to mu / ship:body:radius^2.
 }
 
 function print_engines_simple_info {
@@ -177,6 +178,10 @@ function update_target_geo {
     local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
     set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
     set target_height to P_ADJUST:z.
+    // update reference axis at target
+    set unitRtgt to (target_geo:position - body:position):normalized.
+    set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
+    set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
     print UI_LANG["pegmain.lbl_target_pos"] + target_geo AT(0,7).
 }
 
@@ -188,17 +193,21 @@ function get_target_steering {
     return lookDirUp(burnvec, topvec) * TiS.
 }
 
-// action group 10 is for reset engine and target information
+// action group 10 is for reset engine information
 // staging can also update engine information
 on ("0"+ag10+stage:number) {
-    if (not P_GUI) {
-        set P_ADJUST to v(0,0,0).
-        update_target_geo().
-    }
     set_engine_parameters(get_active_engines()).
     if P_GUI {
-        gui_update_target_settings_display().
         gui_update_engine_settings_display().
+    }
+    return true.
+}
+
+// action group 9 is for target updating
+on (ag9) {
+    update_target_geo().
+    if P_GUI {
+        gui_update_target_settings_display().
     }
     return true.
 }
@@ -225,6 +234,7 @@ function phase_descent {
             set vecRL to vecRL:normalized * (vecRL:mag + desHShape).
         }
     }
+    update_orbit_data().
     set_descent_phase_target().
     local gst to peg_get_initial_params(
         lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", vecbodyomega),
@@ -288,7 +298,7 @@ function phase_descent {
     RCS ON.
     update_steering_target(0).
     lock steering to steering_target.
-    until time:seconds >= ignition_time - ullage_time. {
+    until time:seconds >= ignition_time - ullage_time - spooluptime. {
         update_steering_target(0).  // response to roll change by user input
         wait 0.  // wait until next physical tick
     }
@@ -323,16 +333,16 @@ function phase_descent {
         set gst["vecR0"] to -ship:body:position.
         set gst["throttle"] to std_throttle.
         set_descent_phase_target().
-        peg_step_control(
+        local _statuscode to peg_step_control(
             lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", vecbodyomega),
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
-        if (abs(gst["T"]) < 1e-6 or abs(gst["T"]) > 1e6) {
+        if (_statuscode = 0) {
             print UI_LANG["pegmain.err_peg_diverged"] AT(0, 16).
             hudtext(UI_LANG["pegmain.err_peg_diverged"], 4, 2, 12, hudtextcolor, false).
             if P_GUI {
-                ggui_update_msg_display(UI_LANG["pegmain.err_peg_diverged"]).
+                gui_update_msg_display(UI_LANG["pegmain.err_peg_diverged"]).
             }
             set guidance_active to false.
             unlock steering.
@@ -533,7 +543,7 @@ function summary_guidance {
 
 function main {
     init_print().
-    update_target_geo().
+    update_target_geo(). // we put it here outside of initialize_guidance because we want to check target after we landed
     until done {
         initialize_guidance().
         wait until guidance_active or done.

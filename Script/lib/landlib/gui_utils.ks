@@ -82,7 +82,7 @@ function gui_make_peglandgui {
 
     // emergency suppress
     gui_mainbox:addspacing(2).
-    declare global gui_emergency_button to gui_mainbox:addcheckbox("<b><size=16>" + UI_LANG["peggui.gui_emergency"] + "</size></b>").
+    declare global gui_emergency_button to gui_mainbox:addcheckbox("<b><size=16>" + UI_LANG["peggui.gui_emergency"] + "</size></b>", config:suppressautopilot).
     set gui_emergency_button:ontoggle to {
         parameter newstate.
         set config:suppressautopilot to newstate.
@@ -449,6 +449,32 @@ on guidance_status {
     return true.
 }
 
+function peg_get_orbit_element_from_VR {
+    parameter vecR.
+    parameter vecV.
+    parameter mu.
+
+    local rr to vecR:mag.
+    local vv to vecV:mag.
+    local vecH to vCrs(vecV, vecR).
+    local vecE to vCrs(vecH, vecV)/mu - vecR / rr.
+    local ecc to vecE:mag.
+    local erg to 0.5*vv^2 - mu/rr.
+    local sma to -mu/erg*0.5.
+    // local inc to arcCos(-vecH:z / vecH:mag).
+    local TA to arcCos(vDot(vecE, vecR) / (ecc * rr)).
+    if (vDot(vecR, vecV) < 0) {
+        set TA to 360 - TA.
+    }
+    return lexicon(
+        "unitRref", vecR:normalized,
+        "etaref", TA,
+        "unitUy", vecH:normalized,
+        "sma", sma,
+        "ecc", ecc
+    ).
+}
+
 function analyze_initial_orbit {
     if (abs(ve) < 1e-5 or abs(f0) < 1e-5) {
         return lexicon(
@@ -456,23 +482,44 @@ function analyze_initial_orbit {
             "msg", "No enough thrust for landing!"
         ).
     }
+    // get future orbit data
+    local _tt to 0.
+    local _vecR to v(0,0,0).
+    local _vecV to v(0,0,0).
+    if (hasNode) {
+        set _tt to nextNode:time + 5 - time:seconds.
+        set _vecR to positionAt(ship, time:seconds + _tt) - body:position.
+        set _vecV to velocityAt(ship, time:seconds + _tt):orbit.
+    }
+    else {
+        set _tt to 0.
+        set _vecR to ship:position - body:position.
+        set _vecV to ship:velocity:orbit.
+    }
+    local _obt to peg_get_orbit_element_from_VR(_vecR, _vecV, mu).
+    local _unitRref to _obt["unitRref"].
+    local _etaref to _obt["etaref"].
+    local _unitUy to _obt["unitUy"].
+    local _sma to _obt["sma"].
+    local _ecc to _obt["ecc"].
+
     local vecRL to target_geo:position-ship:body:position.
     set vecRL to vecRL:normalized * (vecRL:mag + desRT + target_height).
     // 1 round iteration to find target location after body rotation
-    local etaL to etaref + __peg_get_angle(unitRref, vecRL, unitUy).
-    local t2ign to get_time_to_theta(sma, ecc, mu, 0, etaref, etaL).
+    local etaL to _etaref + __peg_get_angle(_unitRref, vecRL, _unitUy).
+    local t2ign to get_time_to_theta(_sma, _ecc, mu, _tt, _etaref, etaL).
     set vecRL to get_ground_vecR_at_time(t2ign, vecRL, 0, vecbodyomega).
-    local distH to abs(vDot(vecRL, unitUy)).
+    local distH to abs(vDot(vecRL, _unitUy)).
 
     // Gound speed
-    local _vecVRT to get_orbit_vecVR_at_theta(sma, ecc, unitUy, etaL, unitRref, etaref, mu).
+    local _vecVRT to get_orbit_vecVR_at_theta(_sma, _ecc, _unitUy, etaL, _unitRref, _etaref, mu).
     local vecVT to _vecVRT[0].
     local unitRT to _vecVRT[1]:normalized.
     set vecVT to vecVT - vCrs(vecRL, vecbodyomega).  // Orbit to ground
     local vr_etaL to vDot(vecVT, unitRT).
     local vt_etaL to vxcl(unitRT, vecVT):mag.
     local lock v_etaL to sqrt(vr_etaL^2 + vt_etaL^2).
-    local r_etaL to get_orbit_r_at_theta(sma, ecc, etaL).
+    local r_etaL to get_orbit_r_at_theta(_sma, _ecc, etaL).
     local distR to r_etaL - vecRL:mag.
 
     local burntime to ship:mass * ve / f0 * (1 - exp(-v_etaL/ve)).

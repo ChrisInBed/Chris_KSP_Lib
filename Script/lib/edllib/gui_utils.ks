@@ -41,7 +41,7 @@ function edl_MakeEDLGUI {
         parameter newstate.
         set guidance_active to newstate.
     }.
-    declare global gui_edl_emergency_button to gui_edlmainbox:addcheckbox("<b><size=16>" + UI_LANG["uentryGui.gui_emergency"] + "</size></b>", false).
+    declare global gui_edl_emergency_button to gui_edlmainbox:addcheckbox("<b><size=16>" + UI_LANG["uentryGui.gui_emergency"] + "</size></b>", config:suppressautopilot).
     set gui_edl_emergency_button:ontoggle to {
         parameter newstate.
         set config:suppressautopilot to newstate.
@@ -406,9 +406,9 @@ function edl_MakeEDLGUI {
         local vecR to v(0,0,0).
         local vecV to v(0,0,0).
         if (hasNode) {
-            set tt to nextNode:time - time:seconds.
-            set vecR to positionAt(ship, nextNode:time + 10) - body:position.
-            set vecV to velocityAt(ship, nextNode:time + 10):orbit.
+            set tt to nextNode:time + 5 - time:seconds.
+            set vecR to positionAt(ship, time:seconds + tt) - body:position.
+            set vecV to velocityAt(ship, time:seconds + tt):orbit.
         }
         else {
             set tt to 0.
