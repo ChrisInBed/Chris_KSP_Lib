@@ -456,6 +456,7 @@ function analyze_initial_orbit {
             "msg", "No enough thrust for landing!"
         ).
     }
+    update_orbit_data().
     local vecRL to target_geo:position-ship:body:position.
     set vecRL to vecRL:normalized * (vecRL:mag + desRT + target_height).
     // 1 round iteration to find target location after body rotation

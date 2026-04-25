@@ -76,18 +76,10 @@ function initialize_guidance {
     set start_phase to "descent".
     set guidance_status to "inactive".
 
-    set __refT to time:seconds.
-    set unitRref to -ship:body:position:normalized.
-    set etaref to ship:orbit:trueanomaly.
-    set unitUy to vCrs(ship:velocity:orbit, unitRref):normalized.
-    set vecbodyomega to -ship:body:angularVel.
-    set sma to ship:orbit:semimajoraxis.
-    set ecc to ship:orbit:eccentricity.
-    set mu to ship:body:mu.
-    set g0 to mu / ship:body:radius^2.
+    update_orbit_data().
 
     set target_rotation to 0.
-    update_target_geo().
+    // update_target_geo().
 
     local elist to list().
     if P_ENGINE = "current" {
@@ -126,6 +118,18 @@ function initialize_guidance {
         gui_update_descent_settings_display().
         gui_update_engine_settings_display().
     }
+}
+
+function update_orbit_data {
+    set __refT to time:seconds.
+    set unitRref to -ship:body:position:normalized.
+    set etaref to ship:orbit:trueanomaly.
+    set unitUy to vCrs(ship:velocity:orbit, unitRref):normalized.
+    set vecbodyomega to -ship:body:angularVel.
+    set sma to ship:orbit:semimajoraxis.
+    set ecc to ship:orbit:eccentricity.
+    set mu to ship:body:mu.
+    set g0 to mu / ship:body:radius^2.
 }
 
 function print_engines_simple_info {
@@ -230,6 +234,7 @@ function phase_descent {
             set vecRL to vecRL:normalized * (vecRL:mag + desHShape).
         }
     }
+    update_orbit_data().
     set_descent_phase_target().
     local gst to peg_get_initial_params(
         lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", vecbodyomega),
@@ -538,7 +543,7 @@ function summary_guidance {
 
 function main {
     init_print().
-    update_target_geo().
+    update_target_geo(). // we put it here outside of initialize_guidance because we want to check target after we landed
     until done {
         initialize_guidance().
         wait until guidance_active or done.
