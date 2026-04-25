@@ -100,3 +100,9 @@ Major version update
 - Improved descent phase target settings, added `Quit Time` parameter
 - Fixed Bug: When press the emergency suppress button in UEntry, the flight control cannot be suppressed.
 - Fixed Bug: Minor error in reference frame transformation in PEGLand
+
+## 2026/04/26 v0.9.5
+
+- PEGLand Orbit Analysis takes maneuver node into account
+- PEGLand descent phase ignition point consider engine spool-up time
+- Fixed some problems in GUI
