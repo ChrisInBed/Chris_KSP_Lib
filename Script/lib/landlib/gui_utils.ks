@@ -507,7 +507,7 @@ function analyze_initial_orbit {
     set vecRL to vecRL:normalized * (vecRL:mag + desRT + target_height).
     // 1 round iteration to find target location after body rotation
     local etaL to _etaref + __peg_get_angle(_unitRref, vecRL, _unitUy).
-    local t2ign to get_time_to_theta(_sma, _ecc, mu, 0, _etaref, etaL).
+    local t2ign to get_time_to_theta(_sma, _ecc, mu, _tt, _etaref, etaL).
     set vecRL to get_ground_vecR_at_time(t2ign, vecRL, 0, vecbodyomega).
     local distH to abs(vDot(vecRL, _unitUy)).
 
