@@ -82,7 +82,7 @@ function gui_make_peglandgui {
 
     // emergency suppress
     gui_mainbox:addspacing(2).
-    declare global gui_emergency_button to gui_mainbox:addcheckbox("<b><size=16>" + UI_LANG["peggui.gui_emergency"] + "</size></b>").
+    declare global gui_emergency_button to gui_mainbox:addcheckbox("<b><size=16>" + UI_LANG["peggui.gui_emergency"] + "</size></b>", config:suppressautopilot).
     set gui_emergency_button:ontoggle to {
         parameter newstate.
         set config:suppressautopilot to newstate.
