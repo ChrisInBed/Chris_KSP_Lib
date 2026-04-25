@@ -406,9 +406,9 @@ function edl_MakeEDLGUI {
         local vecR to v(0,0,0).
         local vecV to v(0,0,0).
         if (hasNode) {
-            set tt to nextNode:time - time:seconds.
-            set vecR to positionAt(ship, nextNode:time + 10) - body:position.
-            set vecV to velocityAt(ship, nextNode:time + 10):orbit.
+            set tt to nextNode:time + 5 - time:seconds.
+            set vecR to positionAt(ship, time:seconds + tt) - body:position.
+            set vecV to velocityAt(ship, time:seconds + tt):orbit.
         }
         else {
             set tt to 0.
