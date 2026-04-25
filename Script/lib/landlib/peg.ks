@@ -275,6 +275,7 @@ function peg_step_control {
     local deruK to vecRGOV:normalized * omega.
     // predictor
     set vecRF to vecRD.
+    local _inumiter to 0.
     until false {
         local _last_vecRF to vecRF.
         local _magR0 to vecR0:mag.
@@ -290,6 +291,15 @@ function peg_step_control {
         if (vecRF - _last_vecRF):mag < 1 {
             break.
         }
+        set _inumiter to _inumiter + 1.
+        if (_inumiter > 32) {
+            print "PEG step diverged (G integral), check your landing orbit parameters" AT(0, 16).
+            return 0.
+        }
+    }
+    if (abs(T) < 1e-6 or abs(T) > 1e6 or abs(omega*T*180/constant:pi) > 360) {
+        print "PEG step diverged, check your landing orbit parameters" AT(0, 16).
+        return 0.  // 
     }
     // throttle routine
     local alpha to 1/(1-T/2/tau).
@@ -320,7 +330,7 @@ function peg_step_control {
     //     vecRL+"%"+vecGAV1+"%"+vecGAV2+"%"+unituK+"%"+deruK+"%"+gst["K"]+"%"+T+
     //     "%"+vecVGO+"%"+vecRGO+"%"+_integrals["Av"]+"%"+_integrals["Bvs"]+
     //     "%"+_integrals["Bvc"]+"%"+_integrals["Ar"]+"%"+_integrals["Br"] to "0:/peg_control.log".
-    return gst.
+    return 1.
 }
 
 function peg_get_burnvec {

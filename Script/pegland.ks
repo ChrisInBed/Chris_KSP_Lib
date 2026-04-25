@@ -323,16 +323,16 @@ function phase_descent {
         set gst["vecR0"] to -ship:body:position.
         set gst["throttle"] to std_throttle.
         set_descent_phase_target().
-        peg_step_control(
+        local _statuscode to peg_step_control(
             lexicon("vecRL", vecRL, "vecVL_rht", vecVL_rht, "vecbodyomega", vecbodyomega),
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
-        if (abs(gst["T"]) < 1e-6 or abs(gst["T"]) > 1e6) {
+        if (_statuscode = 0) {
             print UI_LANG["pegmain.err_peg_diverged"] AT(0, 16).
             hudtext(UI_LANG["pegmain.err_peg_diverged"], 4, 2, 12, hudtextcolor, false).
             if P_GUI {
-                ggui_update_msg_display(UI_LANG["pegmain.err_peg_diverged"]).
+                gui_update_msg_display(UI_LANG["pegmain.err_peg_diverged"]).
             }
             set guidance_active to false.
             unlock steering.
