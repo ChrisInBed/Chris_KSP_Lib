@@ -25,9 +25,9 @@ declare global add_approach_phase to false.
 declare global target_rotation to 0.
 declare global target_geo to ship:geoposition.
 declare global target_height to 0.
-declare global unitRtgt to V(0, 0, 0).
-declare global unitHtgt to V(0, 0, 0).
-declare global unitTtgt to V(0, 0, 0).
+declare global unitRtgt to up:forevector.
+declare global unitHtgt to up:topvector.
+declare global unitTtgt to up:starvector.
 declare global desRT to 0.
 declare global desLT to 0.
 declare global desVRT to 0.
@@ -87,10 +87,7 @@ function initialize_guidance {
     set g0 to mu / ship:body:radius^2.
 
     set target_rotation to 0.
-    // update_target_geo().
-    set unitRtgt to (target_geo:position - body:position):normalized.
-    set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
-    set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
+    update_target_geo().
 
     local elist to list().
     if P_ENGINE = "current" {
@@ -177,6 +174,10 @@ function update_target_geo {
     local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
     set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
     set target_height to P_ADJUST:z.
+    // update reference axis at target
+    set unitRtgt to (target_geo:position - body:position):normalized.
+    set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
+    set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
     print UI_LANG["pegmain.lbl_target_pos"] + target_geo AT(0,7).
 }
 
@@ -188,17 +189,21 @@ function get_target_steering {
     return lookDirUp(burnvec, topvec) * TiS.
 }
 
-// action group 10 is for reset engine and target information
+// action group 10 is for reset engine information
 // staging can also update engine information
 on ("0"+ag10+stage:number) {
-    if (not P_GUI) {
-        set P_ADJUST to v(0,0,0).
-        update_target_geo().
-    }
     set_engine_parameters(get_active_engines()).
     if P_GUI {
-        gui_update_target_settings_display().
         gui_update_engine_settings_display().
+    }
+    return true.
+}
+
+// action group 9 is for target updating
+on (ag9) {
+    update_target_geo().
+    if P_GUI {
+        gui_update_target_settings_display().
     }
     return true.
 }
