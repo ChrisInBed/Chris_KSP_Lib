@@ -288,7 +288,7 @@ function phase_descent {
     RCS ON.
     update_steering_target(0).
     lock steering to steering_target.
-    until time:seconds >= ignition_time - ullage_time. {
+    until time:seconds >= ignition_time - ullage_time - spooluptime. {
         update_steering_target(0).  // response to roll change by user input
         wait 0.  // wait until next physical tick
     }
