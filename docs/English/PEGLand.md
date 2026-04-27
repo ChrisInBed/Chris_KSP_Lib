@@ -6,7 +6,7 @@ Reference: [An explicit solution to the exoatmospheric powered flight guidance a
 
 ## Algorithm Principles
 
-From a proper pre-landing orbit, PEGLand ignite the engines
+From a proper pre-landing orbit, PEGLand ignite the engines and guide the lander until it lands on celestial surface safe and sound.
 
 PEGLand contains three guidance phases:
 
@@ -109,7 +109,7 @@ For example, if there is a mountain with altitude of 1.5 km in the course, 5km f
 
    <img src=../pictures/PEGLand/waypointmanager.png width=60%>
 
-3. For non-throttling engines or engines with limited throttling ability, unfortunately I cannot guarantee landing accuracy (neither can the geniuses at NASA), but you can simulate a landing once in Kerbal, then adjust the landing point based on landing error, which can reduce error to 100 meters;
+3. For non-throttling engines or engines with limited throttling ability, unfortunately I cannot guarantee landing accuracy (neither can the geniuses at NASA), but you can simulate landing once, then adjust the landing point based on landing error, which can reduce error to 100 meters. If you have brought RCS on ship it would be much easier. You can manually fire RCS engines forward or backward to simulate engine throttling, keeping the predicted error displayed on PEGLand near zero. This won't consume you a lot RCS fuel;
 
 4. If the lower bound of thrust-to-weight ratio at final landing is too high, be careful - this might be more dangerous than Falcon 9's suicide burn;
 
