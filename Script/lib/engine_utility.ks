@@ -3,7 +3,7 @@ function get_engines_info {
 	// calculate thrust and ISP and minimal throttle
 	local _thrustvec to v(0, 0, 0).
 	local _Isp to 0.0.
-	local _minthrottle to 0.0.
+	local _minthrustvec to v(0, 0, 0).
 	local _ullage to false.
 	local _number to 0.
 	local _spooluptime to 0.
@@ -11,8 +11,8 @@ function get_engines_info {
 	for e in elist {
 		set _number to _number + 1.
 		set _thrustvec to _thrustvec + e:possiblethrust * e:facing:vector.
-		set _Isp to _Isp + (e:possiblethrust/max(100, e:visp)).
-		set _minthrottle to max(_minthrottle, e:minthrottle).
+		set _minthrustvec to _minthrustvec + e:possiblethrust * e:facing:vector * e:minthrottle.
+		set _Isp to _Isp + (e:possiblethrust/max(1e-3, e:visp)).
 		if e:ullage { set _ullage to true. }
 		// RealFuel information: spool up time
 		if e:hasmodule("ModuleEnginesRF") {
@@ -27,7 +27,8 @@ function get_engines_info {
 	local _topvector to vCrs(_thrustvec, _facing:starvector):normalized.
 	local _RotT to lookDirUp(_thrustvec, _topvector).
 	local TiS to _RotT:inverse * _facing.
-	if _thrust < 1e-4 return lexicon("number", _number, "TiS", TiS, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", false, "spooluptime", 0.0).
+	if _thrust < 1e-4 return lexicon("number", _number, "TiS", TiS, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", 1.0, "ullage", false, "spooluptime", 0.0).
+	local _minthrottle to _minthrustvec:mag / _thrust.
 	set _Isp to _thrust / _Isp.
 	return lexicon("number", _number, "TiS", TiS, "thrust", _thrust, "thrustVec", _thrustvec, "ISP", _Isp, "minthrottle", _minthrottle, "ullage", _ullage, "spooluptime", _spooluptime).
 }
@@ -103,7 +104,7 @@ function get_active_engines {
 	list engines in elist.
 	local matched_engines to list().
 	for e in elist {
-		if (e:ignition) {
+		if (e:ignition and (not e:flameout)) {
 			matched_engines:add(e).
 		}
 	}
