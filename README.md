@@ -1,10 +1,23 @@
 # Chris GNC Suite
 Advanced guidance and control research for Kerbal Space Program.
 
-Chris GNC Suite is a powerful autopilot mod containing PEGLand and UEntry programs that enable precise spacecraft landings on the Moon or Earth.
+Chris GNC Suite is a powerful autopilot mod containing PEGLand and UEntry programs that enable precise spacecraft landings on the Moon or Earth. It is based on kOS, a scipt language and interpreter for KSP autopilot. This mod is capable of:
+
+- Fuel optimal, precise, realisctic (just like Apollo) and safe powered pin-point landing on the Moon, or any other celectials without atmosphere, with almost any proper lander designs;
+- Mild, precise, realistic lifting reentry guidance back to runway on the Earth, or any other celectials with a decent atmosphere, with spaceplanes or reentry capsules;
+- High precision maneuver node executor, for both stock and Principia nodes.
+
+Though frontends of Chris GNC Suite is written in kOS, but you don't have to learn kOS script grammar. PEGLand and UEntry applications comes with user-friendly GUIs.
+
 See [Installation](#installation) for installation instructions, and read the [Tutorial](./docs/English/README.md) to learn how to use it.
 
 **KSP Forum Thread:** [Chris GNC Suite](https://forum.kerbalspaceprogram.com/topic/229673-1125chris-gnc-suite-advanced-guidance-and-control-research-for-kerbal-space-program/)
+
+If you have any thouble using it, don't hesitate to open an issue, or contact me via:
+
+- Discord: bilbo_04_71051
+- [Discord KSP-RO server](https://discord.gg/cxxHuGywV): @Chris in RP-1 general
+- Email: gchrispan@gmail.com
 
 ![](./docs/pictures/coverpage.png)
 
