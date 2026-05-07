@@ -1,5 +1,8 @@
 # PEGLand: 定点动力着陆制导
 
+> [!CAUTION]
+> 当你在kOS终端输入`pegland`时，Atmosphere Autopilot (AA) 模组会因为你敲下了字母`[P]`而被激活，导致姿态控制摇摆振荡。你可以再次敲下字母`[P]`解除AA的飞控，或者为它更换快捷键。
+
 `pegland`是这个模组中最精彩的程序之一，从1980s NASA为航天飞机项目开发的PEG发射制导算法修改而来，实现真空环境下燃料最优的定点着陆。
 
 参考文献：[An explicit solution to the exoatmospheric powered flight guidance and trajectory optimization problem for rocket propelled vehicles | Guidance, Navigation, and Control and Co-located Conferences](https://arc.aiaa.org/doi/10.2514/6.1977-1051)
