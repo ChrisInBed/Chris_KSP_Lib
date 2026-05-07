@@ -106,3 +106,7 @@ Major version update
 - PEGLand Orbit Analysis takes maneuver node into account
 - PEGLand descent phase ignition point consider engine spool-up time
 - Fixed some problems in GUI
+
+## 2026/05/07 v0.9.6
+
+- Improve Isp calculation for hybrid engine configuration
