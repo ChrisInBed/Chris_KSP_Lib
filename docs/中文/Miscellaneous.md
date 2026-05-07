@@ -3,6 +3,9 @@
 - `exe_node`执行Principia机动节点，点火从节点位置开始，始终跟随目标燃烧矢量
 - `exe_pulse_node`执行stock机动节点，点火从节点位置前`T/2`时刻开始
 
+> [!CAUTION]
+> 当你在kOS终端输入`exe_pulse_node`时，Atmosphere Autopilot (AA) 模组会因为你敲下了字母`[P]`而被激活，导致姿态控制摇摆振荡。你可以再次敲下字母`[P]`解除AA的飞控，或者为它更换快捷键。
+
 `exe_node`和`exe_pulse_node`是两个适用于Principia或原版环境下的高精度机动节点执行程序。相比于其他自动驾驶mod，这两个脚本有更为强大的能力：
 
 - 执行的ΔV更为精确。它们不采用计时的方法，而是在内部维护一个ΔV积分器直接精确监测燃烧过程中积攒的ΔV；
