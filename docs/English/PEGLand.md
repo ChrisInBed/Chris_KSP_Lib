@@ -1,5 +1,8 @@
 # PEGLand: Pinpoint Powered Landing Guidance
 
+> [!CAUTION]
+> When you type `pegland` into kOS terminal, Atmosphere Autopilot (AA) might be activated on its default keybinding `[P]`, causing flight control wobbling. You can press `[P]` another time to deactivate AA, or change keybindings.
+
 `pegland` is one of the most exciting programs in this mod, adapted from the PEG launch guidance algorithm developed by NASA in the 1980s for the Space Shuttle program, achieving fuel-optimal pinpoint landing in a vacuum environment.
 
 Reference: [An explicit solution to the exoatmospheric powered flight guidance and trajectory optimization problem for rocket propelled vehicles | Guidance, Navigation, and Control and Co-located Conferences](https://arc.aiaa.org/doi/10.2514/6.1977-1051)
