@@ -495,7 +495,7 @@ function phase_final {
                 wait 0.
             }
             set ship:control:translation to TiS:inverse * V(0, 0, 1).  // ullage control
-            until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime)-0.5*g0*(spooluptime)^2, vrT, lo_af1, lo_af2, T2) {wait 0.}
+            until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(_spooluptime)-0.5*g0*(_spooluptime)^2, vrT, lo_af1, lo_af2, T2) {wait 0.}
         }
     }
     local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).

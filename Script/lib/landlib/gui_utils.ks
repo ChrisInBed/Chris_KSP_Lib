@@ -154,6 +154,16 @@ function gui_make_peglandgui {
         set target_geo to _target_geo.
         gui_update_target_settings_display().
     }.
+    declare global gui_settings_target_impact_button to gui_settings_target_button_box1:addbutton(UI_LANG["peggui.btn_use_impact"]).
+    set gui_settings_target_impact_button:onclick to {
+        local _info to get_impact_geo().
+        if (not _info["ok"]) {
+            hudtext(_info["msg"], 4, 2, 12, hudtextcolor, false).
+            return.
+        }
+        set target_geo to _info["geo"].
+        gui_update_target_settings_display().
+    }.
     declare global gui_settings_target_show_button to gui_settings_target_button_box1:addcheckbox(UI_LANG["peggui.gui_show_target"], false).
     set gui_settings_target_show_button:ontoggle to {
         parameter newstate.
