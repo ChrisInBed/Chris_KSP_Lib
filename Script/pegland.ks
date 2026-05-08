@@ -484,13 +484,18 @@ function phase_final {
     lock lo_af2 to lo_final_throttle * f0 / ship:mass.
     local T2 to 5.
 
+    local _spooluptime to spooluptime + 0.3.  // Due to unknown deviations, we decide to give more margin to this
     if (not add_approach_phase) {
-        if (not terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2)) {
+        if (not terminal_time_to_fire(_height+ship:verticalspeed*(_spooluptime+ullage_time)-0.5*g0*(_spooluptime+ullage_time)^2, vrT, lo_af1, lo_af2, T2)) {
             // waiting for ignition
             lock throttle to 0.
-            until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2) {wait 0.}
+            until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(_spooluptime+ullage_time)-0.5*g0*(_spooluptime+ullage_time)^2, vrT, lo_af1, lo_af2, T2) {
+                print "H0 = " + round(_height, 1) + "     " AT(0, 14).
+                print "H1 = " + round(_height+ship:verticalspeed*(_spooluptime+ullage_time)-0.5*g0*(_spooluptime+ullage_time)^2, 1) + "     " AT(0, 15).
+                wait 0.
+            }
             set ship:control:translation to TiS:inverse * V(0, 0, 1).  // ullage control
-            until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime), vrT, lo_af1, lo_af2, T2) {wait 0.}
+            until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime)-0.5*g0*(spooluptime)^2, vrT, lo_af1, lo_af2, T2) {wait 0.}
         }
     }
     local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).

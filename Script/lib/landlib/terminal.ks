@@ -33,6 +33,14 @@ function __terminal_get_deltar {
         local _T to (vrT-vr0+_uc)/af1.
         set deltar to vr0*_T + af1*_T^2/2 - _uc*(_T - tc/3) + _deltar2.
     }
+    // if (vr0 >= 0) return list(0, 0).  // start only in falling
+    // local af to af1 + __TERMINAL_g0.
+    // local tc to v0 / __TERMINAL_g0 / (1 - vr0 / (v0+0.001)).
+    // local _uc to af*tc*(1+vr0/v0)/2.
+    // local _T to (vrT-vr0+_uc)/(af-__TERMINAL_g0).
+    // set deltar to vr0*_T + (af-__TERMINAL_g0)*_T^2/2 - _uc*(_T - tc/3).
+    // set _stage to 1.
+    // set deltar to (vrT*vrT - vr0*vr0) * 0.5 / af1.
     // print "deltar=" + round(deltar, 3) + " stage=" + _stage AT(0, 13).
 
     return list(_stage, deltar).
@@ -53,7 +61,10 @@ function terminal_time_to_fire {
     parameter vrT.
     parameter af1, af2, T2.
     if (ship:verticalspeed >= 0) return false.  // start only in falling
-    return height + __terminal_get_deltar(vrT, af1, af2, T2)[1] < 0.
+    local predheight to height + __terminal_get_deltar(vrT, af1, af2, T2)[1].
+    print "H2 = " + round(predheight, 1) + "     " AT(0, 16).
+    return predheight < 0.
+    // return height + __terminal_get_deltar(vrT, af1, af2, T2)[1] < 0.
 }
 
 function terminal_step_control {
@@ -73,13 +84,16 @@ function terminal_step_control {
     local _throttle_target to final_throttle.
     if _res[0] = 1 {set _throttle_target to std_throttle.}
     local deltar to _res[1].
+    print "H2 = " + round(height + deltar, 1) + "     " AT(0, 16).
     if (__TERMINAL_uplock or (ship:groundspeed < 0.1 and height < 3)) {
         set __TERMINAL_uplock to true.
         set thro_plan to _throttle_target * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
+        print "T1 = " + round(_throttle_target, 2) + ", T2 = " + round(thro_plan, 2) + "    " AT(0, 17).
         set fvec_plan to up:forevector.
     }
     else {
         set thro_plan to _throttle_target * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
+        print "T1 = " + round(_throttle_target, 2) + ", T2 = " + round(thro_plan, 2) + "    " AT(0, 17).
         set fvec_plan to terminal_get_fvec().
     }
     set thro_plan to max(thro_min, min(thro_max, thro_plan)).
