@@ -1,6 +1,6 @@
 runOncePath("0:/lib/locales/utils.ks").
 parameter P_GUI to true.
-parameter P_PREC to false.
+parameter P_PREC to "auto".
 parameter P_NOWAIT is false.
 parameter P_ADJUST is v(0, 0, 0).
 parameter P_ENGINE is "current".
@@ -90,7 +90,10 @@ function initialize_guidance {
     }
     set_engine_parameters(elist).
 
-    set add_approach_phase to P_PREC.
+    if (P_PREC = "auto") {
+        set add_approach_phase to f0*thro_min/ship:mass < 0.6 * g0.
+    }
+    else set add_approach_phase to P_PREC.
     if add_approach_phase {
         set desRT to 200.
         set desLT to 500.
