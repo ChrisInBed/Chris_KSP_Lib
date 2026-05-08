@@ -173,8 +173,9 @@ function update_target_geo {
     local _target_geo to get_target_geo().
     if _target_geo = 0 {
         hudtext(UI_LANG["pegmain.err_no_waypoint"], 4, 2, hudtextsize, hudtextcolor, false).
-        set target_geo to ship:geoposition.
-        set target_height to 0.
+        local _impactInfo to get_impact_geo().
+        if (_impactInfo["ok"]) set target_geo to _impactInfo["geo"].
+        else set target_geo to ship:geoposition.
         return.
     }
     set target_geo to _target_geo.

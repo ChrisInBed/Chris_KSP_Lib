@@ -110,3 +110,10 @@ Major version update
 ## 2026/05/07 v0.9.6
 
 - Improve Isp calculation for hybrid engine configuration
+
+## 2026/05/08 v0.9.7
+
+- PEGLand
+  - Autodetection for hovering ability and whether to add approch phase
+  - Improve final phase, using trinomial approximation for thrust integrals
+  - Add "use impact point as target" function, ease suborbital landing

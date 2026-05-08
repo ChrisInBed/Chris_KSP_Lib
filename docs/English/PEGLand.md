@@ -68,7 +68,9 @@ In most cases, you can complete guidance setup with one click in the PEGLand GUI
 
 ### Adjusting the Landing Point
 
-You can click `current waypoint` or manually enter the landing point latitude and longitude, **and click `update target`** to set the landing point. During landing, if you find the original landing point unsuitable, PEGLand also provides a very convenient visual adjustment function. Click `show target` to display the landing position on the HUD, then click the adjustment buttons to move the landing point forward, backward, left, right, or in cardinal directions. The distance moved with each click can be set in `Moving step`.
+On wakeup, PEGLand automatically read activated waypoint as landing target. If there is no activated waypoint, then it will try to find the impact point. If that fails again, then you need to set it manually.
+
+You can click `use current waypoint`, or `use impact point` or manually enter the landing point latitude and longitude, **and click `update target`** to set the landing point. During landing, if you find the original landing point unsuitable, PEGLand also provides a very convenient visual adjustment function. Click `show target` to display the landing position on the HUD, then click the adjustment buttons to move the landing point forward, backward, left, right, or in cardinal directions. The distance moved with each click can be set in `Moving step`.
 
 The `Find landing site within` button is a more automated method that will randomly sample points within a certain range around the original target and find the flattest landing site. It will also tell you the slope of the new landing site.
 
@@ -76,6 +78,7 @@ The `Find landing site within` button is a more automated method that will rando
 
 **Note:**
 
+- If you are in impacting orbit, using impact point as target might be a good choice. Or you can just start from final phase to perform an untargeted suicide burn landing
 - Only descent and approach phases allow landing point adjustments
 - Excessive landing point adjustments may cause guidance divergence
 - Try to adjust when still far from the landing point
