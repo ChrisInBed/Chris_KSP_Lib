@@ -484,7 +484,7 @@ function phase_final {
     lock lo_af2 to lo_final_throttle * f0 / ship:mass.
     local T2 to 5.
 
-    local _spooluptime to spooluptime + 0.3.  // Due to unknown deviations, we decide to give more margin to this
+    local _spooluptime to spooluptime + 0.5.  // Due to unknown deviations, we decide to give more margin to this
     if (not add_approach_phase) {
         if (not terminal_time_to_fire(_height+ship:verticalspeed*(_spooluptime+ullage_time)-0.5*g0*(_spooluptime+ullage_time)^2, vrT, lo_af1, lo_af2, T2)) {
             // waiting for ignition
