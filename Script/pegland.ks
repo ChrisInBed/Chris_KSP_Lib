@@ -25,9 +25,6 @@ declare global add_approach_phase to false.
 declare global target_rotation to 0.
 declare global target_geo to ship:geoposition.
 declare global target_height to 0.
-// declare global unitRtgt to up:forevector.
-// declare global unitHtgt to up:topvector.
-// declare global unitTtgt to up:starvector.
 declare global desRT to 0.
 declare global desLT to 0.
 declare global desVRT to 0.
@@ -184,10 +181,6 @@ function update_target_geo {
     local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
     set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
     set target_height to P_ADJUST:z.
-    // update reference axis at target
-    // set unitRtgt to (target_geo:position - body:position):normalized.
-    // set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
-    // set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
     print UI_LANG["pegmain.lbl_target_pos"] + target_geo AT(0,7).
 }
 
