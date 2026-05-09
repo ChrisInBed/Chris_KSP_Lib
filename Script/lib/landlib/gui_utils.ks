@@ -181,13 +181,13 @@ function gui_make_peglandgui {
     declare global gui_settings_target_button_box2 to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_left to gui_settings_target_button_box2:addbutton("←").
     set gui_settings_target_left:onclick to {
-        local new_pos to target_geo:position - gui_settings_target_step:text:tonumber * unitHtgt.
+        local new_pos to target_geo:position - gui_settings_target_step:text:tonumber * srfPrograde:starvector.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
     declare global gui_settings_target_right to gui_settings_target_button_box2:addbutton("→").
     set gui_settings_target_right:onclick to {
-        local new_pos to target_geo:position + gui_settings_target_step:text:tonumber * unitHtgt.
+        local new_pos to target_geo:position + gui_settings_target_step:text:tonumber * srfPrograde:starvector.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
@@ -206,12 +206,16 @@ function gui_make_peglandgui {
     declare global gui_settings_target_button_box3 to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_forward to gui_settings_target_button_box3:addbutton("↑").
     set gui_settings_target_forward:onclick to {
+        local unitRtgt to (target_geo:position - body:position):normalized.
+        local unitTtgt to vCrs(srfPrograde:starvector, unitRtgt):normalized.
         local new_pos to target_geo:position + gui_settings_target_step:text:tonumber * unitTtgt.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
     declare global gui_settings_target_backward to gui_settings_target_button_box3:addbutton("↓").
     set gui_settings_target_backward:onclick to {
+        local unitRtgt to (target_geo:position - body:position):normalized.
+        local unitTtgt to vCrs(srfPrograde:starvector, unitRtgt):normalized.
         local new_pos to target_geo:position - gui_settings_target_step:text:tonumber * unitTtgt.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().

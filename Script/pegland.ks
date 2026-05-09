@@ -25,9 +25,9 @@ declare global add_approach_phase to false.
 declare global target_rotation to 0.
 declare global target_geo to ship:geoposition.
 declare global target_height to 0.
-declare global unitRtgt to up:forevector.
-declare global unitHtgt to up:topvector.
-declare global unitTtgt to up:starvector.
+// declare global unitRtgt to up:forevector.
+// declare global unitHtgt to up:topvector.
+// declare global unitTtgt to up:starvector.
 declare global desRT to 0.
 declare global desLT to 0.
 declare global desVRT to 0.
@@ -54,6 +54,7 @@ declare global ecc to 0.
 declare global unitRref to V(0, 0, 0).
 declare global unitUy to V(0, 0, 0).
 declare global etaref to 0.
+declare global bound_box to ship:bounds.
 declare global hudtextsize to 15.
 declare global hudtextcolor to RGB(22/255, 255/255, 22/255).
 // set steeringManager:showfacingvectors to true.
@@ -77,6 +78,7 @@ function initialize_guidance {
     set guidance_status to "inactive".
 
     update_orbit_data().
+    set bound_box to ship:bounds.
 
     set target_rotation to 0.
     // update_target_geo().
@@ -183,9 +185,9 @@ function update_target_geo {
     set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
     set target_height to P_ADJUST:z.
     // update reference axis at target
-    set unitRtgt to (target_geo:position - body:position):normalized.
-    set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
-    set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
+    // set unitRtgt to (target_geo:position - body:position):normalized.
+    // set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
+    // set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
     print UI_LANG["pegmain.lbl_target_pos"] + target_geo AT(0,7).
 }
 
@@ -214,6 +216,11 @@ on (ag9) {
         gui_update_target_settings_display().
     }
     return true.
+}
+
+// action group 8 is for bounding box updating
+on ("0"+ag8+stage:number) {
+    set bound_box to ship:bounds.
 }
 
 function phase_descent {
@@ -479,7 +486,7 @@ function phase_final {
     terminal_init().
     lock lo_fvec to terminal_get_fvec().
     lock steering to get_target_steering(lo_fvec, target_rotation).
-    local bound_box to ship:bounds.
+    set bound_box to ship:bounds.
     lock _height to bound_box:bottomaltradar - target_height.
     local vrT to -0.05.  // 5 cm/s downward
     local _extra_g to 0.2.
