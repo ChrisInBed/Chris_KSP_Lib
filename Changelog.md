@@ -117,3 +117,8 @@ Major version update
   - Autodetection for hovering ability and whether to add approch phase
   - Improve final phase, using trinomial approximation for thrust integrals
   - Add "use impact point as target" function, ease suborbital landing
+
+## 2026/05/09 v0.9.8
+
+- PEGLand: Fixed issue: sometimes you cannot manually move target landing site left/right/forward/backward
+- PEGLand: Update bounding box while staging to ensure landing safety
