@@ -26,6 +26,16 @@ Chris GNC Suite是一个强大的自动驾驶模组，其中包含的PEGLand和U
 
 ## 视频演示
 
+> [!NOTE]
+> 这些只是简短的演示视频，仍然推荐阅读文字版教程，它们的内容更全面。
+
+### YouTube
+
+- [[KSP]PEGLand: Graceful and Precise Powered Landing Autopilot](https://www.youtube.com/watch?v=zdxEXBxVh9Y)
+- [[KSP]UEntry: General Purpose Lifting Reentry Autopilot](https://www.youtube.com/watch?v=50bq9pkTl-I)
+
+### Bilibili
+
 - [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
 - [[KSP/RSS/RO]PEGLand v0.3: 早期探测器一键自动定点落月](https://www.bilibili.com/video/BV1ZJdZY6EwE)
 - [[KSP/RSS/RO]PEGLand v0.3阿波罗登月特别版：厘米级优雅着陆](https://www.bilibili.com/video/BV1wGdZYjEgm)

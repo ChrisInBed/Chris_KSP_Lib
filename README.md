@@ -23,6 +23,16 @@ If you have any thouble using it, don't hesitate to open an issue, or contact me
 
 ## Videos
 
+> [!NOTE]
+> These are brief introductions for this mod. I still recommend you to read text tutorials as they are more comprehensive.
+
+### YouTube
+
+- [[KSP]PEGLand: Graceful and Precise Powered Landing Autopilot](https://www.youtube.com/watch?v=zdxEXBxVh9Y)
+- [[KSP]UEntry: General Purpose Lifting Reentry Autopilot](https://www.youtube.com/watch?v=50bq9pkTl-I)
+
+### Bilibili
+
 - [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
 - [[KSP/RSS/RO]PEGLand v0.3: 早期探测器一键自动定点落月](https://www.bilibili.com/video/BV1ZJdZY6EwE)
 - [[KSP/RSS/RO]PEGLand v0.3阿波罗登月特别版：厘米级优雅着陆](https://www.bilibili.com/video/BV1wGdZYjEgm)
