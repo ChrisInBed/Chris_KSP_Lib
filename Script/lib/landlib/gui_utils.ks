@@ -222,12 +222,14 @@ function gui_make_peglandgui {
     }.
     declare global gui_settings_target_east to gui_settings_target_button_box3:addbutton("E").
     set gui_settings_target_east:onclick to {
+        local unitRtgt to (target_geo:position - body:position):normalized.
         local new_pos to target_geo:position + gui_settings_target_step:text:tonumber * vCrs(unitRtgt, north:forevector):normalized.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
     declare global gui_settings_target_west to gui_settings_target_button_box3:addbutton("W").
     set gui_settings_target_west:onclick to {
+        local unitRtgt to (target_geo:position - body:position):normalized.
         local new_pos to target_geo:position - gui_settings_target_step:text:tonumber * vCrs(unitRtgt, north:forevector):normalized.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
