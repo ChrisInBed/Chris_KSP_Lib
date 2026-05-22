@@ -33,6 +33,7 @@ Chris GNC Suite是一个强大的自动驾驶模组，其中包含的PEGLand和U
 
 - [[KSP]PEGLand: Graceful and Precise Powered Landing Autopilot](https://www.youtube.com/watch?v=zdxEXBxVh9Y)
 - [[KSP]UEntry: General Purpose Lifting Reentry Autopilot](https://www.youtube.com/watch?v=50bq9pkTl-I)
+- [[KSP]UEntry: Apollo Precision Skip-reentry from the Moon](https://www.youtube.com/watch?v=iLDDLfczL_4)
 
 ### Bilibili
 
