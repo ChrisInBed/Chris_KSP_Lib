@@ -71,6 +71,9 @@ switch to 0.  // Switch to the flight center's document system
 run uentry.  // Run UEntry
 ```
 
+> [!NOTE]
+> When you type `uentry` into kOS terminal, NavHud might be activated on its default keybinding `[Y]`, displaying reference lines on flight view. You can press `[Y]` another time to deactivate NavHud, or change keybindings.
+
 Use the Waypoint Manager mod to set and activate a waypoint, which should be located near the orbital plane. Then in the UEntry interface's `Target` section, set reasonable terminal altitude, velocity, and distance and bearing from the target point. The meaning in the figure below is: the reentry segment target is located at 280° bearing (10° north of west) 50 kilometers from the activated waypoint, altitude 20 kilometers, velocity 500m/s.
 
 After setting, click `Update Target` to update the reentry segment target.

@@ -2,9 +2,25 @@
 坎巴拉太空计划先进制导控制研究。
 
 Chris GNC Suite是一个强大的自动驾驶模组，其中包含的PEGLand和UEntry程序可以让您在月球或地球上精确着陆航天器。
+
+- 实现燃料最优、精确、真实（如同阿波罗计划）且安全的动力定点着陆，适用于月球或任何其他无大气层的天体，几乎支持所有合适的着陆器设计；
+
+- 为航天飞机或返回舱提供温和、精确且真实的升力再入引导，帮你把飞行器飞回航天中心，或任意其他有合适大气层的星球上的基地；
+
+- 高精度机动节点执行器，支持原版节点和 Principia 节点。
+
+虽然 Chris GNC Suite 的前端使用 kOS 编写，但您无需学习 kOS 脚本语法。PEGLand 和 UEntry 应用程序都配备了用户友好的图形化界面。
+
 请参见[安装方法](#安装)安装模组和脚本，阅读[教程](./docs/中文/README.md)学习使用。
 
 **KSP论坛页面:** [Chris GNC Suite](https://forum.kerbalspaceprogram.com/topic/229673-1125chris-gnc-suite-advanced-guidance-and-control-research-for-kerbal-space-program/)
+
+如果你在使用中遇到了问题，请在Github提一个issue，或者通过以下渠道联系我：
+
+- QQ群: 839542496，请在群里@Chris
+- Discord: bilbo_04_71051
+- [Discord KSP-RO server](https://discord.gg/cxxHuGywV): @Chris in RP-1 general
+- Email: gchrispan@gmail.com
 
 ![](./docs/pictures/coverpage.png)
 
@@ -13,6 +29,17 @@ Chris GNC Suite是一个强大的自动驾驶模组，其中包含的PEGLand和U
 - **PEGAS**: 来自 [Noiredd](https://github.com/Noiredd/PEGAS) 的火箭发射制导脚本
 
 ## 视频演示
+
+> [!NOTE]
+> 这些只是简短的演示视频，仍然推荐阅读文字版教程，它们的内容更全面。
+
+### YouTube
+
+- [[KSP]PEGLand: Graceful and Precise Powered Landing Autopilot](https://www.youtube.com/watch?v=zdxEXBxVh9Y)
+- [[KSP]UEntry: General Purpose Lifting Reentry Autopilot](https://www.youtube.com/watch?v=50bq9pkTl-I)
+- [[KSP]UEntry: Apollo Precision Skip-reentry from the Moon](https://www.youtube.com/watch?v=iLDDLfczL_4)
+
+### Bilibili
 
 - [[KSP/RSS/RO]PEGLand: 你也许能找到的最方便的定点着陆脚本](https://www.bilibili.com/video/BV1wDd2YDEf1)
 - [[KSP/RSS/RO]PEGLand v0.3: 早期探测器一键自动定点落月](https://www.bilibili.com/video/BV1ZJdZY6EwE)

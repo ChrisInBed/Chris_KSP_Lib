@@ -1,6 +1,6 @@
 runOncePath("0:/lib/locales/utils.ks").
 parameter P_GUI to true.
-parameter P_PREC to false.
+parameter P_PREC to "auto".
 parameter P_NOWAIT is false.
 parameter P_ADJUST is v(0, 0, 0).
 parameter P_ENGINE is "current".
@@ -25,9 +25,6 @@ declare global add_approach_phase to false.
 declare global target_rotation to 0.
 declare global target_geo to ship:geoposition.
 declare global target_height to 0.
-declare global unitRtgt to up:forevector.
-declare global unitHtgt to up:topvector.
-declare global unitTtgt to up:starvector.
 declare global desRT to 0.
 declare global desLT to 0.
 declare global desVRT to 0.
@@ -54,6 +51,7 @@ declare global ecc to 0.
 declare global unitRref to V(0, 0, 0).
 declare global unitUy to V(0, 0, 0).
 declare global etaref to 0.
+declare global bound_box to ship:bounds.
 declare global hudtextsize to 15.
 declare global hudtextcolor to RGB(22/255, 255/255, 22/255).
 // set steeringManager:showfacingvectors to true.
@@ -77,6 +75,7 @@ function initialize_guidance {
     set guidance_status to "inactive".
 
     update_orbit_data().
+    set bound_box to ship:bounds.
 
     set target_rotation to 0.
     // update_target_geo().
@@ -90,7 +89,10 @@ function initialize_guidance {
     }
     set_engine_parameters(elist).
 
-    set add_approach_phase to P_PREC.
+    if (P_PREC = "auto") {
+        set add_approach_phase to f0*thro_min/ship:mass < 0.6 * g0.
+    }
+    else set add_approach_phase to P_PREC.
     if add_approach_phase {
         set desRT to 200.
         set desLT to 500.
@@ -170,18 +172,15 @@ function update_target_geo {
     local _target_geo to get_target_geo().
     if _target_geo = 0 {
         hudtext(UI_LANG["pegmain.err_no_waypoint"], 4, 2, hudtextsize, hudtextcolor, false).
-        set target_geo to ship:geoposition.
-        set target_height to 0.
+        local _impactInfo to get_impact_geo().
+        if (_impactInfo["ok"]) set target_geo to _impactInfo["geo"].
+        else set target_geo to ship:geoposition.
         return.
     }
     set target_geo to _target_geo.
     local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
     set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
     set target_height to P_ADJUST:z.
-    // update reference axis at target
-    set unitRtgt to (target_geo:position - body:position):normalized.
-    set unitTtgt to vCrs(unitRtgt, unitUy):normalized.
-    set unitHtgt to vCrs(unitRtgt, unitTtgt):normalized.
     print UI_LANG["pegmain.lbl_target_pos"] + target_geo AT(0,7).
 }
 
@@ -210,6 +209,11 @@ on (ag9) {
         gui_update_target_settings_display().
     }
     return true.
+}
+
+// action group 8 is for bounding box updating
+on ("0"+ag8+stage:number) {
+    set bound_box to ship:bounds.
 }
 
 function phase_descent {
@@ -475,7 +479,7 @@ function phase_final {
     terminal_init().
     lock lo_fvec to terminal_get_fvec().
     lock steering to get_target_steering(lo_fvec, target_rotation).
-    local bound_box to ship:bounds.
+    set bound_box to ship:bounds.
     lock _height to bound_box:bottomaltradar - target_height.
     local vrT to -0.05.  // 5 cm/s downward
     local _extra_g to 0.2.
@@ -484,13 +488,18 @@ function phase_final {
     lock lo_af2 to lo_final_throttle * f0 / ship:mass.
     local T2 to 5.
 
+    local _spooluptime to spooluptime + 0.5.  // Due to unknown deviations, we decide to give more margin to this
     if (not add_approach_phase) {
-        if (not terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2)) {
+        if (not terminal_time_to_fire(_height+ship:verticalspeed*(_spooluptime+ullage_time)-0.5*g0*(_spooluptime+ullage_time)^2, vrT, lo_af1, lo_af2, T2)) {
             // waiting for ignition
             lock throttle to 0.
-            until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime+ullage_time), vrT, lo_af1, lo_af2, T2) {wait 0.}
+            until (break_guidance_cycle) or terminal_time_to_fire(_height+ship:verticalspeed*(_spooluptime+ullage_time)-0.5*g0*(_spooluptime+ullage_time)^2, vrT, lo_af1, lo_af2, T2) {
+                print "H0 = " + round(_height, 1) + "     " AT(0, 14).
+                print "H1 = " + round(_height+ship:verticalspeed*(_spooluptime+ullage_time)-0.5*g0*(_spooluptime+ullage_time)^2, 1) + "     " AT(0, 15).
+                wait 0.
+            }
             set ship:control:translation to TiS:inverse * V(0, 0, 1).  // ullage control
-            until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(spooluptime), vrT, lo_af1, lo_af2, T2) {wait 0.}
+            until engine_stability(get_active_engines()) > 0.999 and terminal_time_to_fire(_height+ship:verticalspeed*(_spooluptime)-0.5*g0*(_spooluptime)^2, vrT, lo_af1, lo_af2, T2) {wait 0.}
         }
     }
     local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).

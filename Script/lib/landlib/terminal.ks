@@ -12,28 +12,38 @@ function __terminal_get_deltar {
     parameter vrT.
     parameter af1, af2, T2.
 
-    set af1 to af1 - __TERMINAL_g0.
-    set af2 to af2 - __TERMINAL_g0.
+    set af1 to af1.
+    set af2 to af2.
     local v0 to ship:velocity:surface:mag.
     local vr0 to ship:verticalspeed.
     if (vr0 >= 0) return list(0, 0).  // start only in falling
     local deltar to 0.
     local _stage to 0.
     // judge stage 1 or stage 2
-    if (vr0 + af2*T2) >= vrT {
+    if (vr0 + (af2 - __TERMINAL_g0)*T2) >= vrT {
         set _stage to 2.
-        set deltar to (vrT*vrT - vr0*vr0) * 0.5 / af2.
+        set deltar to (vrT*vrT - vr0*vr0) * 0.5 / (af2 - __TERMINAL_g0).
     }
     else {
         set _stage to 1.
-        local _deltar2 to vrT*T2 - 0.5*af2*T2*T2.
-        set vrT to vrT - af2*T2.
-        local tc to v0 / __TERMINAL_g0 / (1 - vr0 / (v0+0.001)).
-        local _uc to af1*tc*(1+vr0/v0)/2.
-        local _T to (vrT-vr0+_uc)/af1.
-        set deltar to vr0*_T + af1*_T^2/2 - _uc*(_T - tc/3) + _deltar2.
+        local _deltar2 to vrT*T2 - 0.5*(af2 - __TERMINAL_g0)*T2*T2.
+        set vrT to vrT - (af2 - __TERMINAL_g0)*T2.
+        local sinGamma0 to vr0 / v0.
+        local cos2Gamma0 to 1 - sinGamma0 * sinGamma0.
+        local arBar to 0.5 * (1 - sinGamma0) * af1 - __TERMINAL_g0.
+        local deltaV to vrT - vr0.
+        local T1 to 0.
+        if (cos2Gamma0 < 0.001) {
+            set T1 to deltaV / arBar.
+        }
+        else {
+            local _c to af1 * __TERMINAL_g0 / 12 / v0 * cos2Gamma0.
+            set T1 to (sqrt(arBar*arBar + 4*deltaV*_c) - arBar) / _c * 0.5.
+        }
+        local SAV2 to (1-2*sinGamma0)/3 + __TERMINAL_g0/12/v0 * cos2Gamma0 * T1.
+        local _deltar1 to vr0*T1 + 0.5*(af1*SAV2 - __TERMINAL_g0)*T1*T1.
+        set deltar to _deltar1 + _deltar2.
     }
-    // print "deltar=" + round(deltar, 3) + " stage=" + _stage AT(0, 13).
 
     return list(_stage, deltar).
 }
@@ -53,7 +63,10 @@ function terminal_time_to_fire {
     parameter vrT.
     parameter af1, af2, T2.
     if (ship:verticalspeed >= 0) return false.  // start only in falling
-    return height + __terminal_get_deltar(vrT, af1, af2, T2)[1] < 0.
+    local predheight to height + __terminal_get_deltar(vrT, af1, af2, T2)[1].
+    print "H2 = " + round(predheight, 1) + "     " AT(0, 16).
+    return predheight < 0.
+    // return height + __terminal_get_deltar(vrT, af1, af2, T2)[1] < 0.
 }
 
 function terminal_step_control {
@@ -73,13 +86,16 @@ function terminal_step_control {
     local _throttle_target to final_throttle.
     if _res[0] = 1 {set _throttle_target to std_throttle.}
     local deltar to _res[1].
+    print "H2 = " + round(height + deltar, 1) + "     " AT(0, 16).
     if (__TERMINAL_uplock or (ship:groundspeed < 0.1 and height < 3)) {
         set __TERMINAL_uplock to true.
         set thro_plan to _throttle_target * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
+        print "T1 = " + round(_throttle_target, 2) + ", T2 = " + round(thro_plan, 2) + "    " AT(0, 17).
         set fvec_plan to up:forevector.
     }
     else {
         set thro_plan to _throttle_target * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
+        print "T1 = " + round(_throttle_target, 2) + ", T2 = " + round(thro_plan, 2) + "    " AT(0, 17).
         set fvec_plan to terminal_get_fvec().
     }
     set thro_plan to max(thro_min, min(thro_max, thro_plan)).

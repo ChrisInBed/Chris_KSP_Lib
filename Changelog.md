@@ -106,3 +106,19 @@ Major version update
 - PEGLand Orbit Analysis takes maneuver node into account
 - PEGLand descent phase ignition point consider engine spool-up time
 - Fixed some problems in GUI
+
+## 2026/05/07 v0.9.6
+
+- Improve Isp calculation for hybrid engine configuration
+
+## 2026/05/08 v0.9.7
+
+- PEGLand
+  - Autodetection for hovering ability and whether to add approch phase
+  - Improve final phase, using trinomial approximation for thrust integrals
+  - Add "use impact point as target" function, ease suborbital landing
+
+## 2026/05/09 v0.9.8
+
+- PEGLand: Fixed issue: sometimes you cannot manually move target landing site left/right/forward/backward
+- PEGLand: Update bounding box while staging to ensure landing safety

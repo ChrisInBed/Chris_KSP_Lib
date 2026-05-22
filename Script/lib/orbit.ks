@@ -1,4 +1,5 @@
 runOncePath("0:/lib/chrismath.ks").
+runOncePath("0:/lib/locales/utils.ks").
 declare global __ORBIT_TIME_N to 23.
 
 function get_orbit_latus_rectum {
@@ -169,6 +170,25 @@ function get_target_geo {
         return 0.
     }
     return activewp:geoPosition.
+}
+
+function get_impact_geo {
+    if (not addons:tr:available) {
+        return lexicon(
+            "ok", false,
+            "msg", UI_LANG["pegorbit.msg_no_trajectories"]
+        ).
+    }
+    if (not addons:tr:hasimpact) {
+        return lexicon(
+            "ok", false,
+            "msg", UI_LANG["pegorbit.msg_no_impact"]
+        ).
+    }
+    return lexicon(
+        "ok", true,
+        "geo", addons:tr:impactpos
+    ).
 }
 
 function get_geo_slope {

@@ -1,12 +1,15 @@
 # PEGLand: Pinpoint Powered Landing Guidance
 
+> [!CAUTION]
+> When you type `pegland` into kOS terminal, Atmosphere Autopilot (AA) might be activated on its default keybinding `[P]`, causing flight control wobbling. You can press `[P]` another time to deactivate AA, or change keybindings.
+
 `pegland` is one of the most exciting programs in this mod, adapted from the PEG launch guidance algorithm developed by NASA in the 1980s for the Space Shuttle program, achieving fuel-optimal pinpoint landing in a vacuum environment.
 
 Reference: [An explicit solution to the exoatmospheric powered flight guidance and trajectory optimization problem for rocket propelled vehicles | Guidance, Navigation, and Control and Co-located Conferences](https://arc.aiaa.org/doi/10.2514/6.1977-1051)
 
 ## Algorithm Principles
 
-From a proper pre-landing orbit, PEGLand ignite the engines
+From a proper pre-landing orbit, PEGLand ignite the engines and guide the lander until it lands on celestial surface safe and sound.
 
 PEGLand contains three guidance phases:
 
@@ -32,6 +35,7 @@ Parameters:
 **Examples:**
 
 ```kOS
+switch to 0.  // Switch to the flight center's document system
 run pegland.  // Open PEGLand GUI. (RECOMMENDED)
 run pegland(0,1,1). // Don't open GUI, start engine descent immediately, add approach phase
 run pegland(0,0,0,V(0,0,0),"descent"). // Don't open GUI, use engines labeled "descent" for calculations
@@ -64,7 +68,9 @@ In most cases, you can complete guidance setup with one click in the PEGLand GUI
 
 ### Adjusting the Landing Point
 
-You can click `current waypoint` or manually enter the landing point latitude and longitude, **and click `update target`** to set the landing point. During landing, if you find the original landing point unsuitable, PEGLand also provides a very convenient visual adjustment function. Click `show target` to display the landing position on the HUD, then click the adjustment buttons to move the landing point forward, backward, left, right, or in cardinal directions. The distance moved with each click can be set in `Moving step`.
+On wakeup, PEGLand automatically read activated waypoint as landing target. If there is no activated waypoint, then it will try to find the impact point. If that fails again, then you need to set it manually.
+
+You can click `use current waypoint`, or `use impact point` or manually enter the landing point latitude and longitude, **and click `update target`** to set the landing point. During landing, if you find the original landing point unsuitable, PEGLand also provides a very convenient visual adjustment function. Click `show target` to display the landing position on the HUD, then click the adjustment buttons to move the landing point forward, backward, left, right, or in cardinal directions. The distance moved with each click can be set in `Moving step`.
 
 The `Find landing site within` button is a more automated method that will randomly sample points within a certain range around the original target and find the flattest landing site. It will also tell you the slope of the new landing site.
 
@@ -72,6 +78,7 @@ The `Find landing site within` button is a more automated method that will rando
 
 **Note:**
 
+- If you are in impacting orbit, using impact point as target might be a good choice. Or you can just start from final phase to perform an untargeted suicide burn landing
 - Only descent and approach phases allow landing point adjustments
 - Excessive landing point adjustments may cause guidance divergence
 - Try to adjust when still far from the landing point
@@ -109,7 +116,7 @@ For example, if there is a mountain with altitude of 1.5 km in the course, 5km f
 
    <img src=../pictures/PEGLand/waypointmanager.png width=60%>
 
-3. For non-throttling engines or engines with limited throttling ability, unfortunately I cannot guarantee landing accuracy (neither can the geniuses at NASA), but you can simulate a landing once in Kerbal, then adjust the landing point based on landing error, which can reduce error to 100 meters;
+3. For non-throttling engines or engines with limited throttling ability, unfortunately I cannot guarantee landing accuracy (neither can the geniuses at NASA), but you can simulate landing once, then adjust the landing point based on landing error, which can reduce error to 100 meters. If you have brought RCS on ship it would be much easier. You can manually fire RCS engines forward or backward to simulate engine throttling, keeping the predicted error displayed on PEGLand near zero. This won't consume you a lot RCS fuel;
 
 4. If the lower bound of thrust-to-weight ratio at final landing is too high, be careful - this might be more dangerous than Falcon 9's suicide burn;
 

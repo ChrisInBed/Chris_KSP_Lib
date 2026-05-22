@@ -154,6 +154,16 @@ function gui_make_peglandgui {
         set target_geo to _target_geo.
         gui_update_target_settings_display().
     }.
+    declare global gui_settings_target_impact_button to gui_settings_target_button_box1:addbutton(UI_LANG["peggui.btn_use_impact"]).
+    set gui_settings_target_impact_button:onclick to {
+        local _info to get_impact_geo().
+        if (not _info["ok"]) {
+            hudtext(_info["msg"], 4, 2, 12, hudtextcolor, false).
+            return.
+        }
+        set target_geo to _info["geo"].
+        gui_update_target_settings_display().
+    }.
     declare global gui_settings_target_show_button to gui_settings_target_button_box1:addcheckbox(UI_LANG["peggui.gui_show_target"], false).
     set gui_settings_target_show_button:ontoggle to {
         parameter newstate.
@@ -171,13 +181,13 @@ function gui_make_peglandgui {
     declare global gui_settings_target_button_box2 to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_left to gui_settings_target_button_box2:addbutton("←").
     set gui_settings_target_left:onclick to {
-        local new_pos to target_geo:position - gui_settings_target_step:text:tonumber * unitHtgt.
+        local new_pos to target_geo:position - gui_settings_target_step:text:tonumber * srfPrograde:starvector.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
     declare global gui_settings_target_right to gui_settings_target_button_box2:addbutton("→").
     set gui_settings_target_right:onclick to {
-        local new_pos to target_geo:position + gui_settings_target_step:text:tonumber * unitHtgt.
+        local new_pos to target_geo:position + gui_settings_target_step:text:tonumber * srfPrograde:starvector.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
@@ -196,24 +206,30 @@ function gui_make_peglandgui {
     declare global gui_settings_target_button_box3 to gui_settings_target_box:addhlayout().
     declare global gui_settings_target_forward to gui_settings_target_button_box3:addbutton("↑").
     set gui_settings_target_forward:onclick to {
+        local unitRtgt to (target_geo:position - body:position):normalized.
+        local unitTtgt to vCrs(srfPrograde:starvector, unitRtgt):normalized.
         local new_pos to target_geo:position + gui_settings_target_step:text:tonumber * unitTtgt.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
     declare global gui_settings_target_backward to gui_settings_target_button_box3:addbutton("↓").
     set gui_settings_target_backward:onclick to {
+        local unitRtgt to (target_geo:position - body:position):normalized.
+        local unitTtgt to vCrs(srfPrograde:starvector, unitRtgt):normalized.
         local new_pos to target_geo:position - gui_settings_target_step:text:tonumber * unitTtgt.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
     declare global gui_settings_target_east to gui_settings_target_button_box3:addbutton("E").
     set gui_settings_target_east:onclick to {
+        local unitRtgt to (target_geo:position - body:position):normalized.
         local new_pos to target_geo:position + gui_settings_target_step:text:tonumber * vCrs(unitRtgt, north:forevector):normalized.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
     }.
     declare global gui_settings_target_west to gui_settings_target_button_box3:addbutton("W").
     set gui_settings_target_west:onclick to {
+        local unitRtgt to (target_geo:position - body:position):normalized.
         local new_pos to target_geo:position - gui_settings_target_step:text:tonumber * vCrs(unitRtgt, north:forevector):normalized.
         set target_geo to body:geopositionof(new_pos).
         gui_update_target_settings_display().
