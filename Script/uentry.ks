@@ -53,6 +53,7 @@ function entry_phase {
     RCS ON.
     local _control to entry_get_control(-body:position, ship:velocity:surface, gst).
     // Inner loop
+    set entry_tracking to true.  // enable banki tracking
     when (guidance_stage = "entry" and (not done) and guidance_active) then {
         set _control to entry_get_control(-body:position, ship:velocity:surface, gst).
         local _AOACmd to _control["AOA"].
@@ -120,6 +121,7 @@ function entry_phase {
         }
         wait 0.5.
     }
+    set entry_tracking to false.  // Stop tracking banki
     local _timebegin to time:seconds.
     until ee < ef or done or (not guidance_active) {
         // print "Left Energy = " + round((ee - ef)*1e-3) + " kJ         " AT(0, 13).
