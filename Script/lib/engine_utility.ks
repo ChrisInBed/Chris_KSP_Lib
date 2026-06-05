@@ -203,3 +203,14 @@ function activate_RCS_ullage {
 function deactivate_RCS_ullage {
 	set ship:control:translation to V(0,0,0).
 }
+
+function get_furtherst_height {
+	parameter _bounds to "".
+	parameter _direction to "".
+
+	if (_bounds = "") set _bounds to ship:bounds.
+	if (_direction = "") set _direction to -ship:facing:forevector.
+
+	local _corner to _bounds:FURTHESTCORNER(_direction).
+	return vDot(_corner, _direction).
+}
