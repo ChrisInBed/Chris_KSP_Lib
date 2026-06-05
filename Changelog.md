@@ -127,3 +127,4 @@ Major version update
 
 - PEGLand: Fixed issue: Inaccurate coordinate system in approach phase. Now approach phase works well for large lander designs
 - UEntry: Fixed issue: stop trying to track reference trajectory in last minute
+- UEntry: Add 2 example reentry configurations for Space Shuttle (Space Shuttle Systems) and X-20
