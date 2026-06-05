@@ -102,6 +102,8 @@ Main descent phase targets are defined by five parameters:
 
 Creating a good start state for approach phase can save you fuel and improve landing accuracy. When the approach phase starts, longer distance and slower horizontal speed will make approach phase longer. Longer approach phase duration wastes fuel and throttle may exceed physical limits; shorter duration may result in insufficient landing accuracy.
 
+⚠**Note**: Switching from Descent Phase to Approach Phase often involves pitch changes. If your lander is large and attitude control is relatively slow, you should appropriately extend the `Quit Time` to provide sufficient time to adjust attitude.
+
 **Descent Trajectory Shaping**
 
 When you are flying low, there is apparent risk hitting into terrain, as PEG algorithm cannot perceive obstructs along the trajectory. However, PEGLand does provide you tool to shape the trajectory. When you are still far away from the descent target, the shaping tool create a shaping target above the descent target, thus raise your trajectory. Once you've passed distance threshold, the guidance switches to descent target immediately.

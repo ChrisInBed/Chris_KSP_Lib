@@ -122,3 +122,8 @@ Major version update
 
 - PEGLand: Fixed issue: sometimes you cannot manually move target landing site left/right/forward/backward
 - PEGLand: Update bounding box while staging to ensure landing safety
+
+## 2026/06/06 v0.9.9
+
+- PEGLand: Fixed issue: Inaccurate coordinate system in approach phase. Now approach phase works well for large lander designs
+- UEntry: Fixed issue: stop trying to track reference trajectory in last minute
