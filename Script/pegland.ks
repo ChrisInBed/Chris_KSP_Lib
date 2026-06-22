@@ -52,6 +52,7 @@ declare global unitRref to V(0, 0, 0).
 declare global unitUy to V(0, 0, 0).
 declare global etaref to 0.
 declare global bound_box to ship:bounds.
+declare global bottom_height to 0.
 declare global hudtextsize to 15.
 declare global hudtextcolor to RGB(22/255, 255/255, 22/255).
 // set steeringManager:showfacingvectors to true.
@@ -75,7 +76,6 @@ function initialize_guidance {
     set guidance_status to "inactive".
 
     update_orbit_data().
-    set bound_box to ship:bounds.
 
     set target_rotation to 0.
     // update_target_geo().
@@ -88,20 +88,21 @@ function initialize_guidance {
         set elist to search_engine(P_ENGINE).
     }
     set_engine_parameters(elist).
+    update_bounds().
 
     if (P_PREC = "auto") {
         set add_approach_phase to f0*thro_min/ship:mass < 0.6 * g0.
     }
     else set add_approach_phase to P_PREC.
     if add_approach_phase {
-        set desRT to 200.
+        set desRT to 200 + bottom_height.
         set desLT to 500.
         set desVRT to 0.
         set desVLT to 0.
         set apprTime to 8.
     }
     else {
-        set desRT to 100.
+        set desRT to 100 + bottom_height.
         set desLT to 0.
         set desVRT to 3.
         set desVLT to 0.
@@ -167,6 +168,11 @@ function set_engine_parameters {
     print_engines_simple_info(elist).
 }
 
+function update_bounds {
+    set bound_box to ship:bounds.
+    set bottom_height to get_furtherst_height(bound_box, -(ship:facing * TiS:inverse):forevector).
+}
+
 function update_target_geo {
     // move target position
     local _target_geo to get_target_geo().
@@ -213,7 +219,7 @@ on (ag9) {
 
 // action group 8 is for bounding box updating
 on ("0"+ag8+stage:number) {
-    set bound_box to ship:bounds.
+    update_bounds().
 }
 
 function phase_descent {
@@ -390,16 +396,16 @@ function phase_approach {
     if (break_guidance_cycle) return.
     print UI_LANG["pegmain.msg_approach"] AT(0,12).
     set guidance_status to "approach".
-    local lock appRT to V(0, 0, target_height).
+    local lock appRT to V(0, 0, bottom_height + target_height).
     local appVT to V(0, 0, -0.5). // 0.5 m/s downward
     local appAT to V(0, 0, 0). // no acceleration
     local appJx to 0.  // no Jerk
     local raxis to V(0, 0, 1).
     local haxis to V(0, 0, 1).
     local taxis to V(0, 0, 1).
-    local bound_box to ship:bounds.
     local rr to V(0, 0, 0).
     local vv to V(0, 0, 0).
+    update_bounds().  // just in case
     function update_state {
         // reference frame: origin point is located at the ground target point
         // and adopt up-fore axis system.
@@ -407,8 +413,10 @@ function phase_approach {
         set haxis to vcrs(raxis, ship:velocity:surface):normalized.
         set taxis to vcrs(haxis, raxis):normalized.
 
-        set rr to V(-target_geo:position*taxis, -target_geo:position*haxis, bound_box:bottomaltradar).
-        set vv to V(ship:velocity:surface*taxis, ship:velocity:surface*haxis, ship:verticalspeed).
+        local _X to -target_geo:position.
+        local _V to ship:velocity:surface.
+        set rr to V(vDot(_X, taxis), vDot(_X, haxis), vDot(_X, raxis)).
+        set vv to V(vDot(_V, taxis), vDot(_V, haxis), vDot(_V, raxis)).
     }
     update_state().
 
@@ -436,7 +444,7 @@ function phase_approach {
     }
 
     local numiter to 1.
-    until (lo_tt > -5 or rr:z < appRT:z) {
+    until (lo_tt > -5 or bound_box:BOTTOMALTRADAR < target_height + 0.001) {
         if (break_guidance_cycle) return.
         local __time_begin to time:seconds.
         set __control to quadratic_step_control(rr, vv, appRT, appVT, appAT, appJx, lo_tt).
@@ -479,7 +487,7 @@ function phase_final {
     terminal_init().
     lock lo_fvec to terminal_get_fvec().
     lock steering to get_target_steering(lo_fvec, target_rotation).
-    set bound_box to ship:bounds.
+    update_bounds().  // just in case
     lock _height to bound_box:bottomaltradar - target_height.
     local vrT to -0.05.  // 5 cm/s downward
     local _extra_g to 0.2.

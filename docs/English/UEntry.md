@@ -184,16 +184,33 @@ The `Guidance State` section in the UEntry interface displays key state paramete
 - `AOA` Angle of attack. Outside parentheses is current actual angle of attack, inside parentheses is the angle of attack required by guidance command. If deviation is too large, please adjust flight control parameters (see below)
 - `Bank` Bank angle. Outside parentheses is current actual bank angle, inside parentheses is the bank angle required by guidance command. If deviation is too large, please adjust flight control parameters (see below)
 
-UEntry has built-in flight control (KCL Controller), but the same set of flight control parameters may not be able to handle both high altitude/high speed and low altitude/low speed segments. When your spacecraft control has the following problems, you can take corresponding solutions:
+#### KCL Attitude Controller
+
+UEntry need attitude controller to control pitch, yaw and roll to accurately follow the commanded AOA and Bank angles. It is done with `KCL Controller` in UEntry.
+
+KCL Controller is a classical and simple 2-layer attitude controller. It first computes target rotational direction and rate based on current attitude error (rate controller layer), then projects the target rotation rate into pitch, yaw and roll axis, and decides torque inputs (torque controller layer). Usually you need to assign proper values for KCL Controller to achieve accurate attitude controll, and notice the same set of flight control parameters may not be able to handle both high altitude/high speed and low altitude/low speed segments. When your spacecraft control has the following problems, you can take corresponding solutions:
 
 - Angle of attack error cannot be eliminated
     - If vehicle pitch control is near the limit and still cannot approach target angle of attack, this means the target angle of attack exceeds the spacecraft's design limits - please adjust the angle of attack curve
-    - If the vehicle doesn't seem to be trying to pitch to approach target angle of attack, please increase `Pitch Kp` and `Pitch Ki`
-- Vehicle control is oscillating
-    - Please reduce `Kp` and `Ki` corresponding to Pitch, Yaw, or Roll, or increase `Kd`
+    - If the vehicle doesn't seem to be trying to pitch to approach target angle of attack, please increase `Pitch Kp` or `Pitch Ki`
+- Vehicle control is oscillating in pitch, yaw or roll axis
+    - High frequency oscillation, where the attitude doesn't change much but the control input is wobbling crazy: Decrease `Kp` or increase `Kd` for corresponding axis
+    - Low frequency oscillation, where the attitude cannot be stablized at desired position, the attitude and control is in slow and large amplitude oscillation: Increase corresponding `Kp` or descrease `Ki`
     - Physical time acceleration can also cause control oscillation; the above solution is still valid
 - Vehicle rolls too fast/slow
     - Please adjust `Upper` in `Rotational Rate Controller`, which indicates the maximum allowed rotation rate. `Upper = 5` means at most 5° per second
+
+**Tuning PIDs from scratch**: when you want to setup new PID parameters for a new vessel, you can either adapt from an existing similar configuration or tuning PIDs from scratch in the following way:
+
+1. `Rate Controller`: It kind of relying on intuition.
+    1. `Kp` is the proportionality coefficient between attitude error (degrees) and target rotational rate (degrees per second). The larger `Kp` is, the more sensitive the rate controller is (and could lead to oscillation)
+    2. `Upper` is the upper limit of rotational rate (degrees per second)
+    3. `Ep` is the dead zone. When the attitude error (degrees) is lower than `Ep`, the controller will output zero rate.
+2. `Torque Controllers`: Use simplified Ziegler–Nichols approach for tuning each axis
+    1. Set `Kp, Ki, Kd` to 0. At this moment the control is offline in this axis
+    2. Increase `Kp` to decrease steady state attitude error, but don't make `Kp` too high to drive the control into high frequency oscillation
+    3. If there is any steady state error, increase `Ki` to eliminate error, but don't make `Ki` too high to drive the control into low frequency oscillation and overshooting
+    4. When the commanded attitude changes (e.g. bank reversal command), the control input might be too aggresive, leading to overshot. In this case you can increase `Kd` to introduce some "drag force" to the control.
 
 ⚠**Note**: Other autopilots like SAS, MechJeb Smart A.S.S., Atmosphere Autopilot, etc. will compete with UEntry for control, causing the ship to shake violently or completely lose control. Please turn them off.
 

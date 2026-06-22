@@ -103,14 +103,14 @@ function gui_make_peglandgui {
     set gui_settings_add_approach_button:ontoggle to {
         parameter newstate. set add_approach_phase to newstate.
         if newstate {
-            set desRT to 200.
+            set desRT to 200 + bottom_height.
             set desLT to 500.
             set desVRT to 0.
             set desVLT to 0.
             set apprTime to 8.
         }
         else {
-            set desRT to 100.
+            set desRT to 100 + bottom_height.
             set desLT to 0.
             set desVRT to 3.
             set desVLT to 0.

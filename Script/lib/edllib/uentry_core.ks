@@ -112,6 +112,7 @@ function entry_initialize {
     set AFS:L_min to 0.5.
     set AFS:k_QEGC to 0.5.
     set AFS:k_C to 2.
+    declare global entry_tracking to true.  // whether the banki tracking is active
     declare global entry_tracking_gain to 2.
     set AFS:t_lag to 90.
 
@@ -157,11 +158,13 @@ function entry_get_control {
     set bank_cmd to abs(bank_cmd).
 
     // Post bank command adjustment to keep bank_i tracking bank_i_ref
-    local bank_i_ref to gst["bank_i_ref"] + (gst["bank_f_ref"] - gst["bank_i_ref"])
-        * (gst["energy_i"] - gst["energy_i_ref"]) / (gst["energy_f_ref"] - gst["energy_i_ref"]).
-    local cosBankiErr to cos(gst["bank_i"]) - cos(bank_i_ref).
-    local cosBankCmd to cos(bank_cmd) + entry_tracking_gain * cosBankiErr.
-    set bank_cmd to arcCos(max(cos(AFS:bank_max), min(1, cosBankCmd))).
+    if entry_tracking {
+        local bank_i_ref to gst["bank_i_ref"] + (gst["bank_f_ref"] - gst["bank_i_ref"])
+            * (gst["energy_i"] - gst["energy_i_ref"]) / (gst["energy_f_ref"] - gst["energy_i_ref"]).
+        local cosBankiErr to cos(gst["bank_i"]) - cos(bank_i_ref).
+        local cosBankCmd to cos(bank_cmd) + entry_tracking_gain * cosBankiErr.
+        set bank_cmd to arcCos(max(cos(AFS:bank_max), min(1, cosBankCmd))).
+    }
 
     // bank reversal
     local headingErr to AFS:GetHeadingErr(lexicon("vecR", vecR, "vecV", vecV, "vecRtgt", AFS:RTarget)).
