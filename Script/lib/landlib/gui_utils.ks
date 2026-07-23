@@ -341,6 +341,35 @@ function gui_make_peglandgui {
         gui_set_engine_info(enginfo).
         set_engine_parameters(elist).
     }.
+    declare global gui_settings_engine_restart_box to gui_settings_engine_box:addhlayout().
+    declare global gui_settings_engine_allorestart_button to gui_settings_engine_restart_box:addcheckbox(UI_LANG["peggui.btn_allo_restart_eng"], allow_restart).
+    set gui_settings_engine_allorestart_button:ontoggle to {
+        parameter newstate.
+        set allow_restart to newstate.
+    }.
+    declare global gui_settings_engine_restart_tol_label to gui_settings_engine_restart_box:addlabel(UI_LANG["peggui.lbl_restart_tol"]).
+    declare global gui_settings_engine_restart_tol to gui_settings_engine_restart_box:addtextfield(round(restart_tol, 2):tostring).
+    declare global gui_settings_engine_restart_tol_set to gui_settings_engine_restart_box:addbutton(UI_LANG["peggui.btn_set"]).
+    set gui_settings_engine_restart_tol_set:onclick to {
+        local newvalue to gui_settings_engine_restart_tol:text:tonumber.
+        if newvalue < 0 {
+            hudtext(UI_LANG["peggui.err_restart_neg"], 4, 2, 12, hudtextcolor, false).
+            return.
+        }
+        set restart_tol to newvalue.
+    }.
+    on allow_restart {
+        set gui_settings_engine_allorestart_button:pressed to allow_restart.
+        if (allow_restart) {
+            set std_throttle to (max(0.90, min(1-restart_tol, thro_min)) + 1) / 2.
+            set final_std_throttle to (max(0.60, min(1-restart_tol, thro_min)) + 1) / 2.
+        }
+        else {
+            set std_throttle to (max(0.90, thro_min) + 1) / 2.
+            set final_std_throttle to (max(0.60, thro_min) + 1) / 2.
+        }
+        return not done.
+    }
     declare global gui_settings_engine_thrust_box to gui_settings_engine_box:addhlayout().
     declare global gui_settings_engine_thrust_label to gui_settings_engine_thrust_box:addlabel(UI_LANG["peggui.lbl_thrust_kn"]).
     declare global gui_settings_engine_thrust to gui_settings_engine_thrust_box:addtextfield("1").

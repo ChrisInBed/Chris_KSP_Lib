@@ -13,7 +13,7 @@ From a proper pre-landing orbit, PEGLand ignite the engines and guide the lander
 
 PEGLand contains three guidance phases:
 
-- **Descent Phase**: Decelerates from landing orbit and descends, aiming near the landing point. First estimates the ignition position, then after coasting to the ignition position, uses the PEG algorithm to iteratively predict the landing point and update control parameters, achieving fuel-optimal descent. **The program will command the engines burn at almost constant throttle, until the descent phase target is reached, which is near the surface. There is no coasting phase, the whole descent phase is finished with exactly one ignition.** The descent phase is accurate if the spacecraft engine has 60% throttle capability. If the engine's throttling capability is insufficient, to ensure safety, the altitude and speed at descent phase target will be prioritized over landing accuracy;
+- **Descent Phase**: Decelerates from landing orbit and descends, aiming near the landing point. First estimates the ignition position, then after coasting to the ignition position, uses the PEG algorithm to iteratively predict the landing point and update control parameters, achieving fuel-optimal descent. **There is no unpowered coasting phase during descent; the program burns at nearly constant throttle until it reaches the vicinity of the surface.** The descent phase is accurate if the spacecraft's engines have 60% throttle capability or can be restarted. If the engines can neither throttle nor restart, the guidance program prioritizes the target speed and altitude at the end of the descent phase over landing accuracy to ensure safety;
 - **Approach Phase**: Slowly moves from near the landing point to 50cm above the landing point. Uses the same quadratic guidance algorithm as the Apollo missions to reduce landing error to the decimeter level. The approach phase requires the spacecraft to have deep-throttling engines capable of hovering; if conditions are not met, the approach phase can be skipped;
 - **Final Phase**: Descends slowly from above the landing point, eliminates horizontal velocity, and touches down at 5cm/s.
 
@@ -82,7 +82,7 @@ The `Find landing site within` button is a more automated method that will rando
 - Only descent and approach phases allow landing point adjustments
 - Excessive landing point adjustments may cause guidance divergence
 - Try to adjust when still far from the landing point
-- For spacecraft without throttle capability, adjustment of landing site may lead to unexpected outcome.
+- For spacecraft whose engines can neither throttle nor restart, adjusting the landing site is meaningless.
 
 ### Adjusting Descent Phase Targets
 
@@ -109,6 +109,13 @@ Creating a good start state for approach phase can save you fuel and improve lan
 When you are flying low, there is apparent risk hitting into terrain, as PEG algorithm cannot perceive obstructs along the trajectory. However, PEGLand does provide you tool to shape the trajectory. When you are still far away from the descent target, the shaping tool create a shaping target above the descent target, thus raise your trajectory. Once you've passed distance threshold, the guidance switches to descent target immediately.
 
 For example, if there is a mountain with altitude of 1.5 km in the course, 5km from the landing target, and you are sure to collide into it if you do nothing special. You can aim at several hundreds meters above the target when you are 5 km away.
+
+### About Unthrottable Spacecraft
+
+PEGLand controls the landing point and ensures a safe landing by adjusting engine throttle or restarting the engines. It automatically checks whether the spacecraft's engines have enough remaining ignitions to determine whether restarts should be allowed. You can also adjust this policy manually. The `Engine Settings` section contains two related options:
+
+- `Allow Restart`: Whether engine restarts are allowed
+- `Tolerance`: Restart tolerance. The engines shutdown or restart when the target throttle falls outside the tolerance range. Increasing this value reduces the number of shutdowns and restarts, but also reduces guidance stability and accuracy
 
 ## Tips
 

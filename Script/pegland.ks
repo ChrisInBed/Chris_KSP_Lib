@@ -37,8 +37,11 @@ declare global f0 to 0.
 declare global ve to 0.
 declare global thro_min to 0.
 declare global spooluptime to 0.
+declare global allow_restart to true.
+declare global restart_tol to 0.2.
 declare global ullage_time to 0.
 global lock ullage to (ullage_time > 1e-3).
+declare global RCS_ullage_watchdog to false.
 declare global std_throttle to thro_min.
 declare global final_std_throttle to thro_min.
 declare global mu to 0.
@@ -157,8 +160,15 @@ function set_engine_parameters {
     set ve to enginfo:ISP * 9.81.
     set thro_min to enginfo:minthrottle.
     set spooluptime to enginfo:spooluptime.
-    set std_throttle to (max(0.90, thro_min) + 1) / 2.
-    set final_std_throttle to (max(0.60, thro_min) + 1) / 2.
+    set allow_restart to enginfo:ignitions > 5.
+    if (allow_restart) {
+        set std_throttle to (max(0.90, min(1-restart_tol, thro_min)) + 1) / 2.
+        set final_std_throttle to (max(0.60, min(1-restart_tol, thro_min)) + 1) / 2.
+    }
+    else {
+        set std_throttle to (max(0.90, thro_min) + 1) / 2.
+        set final_std_throttle to (max(0.60, thro_min) + 1) / 2.
+    }
     if (enginfo:ullage) {
         set ullage_time to 2.
     }
@@ -205,7 +215,7 @@ on ("0"+ag10+stage:number) {
     if P_GUI {
         gui_update_engine_settings_display().
     }
-    return true.
+    return not done.
 }
 
 // action group 9 is for target updating
@@ -214,12 +224,19 @@ on (ag9) {
     if P_GUI {
         gui_update_target_settings_display().
     }
-    return true.
+    return not done.
 }
 
 // action group 8 is for bounding box updating
 on ("0"+ag8+stage:number) {
     update_bounds().
+    return not done.
+}
+
+// Ullage watchdog: if enabled, RCS will be automatically activated to keep engine stable
+when (RCS_ullage_watchdog and ullage) then {
+    if (ship:thrust < 1e-4) set ship:control:translation to TiS:inverse * V(0, 0, 1).
+    else set ship:control:translation to V(0,0,0).
 }
 
 function phase_descent {
@@ -317,6 +334,7 @@ function phase_descent {
     set ship:control:translation to TiS:inverse * V(0, 0, 1).  // ullage control
     wait ullage_time.
     lock throttle to throttle_target.
+    set RCS_ullage_watchdog to true.
     set ship:control:translation to V(0,0,0).  // disable ullage control
     local _time_begin to time:seconds.
     lock lo_tt to time:seconds - _time_begin.
@@ -328,6 +346,10 @@ function phase_descent {
         set throttle_control["minthrottle"] to thro_min.
         set throttle_control["throttle"] to throttle.
         set throttle_control["thrust"] to get_curthrust()*0.25 + throttle_control["thrust"]*0.75.  // moving average
+        set throttle_control["allow_restart"] to allow_restart.
+        set throttle_control["throttle_shutdown"] to max(0, thro_min - restart_tol).
+        set throttle_control["throttle_restart"] to min(0.98, thro_min + restart_tol).
+        // set throttle_control["thrust_target"] to gst["throttle"]*f0.
         set throttle_target to update_throttle_control(throttle_control).
         return true.
     }
@@ -387,6 +409,8 @@ function phase_descent {
     }
     set guidance_status to "waiting for next phase".
     lock steering to "kill".
+    set RCS_ullage_watchdog to false.
+    deactivate_RCS_ullage().
     set __gap_throttle to throttle_target.
     lock throttle to __gap_throttle.
 }
@@ -431,7 +455,9 @@ function phase_approach {
     lock steering to steering_target.
     local throttle_target to __gap_throttle.
     lock throttle to throttle_target.
+    local throttle_control to initialize_throttle_control(f0, thro_min, 0).
     local _af to V(0,0,0).
+    RCS ON.
 
     // inner loop: update state, steering and throttle
     when (guidance_status = "approach") then {
@@ -439,7 +465,16 @@ function phase_approach {
         update_state().
         set _af to appAT + qJ*_tt + qS*_tt^2/2 + V(0, 0, g0).
         set steering_target to get_target_steering(_af:x*taxis + _af:y*haxis + _af:z*raxis, target_rotation).
-        set throttle_target to simple_get_throttle(ship:mass*_af:mag/f0, thro_min).
+        set throttle_control["maxthrust"] to f0.
+        set throttle_control["minthrottle"] to thro_min.
+        set throttle_control["throttle"] to throttle.
+        set throttle_control["thrust"] to get_curthrust()*0.25 + throttle_control["thrust"]*0.75.  // moving average
+        set throttle_control["allow_restart"] to false.
+        set throttle_control["throttle_shutdown"] to max(0, thro_min - restart_tol).
+        set throttle_control["throttle_restart"] to min(0.98, thro_min + restart_tol).
+        set throttle_control["thrust_target"] to ship:mass*_af:mag/f0.
+        set throttle_target to update_throttle_control(throttle_control).
+        // set throttle_target to simple_get_throttle(ship:mass*_af:mag/f0, thro_min).
         return true.
     }
 
@@ -495,6 +530,7 @@ function phase_final {
     lock lo_af1 to final_std_throttle * f0 / ship:mass.
     lock lo_af2 to lo_final_throttle * f0 / ship:mass.
     local T2 to 5.
+    RCS ON.
 
     local _spooluptime to spooluptime + 0.5.  // Due to unknown deviations, we decide to give more margin to this
     if (not add_approach_phase) {
@@ -511,20 +547,33 @@ function phase_final {
         }
     }
     local __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).
+    local throttle_control to initialize_throttle_control(f0, thro_min, 0).
     local throttle_target to simple_get_throttle(__new_control[1], thro_min).
     lock throttle to throttle_target.
     set ship:control:translation to V(0,0,0).  // disable ullage control
     local _target_attitude to get_target_steering(lo_fvec, target_rotation).
     lock steering to _target_attitude.
+    set RCS_ullage_watchdog to true.
     until (_height < 0.2 or ((not add_approach_phase) and ship:verticalspeed > vrT - 0.05)) {
         if (break_guidance_cycle) return.
         set __new_control to terminal_step_control(_height, vrT, ship:mass, f0, thro_min, 1, final_std_throttle, lo_final_throttle, T2).
         set _target_attitude to get_target_steering(__new_control[0], target_rotation).
-        set throttle_target to simple_get_throttle(__new_control[1], thro_min).
+        set throttle_control["maxthrust"] to f0.
+        set throttle_control["minthrottle"] to thro_min.
+        set throttle_control["throttle"] to throttle.
+        set throttle_control["thrust"] to get_curthrust()*0.25 + throttle_control["thrust"]*0.75.  // moving average
+        set throttle_control["allow_restart"] to allow_restart.
+        set throttle_control["throttle_shutdown"] to max(0, thro_min - restart_tol).
+        set throttle_control["throttle_restart"] to min(0.98, thro_min + restart_tol).
+        set throttle_control["thrust_target"] to __new_control[1]*f0.
+        set throttle_target to update_throttle_control(throttle_control).
+        // set throttle_target to simple_get_throttle(__new_control[1], thro_min).
         wait 0.  // wait until next physical tick
     }
     lock steering to get_target_steering(up:forevector, target_rotation).
     lock throttle to 0.
+    set RCS_ullage_watchdog to false.
+    deactivate_RCS_ullage().
     wait until _height < 0.2 or (break_guidance_cycle).
     wait 0.2.
     unlock steering.

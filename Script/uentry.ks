@@ -65,6 +65,10 @@ function entry_phase {
             set gui_edl_state_speed:text to UI_LANG["uentryMain.lbl_speed"] + round(ship:velocity:surface:mag,1) + " m/s".
             set gui_edl_state_aoa:text to UI_LANG["uentryMain.lbl_aoa"] + round(AFS:AOA,1) + "(" + round(_control["AOA"],1) + ")".
             set gui_edl_state_bank:text to UI_LANG["uentryMain.lbl_bank"] + round(AFS:BANK,1) + "(" + round(_control["bank"],1) + ")".
+            local cur_compass to entry_signed_angle(north:forevector, vxcl(up:forevector, ship:velocity:surface), up:forevector).
+            set cur_compass to round(mod(cur_compass + 360, 360), 1).
+            local target_compass to round(mod(mheadingangle(ship:geoposition:lat, ship:geoposition:lng, entry_target_geo:lat, entry_target_geo:lng) + 360, 360), 1).
+            set gui_edl_state_heading:text to UI_LANG["uentryMain.lbl_heading"] + cur_compass + "(" + target_compass + ")°".
             local gamma to 90 - vAng(ship:velocity:surface, up:forevector).
             set gui_edl_state_pathangle:text to UI_LANG["uentryMain.lbl_path_angle"] + round(gamma,2) + "°".
         }
