@@ -203,7 +203,6 @@ function edl_MakeEDLGUI {
     declare global gui_edl_state_banki to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_bank_i"] + round(entry_bank_i,1):tostring + " °").
     declare global gui_edl_state_aoa to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_aoa"] + "0").
     declare global gui_edl_state_bank to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_bank"] + "0").
-    declare global gui_edl_state_heading to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_heading"] + "0(0)°").
     declare global gui_edl_state_pathangle to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_path_angle"] + "0").
     declare global gui_edl_state_T to gui_edl_state_box2:addlabel(UI_LANG["uentryMain.lbl_time_t"] + "0 s").
     declare global gui_edl_state_EToGo to gui_edl_state_box2:addlabel(UI_LANG["uentryMain.lbl_energy_togo"] + "0 kJ").
@@ -211,6 +210,7 @@ function edl_MakeEDLGUI {
     declare global gui_edl_state_rangeerr to gui_edl_state_box2:addlabel(UI_LANG["uentryMain.lbl_range_err"] + "0 km").
     declare global gui_edl_state_vf to gui_edl_state_box2:addlabel(UI_LANG["uentryMain.lbl_vf"] + "0 m/s").
     declare global gui_edl_state_hf to gui_edl_state_box2:addlabel(UI_LANG["uentryMain.lbl_hf"] + "0 km").
+    declare global gui_edl_state_heading to gui_edl_state_box2:addlabel(UI_LANG["uentryMain.lbl_heading"] + "0(0)°").
 
     declare global gui_edl_state_box34 to gui_edlmainbox:addhbox().
     declare global gui_edl_state_box3 to gui_edl_state_box34:addvlayout().
