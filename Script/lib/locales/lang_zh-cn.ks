@@ -106,6 +106,7 @@ GLOBAL UI_LANG IS LEXICON(
     "uentryMain.lbl_speed",      "速度: ",
     "uentryMain.lbl_aoa",        "攻角 (AOA): ",
     "uentryMain.lbl_bank",       "倾侧角 (Bank): ",
+    "uentryMain.lbl_heading",    "航向: ",
     "uentryMain.lbl_path_angle", "路径角: ",
     "uentryMain.lbl_est_cdl",    "模型 CD = ",
     "uentryMain.lbl_calc_cdl",   "计算 CD = ",

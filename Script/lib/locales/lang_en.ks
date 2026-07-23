@@ -111,6 +111,7 @@ GLOBAL UI_LANG IS LEXICON(
     "uentryMain.lbl_speed", "Speed: ",
     "uentryMain.lbl_aoa", "AOA: ",
     "uentryMain.lbl_bank", "Bank: ",
+    "uentryMain.lbl_heading", "Heading: ",
     "uentryMain.lbl_path_angle", "Path Angle: ",
     "uentryMain.lbl_est_cdl", "Estimated CD = ",
     "uentryMain.lbl_calc_cdl", "Calculated CD = ",

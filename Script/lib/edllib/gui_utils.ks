@@ -203,6 +203,7 @@ function edl_MakeEDLGUI {
     declare global gui_edl_state_banki to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_bank_i"] + round(entry_bank_i,1):tostring + " °").
     declare global gui_edl_state_aoa to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_aoa"] + "0").
     declare global gui_edl_state_bank to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_bank"] + "0").
+    declare global gui_edl_state_heading to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_heading"] + "0(0)°").
     declare global gui_edl_state_pathangle to gui_edl_state_box1:addlabel(UI_LANG["uentryMain.lbl_path_angle"] + "0").
     declare global gui_edl_state_T to gui_edl_state_box2:addlabel(UI_LANG["uentryMain.lbl_time_t"] + "0 s").
     declare global gui_edl_state_EToGo to gui_edl_state_box2:addlabel(UI_LANG["uentryMain.lbl_energy_togo"] + "0 kJ").
