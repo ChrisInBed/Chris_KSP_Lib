@@ -305,7 +305,7 @@ function peg_step_control {
     local alpha to 1/(1-T/2/tau).
     // local throt to gst["throttle"] * (1 + vDot(unitTHL, vecRF-vecRL)/vDot(unitTHL, vecVF*T-alpha*vecRGO)).
     local throt to gst["throttle"] * (1+__PEG_thro_pid:update(time:seconds, -vDot(unitTHL, vecRF-vecRL)/vDot(unitTHL, vecVF*T-alpha*vecRGO))).
-    set throt to min(max(throt, shp["thro_min"]), shp["thro_max"]).
+    // set throt to min(max(throt, shp["thro_min"]), shp["thro_max"]).
     set gst["T"] to T.
     set gst["K"] to _integrals["K"].
     set gst["unituK"] to unituK.

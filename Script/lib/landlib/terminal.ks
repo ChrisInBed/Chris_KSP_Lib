@@ -98,6 +98,6 @@ function terminal_step_control {
         print "T1 = " + round(_throttle_target, 2) + ", T2 = " + round(thro_plan, 2) + "    " AT(0, 17).
         set fvec_plan to terminal_get_fvec().
     }
-    set thro_plan to max(thro_min, min(thro_max, thro_plan)).
+    // set thro_plan to max(thro_min, min(thro_max, thro_plan)).
     return list(fvec_plan, thro_plan).
 }
