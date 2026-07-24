@@ -5,7 +5,7 @@ runOncePath("0:/lib/atm_utils.ks").
 runOncePath("0:/lib/edllib/uentry_core.ks").
 runOncePath("0:/lib/edllib/gui_utils.ks").
 runOncePath("0:/lib/edllib/flightcontrol.ks").
-set config:IPU to 1000.
+set config:IPU to 2000.
 // global varibables
 declare global done to false.
 declare global guidance_active to false.

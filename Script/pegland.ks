@@ -4,7 +4,7 @@ parameter P_PREC to "auto".
 parameter P_NOWAIT is false.
 parameter P_ADJUST is v(0, 0, 0).
 parameter P_ENGINE is "current".
-set config:IPU to 1000.  // high efficiency (highest: 2000)
+set config:IPU to 2000.  // high efficiency (highest: 2000)
 
 runOncePath("0:/lib/landlib/peg.ks").
 runOncePath("0:/lib/landlib/quadratic.ks").
