@@ -12,7 +12,7 @@ function get_engines_info {
 	for e in elist {
 		set _number to _number + 1.
 		set _thrustvec to _thrustvec + e:possiblethrust * e:facing:vector.
-		local _maxpossiblethrust to e:possiblethrust / max(1e-3, e:throttlelimit * 0.01 * (1 - e:minthrottle) + e:minthrottle).
+		local _maxpossiblethrust to e:possiblethrust / max(1e-3, e:thrustlimit * 0.01 * (1 - e:minthrottle) + e:minthrottle).
 		set _minthrustvec to _minthrustvec + _maxpossiblethrust * e:facing:vector * e:minthrottle.
 		set _Isp to _Isp + (e:possiblethrust/max(1e-3, e:visp)).
 		if e:ullage { set _ullage to true. }
