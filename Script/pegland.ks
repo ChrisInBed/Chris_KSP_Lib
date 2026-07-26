@@ -42,8 +42,6 @@ declare global restart_tol to 0.2.
 declare global ullage_time to 0.
 global lock ullage to (ullage_time > 1e-3).
 declare global RCS_ullage_watchdog to false.
-declare global std_throttle to thro_min.
-declare global final_std_throttle to thro_min.
 declare global mu to 0.
 declare global g0 to 0.
 declare global __gap_throttle to 0.  // between phases, throttle will be locked to this value
@@ -161,14 +159,6 @@ function set_engine_parameters {
     set thro_min to enginfo:minthrottle.
     set spooluptime to enginfo:spooluptime.
     set allow_restart to enginfo:ignitions > 5.
-    if (allow_restart) {
-        set std_throttle to (max(0.90, min(1-restart_tol, thro_min)) + 1) / 2.
-        set final_std_throttle to (max(0.60, min(1-restart_tol, thro_min)) + 1) / 2.
-    }
-    else {
-        set std_throttle to (max(0.90, thro_min) + 1) / 2.
-        set final_std_throttle to (max(0.60, thro_min) + 1) / 2.
-    }
     if (enginfo:ullage) {
         set ullage_time to 2.
     }
@@ -246,6 +236,11 @@ function phase_descent {
     peg_init().
     unlock steering.
     lock throttle to 0.
+    function _get_ref_throttle {
+        if (allow_restart) return (max(0.90, min(1-restart_tol, thro_min)) + 1) / 2.
+        else return (max(0.90, thro_min) + 1) / 2.
+    }
+    local lock std_throttle to _get_ref_throttle().
     local a0 to f0/ship:mass * std_throttle.
     local vecRL to V(0, 0, 0).
     local vecVL_rht to V(0, 0, 0).
@@ -469,7 +464,7 @@ function phase_approach {
         set throttle_control["minthrottle"] to thro_min.
         set throttle_control["throttle"] to throttle.
         set throttle_control["thrust"] to get_curthrust()*0.25 + throttle_control["thrust"]*0.75.  // moving average
-        set throttle_control["allow_restart"] to false.
+        set throttle_control["allow_restart"] to allow_restart.
         set throttle_control["throttle_shutdown"] to max(0, thro_min - restart_tol).
         set throttle_control["throttle_restart"] to min(0.98, thro_min + restart_tol).
         set throttle_control["thrust_target"] to ship:mass*_af:mag/f0.
@@ -526,9 +521,18 @@ function phase_final {
     lock _height to bound_box:bottomaltradar - target_height.
     local vrT to -0.05.  // 5 cm/s downward
     local _extra_g to 0.2.
-    lock lo_final_throttle to max(min(thro_min+0.1, 1), ship:mass*(g0+_extra_g)/f0).
-    lock lo_af1 to final_std_throttle * f0 / ship:mass.
-    lock lo_af2 to lo_final_throttle * f0 / ship:mass.
+    function _get_ref_throttle_1 {
+        if (allow_restart) return (max(0.60, min(1-restart_tol, thro_min)) + 1) / 2.
+        else return (max(0.60, thro_min) + 1) / 2.
+    }
+    function _get_ref_throttle_2 {
+        if (allow_restart) return ship:mass*(g0+_extra_g)/f0.
+        else return max(min(thro_min*0.95+0.05, 1), ship:mass*(g0+_extra_g)/f0).
+    }
+    local lock final_std_throttle to _get_ref_throttle_1().
+    local lock lo_final_throttle to _get_ref_throttle_2().
+    local lock lo_af1 to final_std_throttle * f0 / ship:mass.
+    local lock lo_af2 to lo_final_throttle * f0 / ship:mass.
     local T2 to 5.
     RCS ON.
 

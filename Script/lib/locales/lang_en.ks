@@ -95,7 +95,7 @@ GLOBAL UI_LANG IS LEXICON(
     "peggui.lbl_min_throttle", "Min throttle ",
     "peggui.err_thro_range", "Min throttle must be between 0 and 1",
     "peggui.btn_allo_restart_eng", "Allow Restart",
-    "peggui.lbl_restart_tol", "Tolerance ",
+    "peggui.lbl_restart_tol", "Restart Tolerance ",
     "peggui.err_restart_neg", "Restart tolerance must be non-negative",
     "peggui.lbl_spool_up", "Spool-up time (s) ",
     "peggui.err_spool_neg", "Spool-up time must be non-negative",

@@ -133,3 +133,8 @@ Major version update
 
 - UEntry: Added heading display
 - PEGLand: Added engine restart support, improving support for spacecraft without throttle capability
+
+
+## 2026/07/25 v0.9.11
+
+- PEGLand: Fixed reference throttle strategy for final phase, to ensure landing safety for unthrottable landers
