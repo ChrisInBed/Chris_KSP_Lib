@@ -38,7 +38,6 @@ Timeline:
 3. Align to a horizontal remaining velocity, fire engines until the norm of remaining velocity is increasing (smallest error)
 4. Because the First stage sep is triggered on another CPU (upper stage). You can monitor the vessel mass is lower than `boostBackMass` to check if First Stage Sep event has been triggered.
 
-// TODO: Review the remaining velocity equation and assess feasibility
 $$
 \text{current state:  } (\bold{r, v})\\
 \text{landing target:  } \bold{r}_T\\
@@ -64,6 +63,14 @@ Note: For attitude control while the whole reentry and landing burn procedures, 
 
 Note: in all remaining velocity calculation in the project, use surface velocity (`ship:velocity:surface`) and ignore body spin
 
+### Design memo: intentional guidance approximations
+
+The remaining-velocity guidance is deliberately kept algebraic and inexpensive because kOS execution efficiency is low. Do not replace it with an iterative inertial-frame solver unless flight-test results show that the added complexity is necessary.
+
+1. **Body-fixed reference frame:** Evaluate the guidance with `ship:velocity:surface` and a landing site fixed to the rotating body. This removes the dominant first-order targeting error caused by body rotation without explicitly propagating the target in an inertial frame. Coriolis acceleration is still neglected; the resulting lateral error is expected to be corrected later by aerodynamic guidance.
+2. **Constant gravity:** The intended RO first-stage trajectory is low-energy: separation speed is approximately `2 km/s` and trajectory altitude remains below approximately `200 km`. Over this mission envelope, constant gravity is considered an acceptable approximation for this guidance law.
+3. **Closed-loop evaluation:** Remaining velocity is recalculated every physics frame rather than calculated once and executed open-loop. The approximate solution is therefore continuously corrected from the latest state. As the remaining velocity and time-to-go decrease, the prediction interval and the accumulated model error also decrease.
+
 ## Entry Burn
 
 Timeline:
@@ -78,7 +85,6 @@ Timeline:
 2. Fire engines (with `entry` in label) as soon as hitting planned altitude, align to remaining velocity
 3. Cut off engines when the vertical speed is less than `entryVSpeed = 2km/s`
 
-// TODO: Review the remaining velocity equation and assess feasibility
 $$
 \text{current state:  } (\bold{r, v})\\
 \text{landing target:  } \bold{r}_T\\
