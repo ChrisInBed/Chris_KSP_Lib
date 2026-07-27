@@ -124,6 +124,8 @@ Timeline:
 4. When the command deceleration is larger than reference deceleration, engage landing phase 1
 5. Use the quadratice guidance same in PEGLand. You need to feed a burning time to the guidance, $T = (v-v_f)/(a_{ref}-g)$. Then theoretically the quadratic guidance should keep thrust near the reference throttle.
 6. When the remaining time is less than `landingPhase2Time = 5s`, switch to next phase
+7. Donnot allow engine restart. You must do the suicide burn with only 1 ignitions. The phase 1 and phase 2 is continous and donnot shutdown engine.
+8. Consider spool up time of engines to ignite them early.
 
 **Final Landing phase 2 description:**
 
