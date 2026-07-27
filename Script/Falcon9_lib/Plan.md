@@ -6,8 +6,8 @@
 - `Falcon9_lib/f9boostback.ks`: Align to horizontal remaining velocity and fire boostback engines, to a RTLS or drone ship trajectory
 - `Falcon9_lib/entryburn.ks`: Wait until altitude reaches 80km, align to remaining velocity direction, fire entryburn engines to decelerate while still targeting target, until the remaining velocity are all executed
 - `Falcon9_lib/f9landingburn.ks`: Perform a 2-stage suicide landing burn, the first stage use quadratic guidance to approach target, and the second stage use untargeted landing burn to touchdown safely to recovery site
-- `gof9u.ks`: Execute upper stage script, manually activated on launch, responsible for launch, MECO, 2nd stage seperation and keep going
-- `gof9d.ks`: Execute first stage script, manually activated before 2nd stage sepration, responsible of boost back, entry burn and final landing burn
+- `gof9u.ks`: Execute upper stage script, manually activated on launch, responsible for launch, MECO, First stage seperation and keep going
+- `gof9d.ks`: Execute first stage script, manually activated before First stage sepration, responsible of boost back, entry burn and final landing burn
 
 ## Launch
 
@@ -20,7 +20,8 @@ Timeline:
 |Vertical Ascent|Hold steering to up until the ship reaches `turnSpeed = 50m/s`|
 |Programmed Turn|Pitch down the rocket with angular speed of `pitchOmega = 1 deg/s`, to predefined `targetHeading`|
 |MECO|Main Engine Cut Off. When the vessel mass is below `mecoMass`, trigger MECO (deactivate engines)|
-|2nd Stage Sep|2 seconds after MECO, stage to seperate the 2nd stage|
+|First Stage Sep|1 seconds after MECO, stage to seperate the First stage|
+|Upper Stage Ignition|2 seconds after First Stage Sep, stage to activate upper stage engines, unlock steering, activate SAS, and exit program|
 
 ## Boost back
 
@@ -28,14 +29,14 @@ Timeline:
 
 |Event|Description|
 |--|--|
-|Boost back|2 seconds after 2nd Stage Sep|
+|Boost back|2 seconds after First Stage Sep|
 
 **Boost back maneuver description**
 
 1. Seach for engines with `boostback` in their label, use them for the maneuver.
 2. Decide landing target: first read activated waypoint, if there is no waypoint, then get the geoposition of target vessel. The landing target could move in the whole reentry and landing procedure, so acquire new landing target every time you wanna use it.
 3. Align to a horizontal remaining velocity, fire engines until the norm of remaining velocity is increasing (smallest error)
-4. Because the 2nd stage sep is triggered on another CPU (upper stage). You can monitor the vessel mass is lower than `boostBackMass` to check if 2nd Stage Sep event has been triggered.
+4. Because the First stage sep is triggered on another CPU (upper stage). You can monitor the vessel mass is lower than `boostBackMass` to check if First Stage Sep event has been triggered.
 
 // TODO: Review the remaining velocity equation and assess feasibility
 $$
