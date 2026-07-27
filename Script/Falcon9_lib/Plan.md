@@ -86,7 +86,7 @@ $$
 $$
 
 $$
-\text{teminal vertical speed condition:  } 
+\text{post-burn vertical speed condition:  } 
 \hat{\bold{r}}\cdot(\bold{v}+\bold{v}_g)=v_E\\
 \text{aiming condition:  } \bold{r} + (\bold{v} + \bold{v}_g)T + \frac{1}{2}\bold{g}T^2=\bold{r}_T
 $$
