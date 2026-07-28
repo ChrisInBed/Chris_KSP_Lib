@@ -15,7 +15,7 @@ Timeline:
 
 |Event|Description|
 |--|--|
-|Main Engine Start|State to activate engines which has `liftoff` in their label|
+|Main Engine Start|Stage to activate engines which has `liftoff` in their label|
 |Lift Off|After `spoolUpTime` seconds, stage to release launch clamps|
 |Vertical Ascent|Hold steering to up until the ship reaches `turnSpeed = 50m/s`|
 |Programmed Turn|Pitch down the rocket with angular speed of `pitchOmega = 1 deg/s`, to predefined `targetHeading`|
