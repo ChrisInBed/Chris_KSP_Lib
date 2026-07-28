@@ -27,17 +27,18 @@ FUNCTION f9_landing_burn {
     PARAMETER targetContext.
 
     IF NOT targetContext["ok"] {
-        PRINT "F9 landing error: no valid landing target".
+        f9_print_result("ERROR: no valid landing target").
         RETURN FALSE.
     }
     IF NOT ADDONS:TR:AVAILABLE {
-        PRINT "F9 landing error: Trajectories is unavailable".
+        f9_print_result("ERROR: Trajectories is unavailable").
         RETURN FALSE.
     }
 
+    f9_clear_guidance_display().
     LOCAL landingEngines IS search_engine(params["landingEngineTag"]).
     IF landingEngines:LENGTH = 0 {
-        PRINT "F9 landing error: no landing engines found".
+        f9_print_result("ERROR: no landing engines found").
         RETURN FALSE.
     }
     LOCAL engineInfo IS get_engines_info(landingEngines).
@@ -45,7 +46,7 @@ FUNCTION f9_landing_burn {
     LOCAL minThrottle IS engineInfo["minthrottle"].
     LOCAL TiS IS engineInfo["TiS"].
     IF _maxThrust <= 0 {
-        PRINT "F9 landing error: engines have no available thrust".
+        f9_print_result("ERROR: landing engines have no thrust").
         RETURN FALSE.
     }
 
@@ -73,7 +74,8 @@ FUNCTION f9_landing_burn {
     LOCK THROTTLE TO 0.
     RCS ON.
 
-    PRINT "F9 landing: aerodynamic guidance".
+    f9_print_at(11, "Phase: landing - aerodynamic guidance").
+    f9_print_at(16, "Ignition: armed  Engines: inactive").
     UNTIL FALSE {
         SET targetGeo TO f9_refresh_target(targetContext).
         IF TIME:SECONDS >= nextBoundsUpdate {
@@ -87,7 +89,7 @@ FUNCTION f9_landing_burn {
         LOCAL referenceAcceleration IS
             ((1 + minThrottle) * 0.5 * _maxThrust) / SHIP:MASS.
         IF referenceAcceleration <= g {
-            PRINT "F9 landing error: reference thrust cannot overcome gravity".
+            f9_print_result("ERROR: reference thrust below gravity").
             UNLOCK THROTTLE.
             UNLOCK STEERING.
             RETURN FALSE.
@@ -103,8 +105,27 @@ FUNCTION f9_landing_burn {
             (futureVelocity:MAG^2 - params["touchDownSpeed"]^2)
             / (2 * MAX(0.01, futureHeight)) + g.
 
+        f9_print_target_position(targetGeo).
+        f9_print_recovery_vehicle().
+        f9_print_at(
+            6,
+            "Altitude: " + ROUND(SHIP:ALTITUDE, 1)
+                + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
+        ).
+        f9_print_at(
+            12,
+            "Height now/future: " + ROUND(bottomAltitude, 1)
+                + " / " + ROUND(futureHeight, 1) + " m"
+        ).
+        f9_print_at(
+            15,
+            "Accel required/ref: "
+                + ROUND(futureRequiredAcceleration, 2)
+                + " / " + ROUND(referenceAcceleration, 2)
+        ).
         IF (futureHeight <= 0
             OR futureRequiredAcceleration >= referenceAcceleration) {
+            f9_print_at(16, "Ignition condition: met").
             BREAK.
         }
 
@@ -138,6 +159,16 @@ FUNCTION f9_landing_burn {
                 -params["aeroMaxYaw"],
                 MIN(params["aeroMaxYaw"], yawCommand)
             ).
+            f9_print_at(
+                13,
+                "Impact err D/X: " + ROUND(pitchError, 3)
+                    + " / " + ROUND(yawError, 3) + " deg"
+            ).
+            f9_print_at(
+                14,
+                "Aero cmd P/Y: " + ROUND(pitchCommand, 2)
+                    + " / " + ROUND(yawCommand, 2) + " deg"
+            ).
 
             SET desiredVector TO ANGLEAXIS(
                 pitchCommand,
@@ -147,7 +178,11 @@ FUNCTION f9_landing_burn {
                 yawCommand,
                 upAxis
             ) * desiredVector.
+        } ELSE {
+            f9_print_at(13, "Impact prediction: unavailable").
+            f9_print_at(14, "Aero command: surface retrograde").
         }
+        f9_print_at(16, "Ignition: armed  Engines: inactive").
         SET steeringTarget TO f9_get_target_steering(
             desiredVector,
             TiS,
@@ -156,13 +191,14 @@ FUNCTION f9_landing_burn {
         WAIT 0.
     }
 
-    PRINT "F9 landing: ignition".
+    f9_clear_guidance_display().
+    f9_print_at(11, "Phase: landing - phase 1").
     activate_engines(landingEngines).
+    f9_print_at(16, "Engines: active  Continuous ignition").
     LOCAL throttleTarget IS 1.
     LOCK THROTTLE TO throttleTarget.
 
     // Phase 1: three-dimensional fixed-time quadratic divert.
-    PRINT "F9 landing: phase 1".
     LOCAL timeToGo IS params["landingPhase2Time"] + 1.
     UNTIL FALSE {
         SET targetGeo TO f9_refresh_target(targetContext).
@@ -178,7 +214,7 @@ FUNCTION f9_landing_burn {
             ((1 + minThrottle) * 0.5 * _maxThrust) / SHIP:MASS.
         LOCAL netReferenceAcceleration IS referenceAcceleration - g.
         IF netReferenceAcceleration <= 0 {
-            PRINT "F9 landing error: phase-1 reference acceleration is invalid".
+            f9_print_result("ERROR: invalid phase-1 acceleration").
             LOCK THROTTLE TO 0.
             deactivate_engines(landingEngines).
             UNLOCK THROTTLE.
@@ -191,8 +227,22 @@ FUNCTION f9_landing_burn {
             (SHIP:VELOCITY:SURFACE:MAG - params["touchDownSpeed"])
             / netReferenceAcceleration
         ).
+        f9_print_target_position(targetGeo).
+        f9_print_recovery_vehicle().
+        f9_print_at(
+            6,
+            "Altitude: " + ROUND(SHIP:ALTITUDE, 1)
+                + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
+        ).
+        f9_print_at(12, "Time to go: " + ROUND(timeToGo, 2) + " s").
+        f9_print_at(
+            15,
+            "Reference acceleration: "
+                + ROUND(referenceAcceleration, 2) + " m/s2"
+        ).
         IF (timeToGo <= params["landingPhase2Time"]
             OR bottomAltitude <= params["landingCutoffHeight"]) {
+            f9_print_at(18, "Transition: landing phase 2").
             BREAK.
         }
 
@@ -258,11 +308,37 @@ FUNCTION f9_landing_burn {
             minThrottle,
             params["minLandingThrottleCommand"]
         ).
+        f9_print_at(
+            13,
+            "Position error: " + ROUND(relativePosition:MAG, 2) + " m"
+        ).
+        f9_print_at(
+            14,
+            "Command acceleration: "
+                + ROUND(accelerationWorld:MAG, 2) + " m/s2"
+        ).
+        f9_print_at(
+            15,
+            "Throttle req/cmd: " + ROUND(requestedFraction, 3)
+                + " / " + ROUND(throttleTarget, 3)
+        ).
+        f9_print_at(
+            16,
+            "Engines: active  Throttle: "
+                + ROUND(SHIP:CONTROL:MAINTHROTTLE, 2)
+        ).
+        f9_print_at(
+            17,
+            "Local vertical speed: "
+                + ROUND(relativeVelocity:Z, 2) + " m/s"
+        ).
         WAIT 0.
     }
 
     // Phase 2: vertical terminal braking. The engine remains ignited.
-    PRINT "F9 landing: phase 2".
+    f9_clear_guidance_display().
+    f9_print_at(11, "Phase: landing - phase 2").
+    f9_print_at(16, "Engines: active  Continuous ignition").
     LOCAL phase2Start IS TIME:SECONDS.
     LOCAL gearDeployed IS FALSE.
     SET steeringTarget TO f9_get_target_steering(
@@ -275,9 +351,10 @@ FUNCTION f9_landing_burn {
     UNTIL (SHIP:VERTICALSPEED >= 0
         OR bottomAltitude <= params["landingCutoffHeight"]) {
         SET targetGeo TO f9_refresh_target(targetContext).
+        LOCAL phase2Elapsed IS TIME:SECONDS - phase2Start.
 
         IF (NOT gearDeployed
-            AND TIME:SECONDS - phase2Start >= params["gearDeployDelay"]) {
+            AND phase2Elapsed >= params["gearDeployDelay"]) {
             GEAR ON.
             SET gearDeployed TO TRUE.
             SET bottomHeight TO f9_get_bottom_height(TiS).
@@ -307,10 +384,54 @@ FUNCTION f9_landing_burn {
             TiS,
             params["targetRoll"]
         ).
+        f9_print_target_position(targetGeo).
+        f9_print_recovery_vehicle().
+        f9_print_at(
+            6,
+            "Altitude: " + ROUND(SHIP:ALTITUDE, 1)
+                + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
+        ).
+        f9_print_at(
+            12,
+            "Bottom height: " + ROUND(bottomAltitude, 2) + " m"
+        ).
+        f9_print_at(
+            13,
+            "Downward speed: " + ROUND(downwardSpeed, 2) + " m/s"
+        ).
+        f9_print_at(
+            14,
+            "Command acceleration: "
+                + ROUND(requiredAcceleration, 2) + " m/s2"
+        ).
+        f9_print_at(
+            15,
+            "Throttle req/cmd: " + ROUND(requestedFraction, 3)
+                + " / " + ROUND(throttleTarget, 3)
+        ).
+        f9_print_at(
+            16,
+            "Engines: active  Throttle: "
+                + ROUND(SHIP:CONTROL:MAINTHROTTLE, 2)
+        ).
+        IF gearDeployed {
+            f9_print_at(
+                17,
+                "Gear: deployed  Phase time: "
+                    + ROUND(phase2Elapsed, 2) + " s"
+            ).
+        } ELSE {
+            f9_print_at(
+                17,
+                "Gear: waiting  Phase time: "
+                    + ROUND(phase2Elapsed, 2) + " s"
+            ).
+        }
         WAIT 0.
     }
 
-    PRINT "F9 landing: cutoff".
+    f9_print_at(11, "Phase: landing - cutoff").
+    f9_print_at(16, "Engines: cutoff  Throttle: 0.00").
     LOCK THROTTLE TO 0.
     deactivate_engines(landingEngines).
     UNLOCK THROTTLE.

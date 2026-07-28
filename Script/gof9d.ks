@@ -1,3 +1,4 @@
+CLEARSCREEN.
 WAIT UNTIL SHIP:UNPACKED.
 SWITCH TO 0.
 
@@ -23,21 +24,19 @@ FUNCTION gof9d_main {
         PRINT "F9 booster executive: recovery target is unavailable".
         RETURN FALSE.
     }
+    f9_init_recovery_display(targetContext).
 
     IF NOT f9_boostback(F9_PARAMS, targetContext) {
-        PRINT "F9 booster executive: boostback failed".
         RETURN FALSE.
     }
     IF NOT f9_entry_burn(F9_PARAMS, targetContext) {
-        PRINT "F9 booster executive: entry burn failed".
         RETURN FALSE.
     }
     IF NOT f9_landing_burn(F9_PARAMS, targetContext) {
-        PRINT "F9 booster executive: landing failed".
         RETURN FALSE.
     }
 
-    PRINT "F9 booster executive: recovery complete".
+    f9_print_result("Recovery complete").
     RETURN TRUE.
 }
 
