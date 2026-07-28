@@ -66,7 +66,7 @@ FUNCTION f9_boostback {
         SET targetGeo TO f9_refresh_target(targetContext).
         SET remainingVelocity TO f9_get_boostback_vgo(targetGeo).
         LOCAL currentMagnitude IS remainingVelocity:MAG.
-        IF currentMagnitude > previousMagnitude {
+        IF (currentMagnitude < 20 and currentMagnitude > previousMagnitude) {
             BREAK.
         }
         SET previousMagnitude TO currentMagnitude.
