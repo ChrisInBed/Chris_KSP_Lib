@@ -123,8 +123,8 @@ FUNCTION f9_landing_burn {
                 + ROUND(futureRequiredAcceleration, 2)
                 + " / " + ROUND(referenceAcceleration, 2)
         ).
-        IF (futureHeight <= 0
-            OR futureRequiredAcceleration >= referenceAcceleration) {
+        IF (ship:altitude < 25000 and (futureHeight <= 0
+            OR futureRequiredAcceleration >= referenceAcceleration)) {
             f9_print_at(16, "Ignition condition: met").
             BREAK.
         }
@@ -171,7 +171,7 @@ FUNCTION f9_landing_burn {
             ).
 
             SET desiredVector TO ANGLEAXIS(
-                pitchCommand,
+                -pitchCommand,
                 crossrangeAxis
             ) * desiredVector.
             SET desiredVector TO ANGLEAXIS(
@@ -276,7 +276,7 @@ FUNCTION f9_landing_burn {
         ).
         LOCAL targetPosition IS V(0, 0, 0).
         LOCAL targetVelocity IS V(0, 0, -params["touchDownSpeed"]).
-        LOCAL targetAcceleration IS V(0, 0, 0).
+        LOCAL targetAcceleration IS V(0, 0, netReferenceAcceleration).
         LOCAL quadraticControl IS f9_quadratic_fixed_time(
             relativePosition,
             relativeVelocity,

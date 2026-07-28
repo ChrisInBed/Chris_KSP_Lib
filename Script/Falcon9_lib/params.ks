@@ -4,7 +4,11 @@
 
 GLOBAL F9_UNSET IS -999999.
 
-set steeringManager:rollts to 3.
+set steeringManager:maxstoppingtime to 1.
+set steeringManager:pitchts to 10.
+set steeringManager:yawts to 10.
+set steeringManager:rollts to 40.
+set steeringManager:rollpid:kd to 0.5.
 
 local payloadMass to 16.651.
 
@@ -26,8 +30,8 @@ GLOBAL F9_PARAMS IS LEXICON(
     "targetRoll", 0,
 
     // Launch
-    "turnSpeed", 50,
-    "pitchOmega", 0.6,
+    "turnSpeed", 60,
+    "pitchOmega", 0.4,
     "stageSeparationDelay", 1,
     "upperStageIgnitionDelay", 2,
 
@@ -38,7 +42,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Entry burn
     "entryBurnAlt", 80000,
     // Positive magnitude. The signed target used by guidance is -entryVSpeed.
-    "entryVSpeed", 2000,
+    "entryVSpeed", 900,
 
     // Aerodynamic guidance. These must be tuned for the vehicle before flight.
     // PID outputs are pitch/yaw correction angles in degrees.
