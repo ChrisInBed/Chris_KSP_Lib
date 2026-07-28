@@ -123,7 +123,7 @@ FUNCTION f9_landing_burn {
                 + ROUND(futureRequiredAcceleration, 2)
                 + " / " + ROUND(referenceAcceleration, 2)
         ).
-        IF (ship:altitude < 25000 and (futureHeight <= 0
+        IF (ship:altitude < 4000 and (futureHeight <= 0
             OR futureRequiredAcceleration >= referenceAcceleration)) {
             f9_print_at(16, "Ignition condition: met").
             BREAK.
@@ -134,7 +134,7 @@ FUNCTION f9_landing_burn {
             LOCAL impactError IS ADDONS:TR:IMPACTPOS:POSITION
                 - targetGeo:POSITION.
             LOCAL normalizedError IS impactError
-                / MAX(1, targetGeo:POSITION:MAG) * 180 / constant:pi.  // TO deg
+                / MAX(1, targetGeo:POSITION:MAG) * 180 / constant:pi  / (1 + ship:q * 101 / 20).  // TO deg, normalized by dynamic pressure
             LOCAL upAxis IS UP:FOREVECTOR.
             LOCAL downrangeAxis IS VXCL(
                 upAxis,
@@ -199,6 +199,7 @@ FUNCTION f9_landing_burn {
     LOCK THROTTLE TO throttleTarget.
 
     // Phase 1: three-dimensional fixed-time quadratic divert.
+    LOCAL maxQuadraticAOA IS 15.
     LOCAL timeToGo IS params["landingPhase2Time"] + 1.
     UNTIL FALSE {
         SET targetGeo TO f9_refresh_target(targetContext).
@@ -294,9 +295,34 @@ FUNCTION f9_landing_burn {
             + accelerationLocal:Y * horizontalAxis
             + accelerationLocal:Z * upAxis.
 
+        LOCAL requestedAOA IS 0.
+        LOCAL commandedAOA IS 0.
+        LOCAL steeringAcceleration IS accelerationWorld.
         IF accelerationWorld:MAG > 0.000001 {
+            LOCAL retrogradeDirection IS SRFRETROGRADE:FOREVECTOR.
+            SET requestedAOA TO VANG(
+                retrogradeDirection,
+                accelerationWorld
+            ).
+            SET commandedAOA TO MIN(requestedAOA, maxQuadraticAOA).
+            IF requestedAOA > maxQuadraticAOA {
+                LOCAL aoaAxis IS VCRS(
+                    retrogradeDirection,
+                    accelerationWorld
+                ).
+                IF aoaAxis:MAG < 0.000001 {
+                    SET aoaAxis TO horizontalAxis.
+                } ELSE {
+                    SET aoaAxis TO aoaAxis:NORMALIZED.
+                }
+                SET steeringAcceleration TO accelerationWorld:MAG
+                    * (
+                        ANGLEAXIS(maxQuadraticAOA, aoaAxis)
+                        * retrogradeDirection
+                    ).
+            }
             SET steeringTarget TO f9_get_target_steering(
-                accelerationWorld,
+                steeringAcceleration,
                 TiS,
                 params["targetRoll"]
             ).
@@ -331,6 +357,11 @@ FUNCTION f9_landing_burn {
             17,
             "Local vertical speed: "
                 + ROUND(relativeVelocity:Z, 2) + " m/s"
+        ).
+        f9_print_at(
+            18,
+            "AOA req/cmd: " + ROUND(requestedAOA, 2)
+                + " / " + ROUND(commandedAOA, 2) + " deg"
         ).
         WAIT 0.
     }

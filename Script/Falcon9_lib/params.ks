@@ -6,9 +6,12 @@ GLOBAL F9_UNSET IS -999999.
 
 set steeringManager:maxstoppingtime to 1.
 set steeringManager:pitchts to 10.
+set steeringManager:pitchpid:kd to 0.1.
 set steeringManager:yawts to 10.
-set steeringManager:rollts to 40.
-set steeringManager:rollpid:kd to 0.5.
+set steeringManager:yawpid:kd to 0.1.
+set steeringManager:rollts to 20.
+set steeringManager:rollpid:kd to 0.1.
+// set steeringManager:rollpid:epsilon to 0.1.
 
 local payloadMass to 16.651.
 
@@ -46,11 +49,11 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Aerodynamic guidance. These must be tuned for the vehicle before flight.
     // PID outputs are pitch/yaw correction angles in degrees.
-    "aeroPitchKp", 10,
-    "aeroPitchKi", 1,
+    "aeroPitchKp", 20,
+    "aeroPitchKi", 0,
     "aeroPitchKd", 1,
-    "aeroYawKp", 10,
-    "aeroYawKi", 1,
+    "aeroYawKp", 20,
+    "aeroYawKi", 0,
     "aeroYawKd", 1,
     "aeroMaxPitch", 15,
     "aeroMaxYaw", 15,
@@ -59,7 +62,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     "touchDownSpeed", 0.2,
     "landingPhase2Time", 5,
     "landingCutoffHeight", 0.2,
-    "gearDeployDelay", 8,
+    "gearDeployDelay", 0.1,
     "boundsUpdatePeriod", 1,
     // Keep a continuously ignited RO engine above zero command until cutoff.
     "minLandingThrottleCommand", 0.01,
