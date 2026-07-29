@@ -9,8 +9,8 @@ set steeringManager:pitchts to 10.
 set steeringManager:pitchpid:kd to 0.1.
 set steeringManager:yawts to 10.
 set steeringManager:yawpid:kd to 0.1.
-set steeringManager:rollts to 20.
-set steeringManager:rollpid:kd to 0.1.
+set steeringManager:rollts to 10.
+set steeringManager:rollpid:kd to 0.5.
 // set steeringManager:rollpid:epsilon to 0.1.
 
 local payloadMass to 16.651.

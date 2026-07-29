@@ -131,13 +131,13 @@ FUNCTION f9_refresh_target {
     RETURN targetContext["geo"].
 }
 
-FUNCTION f9_get_orbit_normal {
+FUNCTION f9_get_surface_normal {
     LOCAL unitR IS -SHIP:BODY:POSITION:NORMALIZED.
-    LOCAL orbitNormal IS VCRS(SHIP:VELOCITY:ORBIT, unitR).
-    IF orbitNormal:MAG < 0.000001 {
-        RETURN NORTH:FOREVECTOR.
+    LOCAL orbitNormal IS VCRS(SHIP:VELOCITY:ORBIT, unitR):NORMALIZED.
+    IF orbitNormal:MAG < 1e-4 {
+        RETURN NORTH:FORVECTOR.
     }
-    RETURN orbitNormal:NORMALIZED.
+    RETURN orbitNormal.
 }
 
 // PEGLand-style steering: burnVector is the desired acceleration direction,
@@ -150,7 +150,7 @@ FUNCTION f9_get_target_steering {
     IF burnVector:MAG < 0.000001 {
         RETURN SHIP:FACING.
     }
-    LOCAL topVector IS VCRS(burnVector, f9_get_orbit_normal()).
+    LOCAL topVector IS VCRS(burnVector, f9_get_surface_normal()).
     IF topVector:MAG < 0.000001 {
         SET topVector TO NORTH:FOREVECTOR.
     }
