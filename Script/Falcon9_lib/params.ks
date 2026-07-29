@@ -60,6 +60,8 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Landing burn
     "QuadraticAOABase", 15,
+    "landingBurnSpeed", 430,
+    "legDeploySpeed", 150,
     "touchDownSpeed", 0.1,
     "landingPhase2Time", 5,
     "landingCutoffHeight", 0.2,

@@ -124,7 +124,7 @@ FUNCTION f9_landing_burn {
                 + ROUND(futureRequiredAcceleration, 2)
                 + " / " + ROUND(referenceAcceleration, 2)
         ).
-        IF (ship:airspeed < 480 and (futureHeight <= 0
+        IF (ship:airspeed < params["landingBurnSpeed"] and (futureHeight <= 0
             OR futureRequiredAcceleration >= referenceAcceleration)) {
             f9_print_at(16, "Ignition condition: met").
             BREAK.
@@ -225,7 +225,7 @@ FUNCTION f9_landing_burn {
     LOCAL timeToGo IS _T.
     UNTIL FALSE {
         SET targetGeo TO f9_refresh_target(targetContext).
-        if (ship:airspeed < 200 and (not GEAR)) GEAR ON.
+        if (ship:airspeed < params["legDeploySpeed"] and (not GEAR)) GEAR ON.
         IF TIME:SECONDS >= nextBoundsUpdate {
             SET bottomHeight TO f9_get_bottom_height(TiS).
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
