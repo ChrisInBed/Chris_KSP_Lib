@@ -133,7 +133,7 @@ FUNCTION f9_refresh_target {
 
 FUNCTION f9_get_surface_normal {
     LOCAL unitR IS -SHIP:BODY:POSITION:NORMALIZED.
-    LOCAL orbitNormal IS VCRS(SHIP:VELOCITY:ORBIT, unitR):NORMALIZED.
+    LOCAL orbitNormal IS VCRS(unitR, SHIP:VELOCITY:SURFACE):NORMALIZED.
     IF orbitNormal:MAG < 1e-4 {
         RETURN NORTH:FORVECTOR.
     }
@@ -146,11 +146,14 @@ FUNCTION f9_get_target_steering {
     PARAMETER burnVector.
     PARAMETER TiS.
     PARAMETER targetRoll.
+    PARAMETER vecNormal is 0.
 
     IF burnVector:MAG < 0.000001 {
         RETURN SHIP:FACING.
     }
-    LOCAL topVector IS VCRS(burnVector, f9_get_surface_normal()).
+    LOCAL topVector IS V(0,0,0).
+    if (vecNormal <> 0)  SET topVector TO VCRS(burnVector, vecNormal).
+    ELSE SET topVector TO VCRS(burnVector, f9_get_surface_normal()).
     IF topVector:MAG < 0.000001 {
         SET topVector TO NORTH:FOREVECTOR.
     }

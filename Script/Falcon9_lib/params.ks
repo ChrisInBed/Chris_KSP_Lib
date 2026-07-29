@@ -4,12 +4,12 @@
 
 GLOBAL F9_UNSET IS -999999.
 
-set steeringManager:maxstoppingtime to 1.
-set steeringManager:pitchts to 10.
-set steeringManager:pitchpid:kd to 0.1.
-set steeringManager:yawts to 10.
-set steeringManager:yawpid:kd to 0.1.
-set steeringManager:rollts to 10.
+set steeringManager:maxstoppingtime to 4.
+set steeringManager:pitchts to 3.
+// set steeringManager:pitchpid:kd to 0.1.
+set steeringManager:yawts to 3.
+// set steeringManager:yawpid:kd to 0.1.
+set steeringManager:rollts to 3.
 set steeringManager:rollpid:kd to 0.5.
 // set steeringManager:rollpid:epsilon to 0.1.
 
@@ -59,10 +59,10 @@ GLOBAL F9_PARAMS IS LEXICON(
     "aeroMaxYaw", 15,
 
     // Landing burn
-    "touchDownSpeed", 0.2,
+    "QuadraticAOABase", 15,
+    "touchDownSpeed", 0.1,
     "landingPhase2Time", 5,
     "landingCutoffHeight", 0.2,
-    "gearDeployDelay", 0.1,
     "boundsUpdatePeriod", 1,
     // Keep a continuously ignited RO engine above zero command until cutoff.
     "minLandingThrottleCommand", 0.01,

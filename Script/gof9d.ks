@@ -40,4 +40,12 @@ FUNCTION gof9d_main {
     RETURN TRUE.
 }
 
+// set vecXTrue to vecDraw({return V(0,0,0).}, {return ship:facing:starvector * 50.}, RGB(0, 255, 0), "X", 1, true).
+// set vecYTrue to vecDraw({return V(0,0,0).}, {return ship:facing:topvector * 50.}, RGB(0, 0, 255), "Y", 1, true).
+// set vecZTrue to vecDraw({return V(0,0,0).}, {return ship:facing:forevector * 50.}, RGB(255, 0, 0), "Z", 1, true).
+// if (steering:hassuffix("forvector")) {
+//     set vecXRef to vecDraw({return V(0,0,0).}, {return steering:starvector * 50.}, RGB(0, 255, 0), "X", 1, true).
+//     set vecYRef to vecDraw({return V(0,0,0).}, {return steering:topvector * 50.}, RGB(0, 0, 255), "Y", 1, true).
+//     set vecZRef to vecDraw({return V(0,0,0).}, {return steering:forevector * 50.}, RGB(255, 0, 0), "Z", 1, true).
+// }
 gof9d_main().

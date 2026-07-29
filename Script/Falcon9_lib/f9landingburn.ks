@@ -12,7 +12,7 @@ FUNCTION f9_quadratic_fixed_time {
     PARAMETER targetAcceleration.
     PARAMETER timeToGo.
 
-    LOCAL qT IS -MAX(0.05, timeToGo).
+    LOCAL qT IS -timeToGo.
     LOCAL qJ IS 24/qT^3*(currentPosition-targetPosition)
         - 6/qT^2*(currentVelocity+3*targetVelocity)
         - 6/qT*targetAcceleration.
@@ -63,6 +63,7 @@ FUNCTION f9_landing_burn {
 
     LOCAL targetGeo IS f9_refresh_target(targetContext).
     LOCAL bottomHeight IS f9_get_bottom_height(TiS).
+    LOCAL vecNormal IS f9_get_surface_normal().
     LOCAL nextBoundsUpdate IS TIME:SECONDS + params["boundsUpdatePeriod"].
     LOCAL steeringTarget IS f9_get_target_steering(
         SRFRETROGRADE:FOREVECTOR,
@@ -123,7 +124,7 @@ FUNCTION f9_landing_burn {
                 + ROUND(futureRequiredAcceleration, 2)
                 + " / " + ROUND(referenceAcceleration, 2)
         ).
-        IF (ship:altitude < 4000 and (futureHeight <= 0
+        IF (ship:airspeed < 480 and (futureHeight <= 0
             OR futureRequiredAcceleration >= referenceAcceleration)) {
             f9_print_at(16, "Ignition condition: met").
             BREAK.
@@ -134,7 +135,7 @@ FUNCTION f9_landing_burn {
             LOCAL impactError IS ADDONS:TR:IMPACTPOS:POSITION
                 - targetGeo:POSITION.
             LOCAL normalizedError IS impactError
-                / MAX(1, targetGeo:POSITION:MAG) * 180 / constant:pi  / (1 + ship:q * 101 / 20).  // TO deg, normalized by dynamic pressure
+                / MAX(1, targetGeo:POSITION:MAG) * 180 / constant:pi  / (1 + ship:q * 101 / 40).  // TO deg, normalized by dynamic pressure
             LOCAL upAxis IS UP:FOREVECTOR.
             LOCAL downrangeAxis IS VXCL(
                 upAxis,
@@ -186,7 +187,8 @@ FUNCTION f9_landing_burn {
         SET steeringTarget TO f9_get_target_steering(
             desiredVector,
             TiS,
-            params["targetRoll"]
+            params["targetRoll"],
+            vecNormal
         ).
         WAIT 0.
     }
@@ -199,35 +201,39 @@ FUNCTION f9_landing_burn {
     LOCK THROTTLE TO throttleTarget.
 
     // Phase 1: three-dimensional fixed-time quadratic divert.
-    LOCAL maxQuadraticAOA IS 15.
-    LOCAL timeToGo IS params["landingPhase2Time"] + 1.
+    LOCK maxQuadraticAOA TO (params["QuadraticAOABase"]/(1+ship:q*101/40)).
+    LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
+    LOCAL g IS SHIP:BODY:MU / radius^2.
+    LOCAL refAccStart IS _maxThrust * (0.9 + 0.1*minThrottle) / SHIP:MASS - g.
+    LOCAL refAccEnd IS max(0.5, _maxThrust * (0.15 + 0.85*minThrottle) / SHIP:MASS - g).
+    f9_print_at(
+        19,
+        "AccStart = " + round(refAccStart, 1)
+        + " ; AccEnd = " + round(refAccEnd, 1) + " m/s2"
+    ).
+    if (refAccStart <= 0) {
+        f9_print_result("ERROR: invalid phase-1 acceleration").
+        LOCK THROTTLE TO 0.
+        deactivate_engines(landingEngines).
+        UNLOCK THROTTLE.
+        UNLOCK STEERING.
+        RETURN FALSE.
+    }
+    LOCAL _T to -(SHIP:VELOCITY:SURFACE:MAG - params["touchDownSpeed"]) * 2 / (refAccStart + refAccEnd).
+    LOCAL _accDot to (refAccStart - refAccEnd) / _T.
+    LOCAL _getTimeToGo to { return -(-refAccEnd+sqrt(refAccEnd*refAccEnd-2*_accDot*(SHIP:velocity:surface:mag-params["touchDownSpeed"])))/_accDot. }.
+    LOCAL timeToGo IS _T.
     UNTIL FALSE {
         SET targetGeo TO f9_refresh_target(targetContext).
+        if (ship:airspeed < 200 and (not GEAR)) GEAR ON.
         IF TIME:SECONDS >= nextBoundsUpdate {
             SET bottomHeight TO f9_get_bottom_height(TiS).
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
         }
 
         LOCAL bottomAltitude IS f9_get_bottom_altitude(targetGeo, bottomHeight).
-        LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
-        LOCAL g IS SHIP:BODY:MU / radius^2.
-        LOCAL referenceAcceleration IS
-            ((1 + minThrottle) * 0.5 * _maxThrust) / SHIP:MASS.
-        LOCAL netReferenceAcceleration IS referenceAcceleration - g.
-        IF netReferenceAcceleration <= 0 {
-            f9_print_result("ERROR: invalid phase-1 acceleration").
-            LOCK THROTTLE TO 0.
-            deactivate_engines(landingEngines).
-            UNLOCK THROTTLE.
-            UNLOCK STEERING.
-            RETURN FALSE.
-        }
 
-        SET timeToGo TO MAX(
-            0,
-            (SHIP:VELOCITY:SURFACE:MAG - params["touchDownSpeed"])
-            / netReferenceAcceleration
-        ).
+        SET timeToGo TO MAX(0, _getTimeToGo()).
         f9_print_target_position(targetGeo).
         f9_print_recovery_vehicle().
         f9_print_at(
@@ -236,11 +242,6 @@ FUNCTION f9_landing_burn {
                 + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
         ).
         f9_print_at(12, "Time to go: " + ROUND(timeToGo, 2) + " s").
-        f9_print_at(
-            15,
-            "Reference acceleration: "
-                + ROUND(referenceAcceleration, 2) + " m/s2"
-        ).
         IF (timeToGo <= params["landingPhase2Time"]
             OR bottomAltitude <= params["landingCutoffHeight"]) {
             f9_print_at(18, "Transition: landing phase 2").
@@ -248,36 +249,11 @@ FUNCTION f9_landing_burn {
         }
 
         LOCAL upAxis IS UP:FOREVECTOR.
-        LOCAL horizontalAxis IS VCRS(
-            upAxis,
-            SHIP:VELOCITY:SURFACE
-        ).
-        IF horizontalAxis:MAG < 0.000001 {
-            SET horizontalAxis TO VCRS(upAxis, NORTH:FOREVECTOR).
-        }
-        IF horizontalAxis:MAG < 0.000001 {
-            SET horizontalAxis TO SHIP:FACING:STARVECTOR.
-        }
-        SET horizontalAxis TO horizontalAxis:NORMALIZED.
-        LOCAL downrangeAxis IS VCRS(horizontalAxis, upAxis):NORMALIZED.
-
-        LOCAL bottomPosition IS SHIP:POSITION
-            - bottomHeight * upAxis
-            - targetGeo:POSITION.
-        LOCAL vecV IS SHIP:VELOCITY:SURFACE.
-        LOCAL relativePosition IS V(
-            VDOT(bottomPosition, downrangeAxis),
-            VDOT(bottomPosition, horizontalAxis),
-            VDOT(bottomPosition, upAxis)
-        ).
-        LOCAL relativeVelocity IS V(
-            VDOT(vecV, downrangeAxis),
-            VDOT(vecV, horizontalAxis),
-            VDOT(vecV, upAxis)
-        ).
+        LOCAL relativePosition IS -targetGeo:POSITION - bottomHeight * upAxis.
+        LOCAL relativeVelocity IS SHIP:VELOCITY:SURFACE.
         LOCAL targetPosition IS V(0, 0, 0).
-        LOCAL targetVelocity IS V(0, 0, -params["touchDownSpeed"]).
-        LOCAL targetAcceleration IS V(0, 0, netReferenceAcceleration).
+        LOCAL targetVelocity IS -params["touchDownSpeed"] * upAxis.
+        LOCAL targetAcceleration IS refAccEnd * upAxis.
         LOCAL quadraticControl IS f9_quadratic_fixed_time(
             relativePosition,
             relativeVelocity,
@@ -289,11 +265,9 @@ FUNCTION f9_landing_burn {
         LOCAL qT IS quadraticControl[0].
         LOCAL qJ IS quadraticControl[1].
         LOCAL qS IS quadraticControl[2].
-        LOCAL accelerationLocal IS targetAcceleration
-            + qJ*qT + 0.5*qS*qT^2 + V(0, 0, g).
-        LOCAL accelerationWorld IS accelerationLocal:X * downrangeAxis
-            + accelerationLocal:Y * horizontalAxis
-            + accelerationLocal:Z * upAxis.
+        LOCAL accelerationWorld IS targetAcceleration
+            + qJ*qT + 0.5*qS*qT^2 + g*upAxis.
+        // set _drawAcc to vecDraw(V(0,0,0), accelerationWorld * 5, RGB(0, 255, 0), "Acc", 1, true).
 
         LOCAL requestedAOA IS 0.
         LOCAL commandedAOA IS 0.
@@ -309,12 +283,7 @@ FUNCTION f9_landing_burn {
                 LOCAL aoaAxis IS VCRS(
                     retrogradeDirection,
                     accelerationWorld
-                ).
-                IF aoaAxis:MAG < 0.000001 {
-                    SET aoaAxis TO horizontalAxis.
-                } ELSE {
-                    SET aoaAxis TO aoaAxis:NORMALIZED.
-                }
+                ):NORMALIZED.
                 SET steeringAcceleration TO accelerationWorld:MAG
                     * (
                         ANGLEAXIS(maxQuadraticAOA, aoaAxis)
@@ -324,7 +293,8 @@ FUNCTION f9_landing_burn {
             SET steeringTarget TO f9_get_target_steering(
                 steeringAcceleration,
                 TiS,
-                params["targetRoll"]
+                params["targetRoll"],
+                vecNormal
             ).
         }
         LOCAL requestedFraction IS
@@ -356,7 +326,7 @@ FUNCTION f9_landing_burn {
         f9_print_at(
             17,
             "Local vertical speed: "
-                + ROUND(relativeVelocity:Z, 2) + " m/s"
+                + ROUND(ship:verticalspeed, 2) + " m/s"
         ).
         f9_print_at(
             18,
@@ -371,7 +341,6 @@ FUNCTION f9_landing_burn {
     f9_print_at(11, "Phase: landing - phase 2").
     f9_print_at(16, "Engines: active  Continuous ignition").
     LOCAL phase2Start IS TIME:SECONDS.
-    LOCAL gearDeployed IS FALSE.
     SET steeringTarget TO f9_get_target_steering(
         UP:FOREVECTOR,
         TiS,
@@ -384,20 +353,12 @@ FUNCTION f9_landing_burn {
         SET targetGeo TO f9_refresh_target(targetContext).
         LOCAL phase2Elapsed IS TIME:SECONDS - phase2Start.
 
-        IF (NOT gearDeployed
-            AND phase2Elapsed >= params["gearDeployDelay"]) {
-            GEAR ON.
-            SET gearDeployed TO TRUE.
-            SET bottomHeight TO f9_get_bottom_height(TiS).
-            SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
-        } ELSE IF TIME:SECONDS >= nextBoundsUpdate {
+        IF TIME:SECONDS >= nextBoundsUpdate {
             SET bottomHeight TO f9_get_bottom_height(TiS).
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
         }
 
         SET bottomAltitude TO f9_get_bottom_altitude(targetGeo, bottomHeight).
-        LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
-        LOCAL g IS SHIP:BODY:MU / radius^2.
         LOCAL downwardSpeed IS MAX(0, -SHIP:VERTICALSPEED).
         LOCAL requiredAcceleration IS
             (downwardSpeed^2 - params["touchDownSpeed"]^2)
@@ -410,11 +371,22 @@ FUNCTION f9_landing_burn {
             minThrottle,
             params["minLandingThrottleCommand"]
         ).
-        SET steeringTarget TO f9_get_target_steering(
-            UP:FOREVECTOR,
-            TiS,
-            params["targetRoll"]
-        ).
+        if (SHIP:groundspeed > 0.5) {
+            SET steeringTarget TO f9_get_target_steering(
+                srfRetrograde:forevector,
+                TiS,
+                params["targetRoll"],
+                vecNormal
+            ).
+        }
+        else {
+            SET steeringTarget TO f9_get_target_steering(
+                UP:FOREVECTOR,
+                TiS,
+                params["targetRoll"],
+                vecNormal
+            ).
+        }
         f9_print_target_position(targetGeo).
         f9_print_recovery_vehicle().
         f9_print_at(
@@ -445,19 +417,6 @@ FUNCTION f9_landing_burn {
             "Engines: active  Throttle: "
                 + ROUND(SHIP:CONTROL:MAINTHROTTLE, 2)
         ).
-        IF gearDeployed {
-            f9_print_at(
-                17,
-                "Gear: deployed  Phase time: "
-                    + ROUND(phase2Elapsed, 2) + " s"
-            ).
-        } ELSE {
-            f9_print_at(
-                17,
-                "Gear: waiting  Phase time: "
-                    + ROUND(phase2Elapsed, 2) + " s"
-            ).
-        }
         WAIT 0.
     }
 
