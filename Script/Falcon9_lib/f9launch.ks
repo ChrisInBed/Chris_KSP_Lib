@@ -130,10 +130,11 @@ FUNCTION f9_launch {
     f9_print_at(10, "Event: upper-stage ignition").
     LOCK THROTTLE TO 1.
     f9_print_at(7, "Throttle command: 1.00").
-    STAGE.
-    WAIT 0.
+    WAIT 5.
     SET SHIP:CONTROL:FORE TO 0.
-    WAIT UNTIL AG10.
+    f9_print_at(23, "First stage guidance ended, Action Group 10 to deactivate program").
+    LOCAL AG10State to AG10.
+    WAIT UNTIL AG10 <> AG10State.
     UNLOCK STEERING.
     UNLOCK THROTTLE.
     WAIT 0.

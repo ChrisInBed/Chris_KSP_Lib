@@ -26,28 +26,26 @@ GLOBAL F9_PARAMS IS LEXICON(
     "landingEngineTag", "landing",
 
     // Vehicle-specific values. These must be set before flight.
-    "payloadMass", payloadMass,
-    "mecoMass", 192 + payloadMass,
-    "boostBackMass", 150,
-    "targetHeading", 80,
-    "targetRoll", 0,
-    // Added to the selected waypoint or target vessel's ASL altitude
-    "altitudeOffset", 0,
+    "payloadMass", payloadMass,  // Mass of the payload, ton
+    "mecoMass", 192 + payloadMass,  // When the mass is below MECO mass, trigger MECO, ton
+    "boostBackMass", 150,  // After second stage seperation, the mass of first stage should be less than this, ton
+    "targetHeading", 80,  // First stage ascent azimuth, deg
+    "targetRoll", 45,  // Roll angle while whole process, deg
+    "altitudeOffset", 0,  // Additional height added to the selected waypoint, or target COM, m
 
     // Launch
-    "turnSpeed", 50,
-    "pitchOmega", 0.42,
-    "stageSeparationDelay", 1,
-    "upperStageIgnitionDelay", 2,
+    "turnSpeed", 50,  // Gravity turn start speed, m/s
+    "pitchOmega", 0.42,  // Programmed turn pitching speed, deg/s
+    "stageSeparationDelay", 1,  // Time between MECO and 1st Stage Separation, s
+    "upperStageIgnitionDelay", 2,  // Time between 1st Stage Separation and second stage ignition, s
 
     // Powered-burn alignment and timing
-    "burnAlignTolerance", 5,
-    "boostBackDelay", 4,
+    "boostBackDelay", 4,  // Time between 1st stage separation and boostback maneuver, s
+    "burnAlignTolerance", 5,  // Alignment angle error tolerance, deg
 
     // Entry burn
-    "entryBurnAlt", 60000,
-    // Positive magnitude. The signed target used by guidance is -entryVSpeed.
-    "entryVSpeed", 650,
+    "entryBurnAlt", 60000,  // Altitude to perform entry burn, m
+    "entryVSpeed", 650,  // Target descent rate, m/s
 
     // Aerodynamic guidance. These must be tuned for the vehicle before flight.
     // PID outputs are pitch/yaw correction angles in degrees.
@@ -59,16 +57,16 @@ GLOBAL F9_PARAMS IS LEXICON(
     "aeroYawKd", 0.5,
     "aeroMaxPitch", 15,
     "aeroMaxYaw", 15,
-    "aeroTargetOffset", 70,
+    "aeroTargetOffset", 70,  // Aerodynamic gliding phase is aiming at target + aeroTargetOffset * downRangeVector, m
 
     // Landing burn
-    "QuadraticAOABase", 15,
-    "landingBurnSpeed", 400,
-    "legDeploySpeed", 150,
-    "touchDownSpeed", 0.1,
-    "landingPhase2Time", 8,
-    "landingCutoffHeight", 0.2,
-    "boundsUpdatePeriod", 1,
+    "QuadraticAOABase", 15,  // AOA limit during quadratic guidance phase, deg
+    "landingBurnSpeed", 400,  // Ignite landing engine when speed is below this, m/s
+    "legDeploySpeed", 150,  // Deploy landing legs when speed is below this, m/s
+    "touchDownSpeed", 0.1,  // touch down speed, m/s
+    "landingPhase2Time", 8,  // time of untargeted landing phase 2, s
+    "landingCutoffHeight", 0.2,  // cut off landing engines when height is below this, m
+    "boundsUpdatePeriod", 1,  // frequency of updating bounding box, s
     // Keep a continuously ignited RO engine above zero command until cutoff.
     "minLandingThrottleCommand", 0.01,
 

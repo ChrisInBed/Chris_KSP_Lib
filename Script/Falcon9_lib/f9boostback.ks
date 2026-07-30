@@ -68,6 +68,7 @@ FUNCTION f9_boostback {
     ).
     f9_print_at(13, "Alignment error: " + ROUND(alignmentError, 2) + " deg").
     f9_print_at(16, "Engines: armed  Throttle: 0.00").
+    LOCAL vecNormal to f9_get_surface_normal().
     UNTIL alignmentError <= params["burnAlignTolerance"] {
         f9_refresh_target(targetContext).
         SET targetPosition TO f9_get_target_position(targetContext).
@@ -75,7 +76,8 @@ FUNCTION f9_boostback {
         SET steeringTarget TO f9_get_target_steering(
             remainingVelocity,
             engineInfo["TiS"],
-            params["targetRoll"]
+            params["targetRoll"],
+            vecNormal
         ).
         SET alignmentError TO VANG(
             (SHIP:FACING * engineInfo["TiS"]:INVERSE):FOREVECTOR,
@@ -136,7 +138,8 @@ FUNCTION f9_boostback {
             SET steeringTarget TO f9_get_target_steering(
                 remainingVelocity,
                 engineInfo["TiS"],
-                params["targetRoll"]
+                params["targetRoll"],
+                vecNormal
             ).
         }
         WAIT 0.
