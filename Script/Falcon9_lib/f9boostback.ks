@@ -35,9 +35,10 @@ FUNCTION f9_boostback {
         RETURN FALSE.
     }
 
-    LOCAL targetGeo IS f9_refresh_target(targetContext).
-    LOCAL remainingVelocity IS f9_get_boostback_vgo(targetGeo).
-    f9_print_target_position(targetGeo).
+    f9_refresh_target(targetContext).
+    LOCAL targetPosition IS f9_get_target_position(targetContext).
+    LOCAL remainingVelocity IS f9_get_boostback_vgo(targetPosition).
+    f9_print_target_position(targetContext).
     f9_print_recovery_vehicle().
     IF remainingVelocity:MAG < 0.001 {
         f9_print_at(11, "Phase: boostback - no burn required").
@@ -68,8 +69,9 @@ FUNCTION f9_boostback {
     f9_print_at(13, "Alignment error: " + ROUND(alignmentError, 2) + " deg").
     f9_print_at(16, "Engines: armed  Throttle: 0.00").
     UNTIL alignmentError <= params["burnAlignTolerance"] {
-        SET targetGeo TO f9_refresh_target(targetContext).
-        SET remainingVelocity TO f9_get_boostback_vgo(targetGeo).
+        f9_refresh_target(targetContext).
+        SET targetPosition TO f9_get_target_position(targetContext).
+        SET remainingVelocity TO f9_get_boostback_vgo(targetPosition).
         SET steeringTarget TO f9_get_target_steering(
             remainingVelocity,
             engineInfo["TiS"],
@@ -79,7 +81,7 @@ FUNCTION f9_boostback {
             (SHIP:FACING * engineInfo["TiS"]:INVERSE):FOREVECTOR,
             remainingVelocity
         ).
-        f9_print_target_position(targetGeo).
+        f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
         f9_print_at(
             12,
@@ -105,10 +107,11 @@ FUNCTION f9_boostback {
     WAIT 0.
 
     UNTIL FALSE {
-        SET targetGeo TO f9_refresh_target(targetContext).
-        SET remainingVelocity TO f9_get_boostback_vgo(targetGeo).
+        f9_refresh_target(targetContext).
+        SET targetPosition TO f9_get_target_position(targetContext).
+        SET remainingVelocity TO f9_get_boostback_vgo(targetPosition).
         LOCAL currentMagnitude IS remainingVelocity:MAG.
-        f9_print_target_position(targetGeo).
+        f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
         f9_print_at(
             12,

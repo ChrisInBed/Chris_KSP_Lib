@@ -70,12 +70,13 @@ FUNCTION f9_entry_burn {
         RETURN TRUE.
     }
 
-    LOCAL targetGeo IS f9_refresh_target(targetContext).
+    f9_refresh_target(targetContext).
+    LOCAL targetPosition IS f9_get_target_position(targetContext).
     LOCAL remainingVelocity IS f9_get_entry_vgo(
-        targetGeo,
+        targetPosition,
         params["entryVSpeed"]
     ).
-    f9_print_target_position(targetGeo).
+    f9_print_target_position(targetContext).
     f9_print_recovery_vehicle().
     IF remainingVelocity:MAG < 0.001 {
         f9_print_at(11, "Phase: entry - no burn required").
@@ -102,9 +103,10 @@ FUNCTION f9_entry_burn {
     ).
     f9_print_at(14, "Alignment error: " + ROUND(alignmentError, 2) + " deg").
     UNTIL alignmentError <= params["burnAlignTolerance"] {
-        SET targetGeo TO f9_refresh_target(targetContext).
+        f9_refresh_target(targetContext).
+        SET targetPosition TO f9_get_target_position(targetContext).
         SET remainingVelocity TO f9_get_entry_vgo(
-            targetGeo,
+            targetPosition,
             params["entryVSpeed"]
         ).
         SET steeringTarget TO f9_get_target_steering(
@@ -116,7 +118,7 @@ FUNCTION f9_entry_burn {
             (SHIP:FACING * engineInfo["TiS"]:INVERSE):FOREVECTOR,
             remainingVelocity
         ).
-        f9_print_target_position(targetGeo).
+        f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
         f9_print_at(
             12,
@@ -139,9 +141,10 @@ FUNCTION f9_entry_burn {
     activate_engines(entryEngines).
     f9_print_at(16, "Engines: active").
     UNTIL SHIP:VERTICALSPEED >= -params["entryVSpeed"] {
-        SET targetGeo TO f9_refresh_target(targetContext).
+        f9_refresh_target(targetContext).
+        SET targetPosition TO f9_get_target_position(targetContext).
         SET remainingVelocity TO f9_get_entry_vgo(
-            targetGeo,
+            targetPosition,
             params["entryVSpeed"]
         ).
         IF remainingVelocity:MAG > 0.001 {
@@ -151,7 +154,7 @@ FUNCTION f9_entry_burn {
                 params["targetRoll"]
             ).
         }
-        f9_print_target_position(targetGeo).
+        f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
         f9_print_at(
             12,

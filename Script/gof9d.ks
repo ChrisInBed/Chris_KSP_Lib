@@ -19,7 +19,7 @@ FUNCTION gof9d_main {
         RETURN FALSE.
     }
 
-    LOCAL targetContext IS f9_initialize_target().
+    LOCAL targetContext IS f9_initialize_target(F9_PARAMS).
     IF NOT targetContext["ok"] {
         PRINT "F9 booster executive: recovery target is unavailable".
         RETURN FALSE.

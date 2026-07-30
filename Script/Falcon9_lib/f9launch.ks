@@ -48,7 +48,6 @@ FUNCTION f9_launch {
     SAS OFF.
     LOCK STEERING TO steeringTarget.
     LOCK THROTTLE TO 1.
-    RCS ON.
     STAGE.
     // activate_engines(liftoffEngines).
     WAIT engineInfo["spooluptime"].
@@ -56,6 +55,7 @@ FUNCTION f9_launch {
     f9_print_at(2, "State: vertical ascent").
     f9_print_at(10, "Event: liftoff").
     STAGE.
+    RCS ON.
     UNTIL SHIP:VELOCITY:SURFACE:MAG >= params["turnSpeed"] {
         f9_print_at(
             3,
@@ -119,6 +119,9 @@ FUNCTION f9_launch {
 
     f9_print_at(2, "State: stage separation").
     f9_print_at(10, "Event: first-stage separation").
+    // Steering and throttle are locked to temporary value. In future this will be changed to PEG guidance
+    SET _steering_gap TO ship:facing.
+    LOCK STEERING TO _steering_gap.
     STAGE.
     SET SHIP:CONTROL:FORE TO 1.
     WAIT params["upperStageIgnitionDelay"].
@@ -128,10 +131,11 @@ FUNCTION f9_launch {
     LOCK THROTTLE TO 1.
     f9_print_at(7, "Throttle command: 1.00").
     STAGE.
-    UNLOCK STEERING.
-    SAS ON.
     WAIT 0.
     SET SHIP:CONTROL:FORE TO 0.
+    WAIT UNTIL AG10.
+    UNLOCK STEERING.
     UNLOCK THROTTLE.
+    WAIT 0.
     RETURN TRUE.
 }

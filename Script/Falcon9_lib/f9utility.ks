@@ -56,11 +56,20 @@ FUNCTION f9_init_launch_display {
 }
 
 FUNCTION f9_print_target_position {
-    PARAMETER targetGeo.
+    PARAMETER targetContext.
+    LOCAL targetGeo IS targetContext["geo"].
+
     f9_print_at(
         3,
         "Lat/Lng: " + ROUND(targetGeo:LAT, 4)
             + " / " + ROUND(targetGeo:LNG, 4)
+    ).
+    f9_print_at(
+        4,
+        "Alt raw/off/final: "
+            + ROUND(targetContext["rawAltitude"], 1)
+            + " / " + ROUND(targetContext["altitudeOffset"], 1)
+            + " / " + ROUND(targetContext["altitude"], 1) + " m"
     ).
 }
 
@@ -76,7 +85,7 @@ FUNCTION f9_init_recovery_display {
     } ELSE {
         f9_print_at(2, "Target source: active waypoint (fixed)").
     }
-    f9_print_target_position(targetContext["geo"]).
+    f9_print_target_position(targetContext).
     f9_print_at(5, "--------------- VEHICLE ----------------").
     f9_print_at(10, "--------------- GUIDANCE ---------------").
     f9_print_at(20, "---------------- RESULT ----------------").
@@ -95,21 +104,32 @@ FUNCTION f9_print_recovery_vehicle {
 // Select a fixed active waypoint first. If none is selected, capture the
 // current KSP target so a moving target vessel can be refreshed in flight.
 FUNCTION f9_initialize_target {
+    PARAMETER params.
+
     LOCAL activeWaypoint IS get_active_waypoint().
+    LOCAL rawAltitude IS 0.
     IF activeWaypoint <> 0 {
+        SET rawAltitude TO activeWaypoint:ALTITUDE.
         RETURN LEXICON(
             "ok", TRUE,
             "moving", FALSE,
             "geo", activeWaypoint:GEOPOSITION,
+            "rawAltitude", rawAltitude,
+            "altitudeOffset", params["altitudeOffset"],
+            "altitude", rawAltitude + params["altitudeOffset"],
             "object", activeWaypoint
         ).
     }
 
     IF HASTARGET {
+        SET rawAltitude TO TARGET:ALTITUDE.
         RETURN LEXICON(
             "ok", TRUE,
             "moving", TRUE,
             "geo", TARGET:GEOPOSITION,
+            "rawAltitude", rawAltitude,
+            "altitudeOffset", params["altitudeOffset"],
+            "altitude", rawAltitude + params["altitudeOffset"],
             "object", TARGET
         ).
     }
@@ -119,6 +139,9 @@ FUNCTION f9_initialize_target {
         "ok", FALSE,
         "moving", FALSE,
         "geo", SHIP:GEOPOSITION,
+        "rawAltitude", SHIP:ALTITUDE,
+        "altitudeOffset", params["altitudeOffset"],
+        "altitude", SHIP:ALTITUDE + params["altitudeOffset"],
         "object", SHIP
     ).
 }
@@ -127,8 +150,20 @@ FUNCTION f9_refresh_target {
     PARAMETER targetContext.
     IF targetContext["moving"] {
         SET targetContext["geo"] TO targetContext["object"]:GEOPOSITION.
+        SET targetContext["rawAltitude"]
+            TO targetContext["object"]:ALTITUDE.
+        SET targetContext["altitude"]
+            TO targetContext["rawAltitude"]
+                + targetContext["altitudeOffset"].
     }
     RETURN targetContext["geo"].
+}
+
+FUNCTION f9_get_target_position {
+    PARAMETER targetContext.
+    RETURN targetContext["geo"]:ALTITUDEPOSITION(
+        targetContext["altitude"]
+    ).
 }
 
 FUNCTION f9_get_surface_normal {
@@ -162,11 +197,11 @@ FUNCTION f9_get_target_steering {
 }
 
 FUNCTION f9_get_boostback_vgo {
-    PARAMETER targetGeo.
+    PARAMETER targetPosition.
 
     LOCAL rr IS -SHIP:BODY:POSITION.
     LOCAL vv IS SHIP:VELOCITY:SURFACE.
-    LOCAL rTarget IS targetGeo:POSITION - SHIP:BODY:POSITION.
+    LOCAL rTarget IS targetPosition - SHIP:BODY:POSITION.
     LOCAL unitR IS rr:NORMALIZED.
     LOCAL g IS SHIP:BODY:MU / rr:MAG^2.
     LOCAL gravity IS -g * unitR.
@@ -179,12 +214,12 @@ FUNCTION f9_get_boostback_vgo {
 }
 
 FUNCTION f9_get_entry_vgo {
-    PARAMETER targetGeo.
+    PARAMETER targetPosition.
     PARAMETER entrySpeed.
 
     LOCAL rr IS -SHIP:BODY:POSITION.
     LOCAL vv IS SHIP:VELOCITY:SURFACE.
-    LOCAL rTarget IS targetGeo:POSITION - SHIP:BODY:POSITION.
+    LOCAL rTarget IS targetPosition - SHIP:BODY:POSITION.
     LOCAL unitR IS rr:NORMALIZED.
     LOCAL g IS SHIP:BODY:MU / rr:MAG^2.
     LOCAL gravity IS -g * unitR.
@@ -204,10 +239,10 @@ FUNCTION f9_get_bottom_height {
 }
 
 FUNCTION f9_get_bottom_altitude {
-    PARAMETER targetGeo.
+    PARAMETER targetPosition.
     PARAMETER bottomHeight.
     LOCAL bottomPosition IS SHIP:POSITION - bottomHeight * UP:FOREVECTOR.
-    RETURN VDOT(bottomPosition - targetGeo:POSITION, UP:FOREVECTOR).
+    RETURN VDOT(bottomPosition - targetPosition, UP:FOREVECTOR).
 }
 
 FUNCTION f9_continuous_throttle {

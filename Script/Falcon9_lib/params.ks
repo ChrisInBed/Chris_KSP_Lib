@@ -4,10 +4,10 @@
 
 GLOBAL F9_UNSET IS -999999.
 
-set steeringManager:maxstoppingtime to 4.
-set steeringManager:pitchts to 3.
+set steeringManager:maxstoppingtime to 15.
+set steeringManager:pitchts to 2.
 // set steeringManager:pitchpid:kd to 0.1.
-set steeringManager:yawts to 3.
+set steeringManager:yawts to 2.
 // set steeringManager:yawpid:kd to 0.1.
 set steeringManager:rollts to 3.
 set steeringManager:rollpid:kd to 0.5.
@@ -27,43 +27,46 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Vehicle-specific values. These must be set before flight.
     "payloadMass", payloadMass,
-    "mecoMass", 180.478 + payloadMass,
+    "mecoMass", 192 + payloadMass,
     "boostBackMass", 150,
     "targetHeading", 80,
     "targetRoll", 0,
+    // Added to the selected waypoint or target vessel's ASL altitude
+    "altitudeOffset", 0,
 
     // Launch
-    "turnSpeed", 60,
-    "pitchOmega", 0.4,
+    "turnSpeed", 50,
+    "pitchOmega", 0.42,
     "stageSeparationDelay", 1,
     "upperStageIgnitionDelay", 2,
 
     // Powered-burn alignment and timing
-    "burnAlignTolerance", 1,
-    "boostBackDelay", 2,
+    "burnAlignTolerance", 5,
+    "boostBackDelay", 4,
 
     // Entry burn
-    "entryBurnAlt", 80000,
+    "entryBurnAlt", 60000,
     // Positive magnitude. The signed target used by guidance is -entryVSpeed.
-    "entryVSpeed", 900,
+    "entryVSpeed", 650,
 
     // Aerodynamic guidance. These must be tuned for the vehicle before flight.
     // PID outputs are pitch/yaw correction angles in degrees.
-    "aeroPitchKp", 20,
-    "aeroPitchKi", 0,
-    "aeroPitchKd", 1,
-    "aeroYawKp", 20,
-    "aeroYawKi", 0,
-    "aeroYawKd", 1,
+    "aeroPitchKp", 10,
+    "aeroPitchKi", 1,
+    "aeroPitchKd", 0.5,
+    "aeroYawKp", 10,
+    "aeroYawKi", 1,
+    "aeroYawKd", 0.5,
     "aeroMaxPitch", 15,
     "aeroMaxYaw", 15,
+    "aeroTargetOffset", 70,
 
     // Landing burn
     "QuadraticAOABase", 15,
-    "landingBurnSpeed", 430,
+    "landingBurnSpeed", 400,
     "legDeploySpeed", 150,
     "touchDownSpeed", 0.1,
-    "landingPhase2Time", 5,
+    "landingPhase2Time", 8,
     "landingCutoffHeight", 0.2,
     "boundsUpdatePeriod", 1,
     // Keep a continuously ignited RO engine above zero command until cutoff.
