@@ -27,10 +27,10 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Vehicle-specific values. These must be set before flight.
     "payloadMass", payloadMass,  // Mass of the payload, ton
-    "mecoMass", 192 + payloadMass,  // When the mass is below MECO mass, trigger MECO, ton
+    "mecoMass", 190 + payloadMass,  // When the mass is below MECO mass, trigger MECO, ton
     "boostBackMass", 150,  // After second stage seperation, the mass of first stage should be less than this, ton
     "targetHeading", 80,  // First stage ascent azimuth, deg
-    "targetRoll", 45,  // Roll angle while whole process, deg
+    "targetRoll", 0,  // Roll angle while whole process, deg
     "altitudeOffset", 0,  // Additional height added to the selected waypoint, or target COM, m
 
     // Launch
@@ -41,7 +41,7 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Powered-burn alignment and timing
     "boostBackDelay", 4,  // Time between 1st stage separation and boostback maneuver, s
-    "burnAlignTolerance", 5,  // Alignment angle error tolerance, deg
+    "burnAlignTolerance", 130,  // Alignment angle error tolerance, deg
 
     // Entry burn
     "entryBurnAlt", 60000,  // Altitude to perform entry burn, m
