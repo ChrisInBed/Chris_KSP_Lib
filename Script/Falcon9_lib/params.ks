@@ -49,20 +49,21 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Aerodynamic guidance. These must be tuned for the vehicle before flight.
     // PID outputs are pitch/yaw correction angles in degrees.
-    "aeroPitchKp", 10,
-    "aeroPitchKi", 1,
+    "aeroPitchKp", 15,
+    "aeroPitchKi", 0.5,
     "aeroPitchKd", 0.5,
-    "aeroYawKp", 10,
-    "aeroYawKi", 1,
+    "aeroYawKp", 15,
+    "aeroYawKi", 0.5,
     "aeroYawKd", 0.5,
     "aeroMaxPitch", 15,
     "aeroMaxYaw", 15,
-    "aeroTargetOffset", 70,  // Aerodynamic gliding phase is aiming at target + aeroTargetOffset * downRangeVector, m
+    "aeroTargetOffset", 0,  // Aerodynamic gliding phase is aiming at target + aeroTargetOffset * downRangeVector, m
 
     // Landing burn
-    "QuadraticAOABase", 15,  // AOA limit during quadratic guidance phase, deg
-    "landingBurnSpeed", 400,  // Ignite landing engine when speed is below this, m/s
-    "legDeploySpeed", 150,  // Deploy landing legs when speed is below this, m/s
+    "QuadraticAOABase", 20,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
+    "QuadraticAOADot", 0.5,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
+    "landingBurnAltitude", 3000,  // Ignite landing engine when altitude is below this, m
+    "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
     "landingPhase2Time", 8,  // time of untargeted landing phase 2, s
     "landingCutoffHeight", 0.2,  // cut off landing engines when height is below this, m

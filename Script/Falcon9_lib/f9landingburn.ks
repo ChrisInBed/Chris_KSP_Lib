@@ -4,6 +4,8 @@ RUNONCEPATH("0:/Falcon9_lib/f9utility.ks").
 // Fixed-time form of PEGLand's quadratic guidance. The public time-to-go is
 // positive; PEGLand's polynomial uses a negative current time with touchdown
 // at t = 0.
+// Added AOA limit. This algorithm is equivalent to solve a optimization problem
+// mimimize landing error, subject to AOA<AOALimit, target height = end height 
 FUNCTION f9_quadratic_fixed_time {
     PARAMETER currentPosition.
     PARAMETER currentVelocity.
@@ -11,6 +13,9 @@ FUNCTION f9_quadratic_fixed_time {
     PARAMETER targetVelocity.
     PARAMETER targetAcceleration.
     PARAMETER timeToGo.
+    PARAMETER AOALimit.
+    PARAMETER upAxis.
+    PARAMETER g0.
 
     LOCAL qT IS -timeToGo.
     LOCAL qJ IS 24/qT^3*(currentPosition-targetPosition)
@@ -19,7 +24,43 @@ FUNCTION f9_quadratic_fixed_time {
     LOCAL qS IS -72/qT^4*(currentPosition-targetPosition)
         + 24/qT^3*(currentVelocity+2*targetVelocity)
         + 12/qT^2*targetAcceleration.
-    RETURN LIST(qT, qJ, qS).
+    
+    LOCAL AI TO targetAcceleration + qJ*qT + 0.5*qS*qT^2.
+    LOCAL CAI TO AI + g0 * upAxis.
+    if (vAng(CAI, -currentVelocity) < AOALimit) {
+        RETURN LEXICON(
+            "withinAOA", TRUE,
+            "qT", qT,
+            "qJ", qJ,
+            "qS", qS,
+            "AI", AI,
+            "cmdA", CAI,
+            "RT", targetPosition
+        ).
+    }
+    SET CAI TO (angleAxis(AOALimit, vcrs(-currentVelocity, CAI):normalized) * (-currentVelocity)):normalized.
+    LOCAL RIz to vDot(currentPosition, upAxis).
+    LOCAL RTz to vDot(targetPosition, upAxis).
+    LOCAL VIz to vDot(currentVelocity, upAxis).
+    LOCAL VTz to vDot(targetVelocity, upAxis).
+    LOCAL ATz to vDot(targetAcceleration, upAxis).
+    LOCAL qJz to 24/qT^3*(RIz-RTz) - 6/qT^2*(VIz+3*VTz) - 6/qT*ATz.
+    LOCAL qSz to -72/qT^4*(RIz-RTz) + 24/qT^3*(VIz+2*VTz) + 12/qT^2*ATz.
+    LOCAL CAIz TO ATz + qJz*qT + 0.5*qSz*qT^2 + g0.
+    SET CAI TO CAIz * CAI / vDot(CAI, upAxis).
+    SET AI TO CAI - g0 * upAxis.
+    SET qJ TO 6/qT^2*(currentVelocity - targetVelocity) - 2/qT*(AI+2*targetAcceleration).
+    SET qS TO -12/qT^3*(currentVelocity - targetVelocity) + 6/qT^2*(AI+targetAcceleration).
+    LOCAL RT TO currentPosition - targetVelocity*qT - 0.5*targetAcceleration*qT^2 - qJ*qT^3/6 - qS*qT^4/24.
+    RETURN LEXICON(
+        "withinAOA", FALSE,
+        "qT", qT,
+        "qJ", qJ,
+        "qS", qS,
+        "AI", AI,
+        "cmdA", CAI,
+        "RT", RT
+    ).
 }
 
 FUNCTION f9_landing_burn {
@@ -129,8 +170,8 @@ FUNCTION f9_landing_burn {
                 + ROUND(futureRequiredAcceleration, 2)
                 + " / " + ROUND(referenceAcceleration, 2)
         ).
-        IF (ship:airspeed < params["landingBurnSpeed"] and (futureHeight <= 0
-            OR futureRequiredAcceleration >= referenceAcceleration)) {
+        IF (futureHeight <= params["landingBurnAltitude"]
+            AND futureRequiredAcceleration >= referenceAcceleration) {
             f9_print_at(16, "Ignition condition: met").
             BREAK.
         }
@@ -270,45 +311,35 @@ FUNCTION f9_landing_burn {
             quadraticTargetPosition,
             targetVelocity,
             targetAcceleration,
-            timeToGo
+            timeToGo,
+            min(maxQuadraticAOA, params["QuadraticAOADot"]*timeToGo),
+            upAxis,
+            g
         ).
-        LOCAL qT IS quadraticControl[0].
-        LOCAL qJ IS quadraticControl[1].
-        LOCAL qS IS quadraticControl[2].
-        LOCAL accelerationWorld IS targetAcceleration
-            + qJ*qT + 0.5*qS*qT^2 + g*upAxis.
-        // set _drawAcc to vecDraw(V(0,0,0), accelerationWorld * 5, RGB(0, 255, 0), "Acc", 1, true).
+        LOCAL qT IS quadraticControl["qT"].
+        LOCAL accelerationShip IS quadraticControl["cmdA"].
+        // set _drawAcc to vecDraw(V(0,0,0), accelerationShip * 5, RGB(0, 255, 0), "Acc", 1, true).
 
         LOCAL requestedAOA IS 0.
         LOCAL commandedAOA IS 0.
-        LOCAL steeringAcceleration IS accelerationWorld.
-        IF accelerationWorld:MAG > 0.000001 {
-            LOCAL retrogradeDirection IS SRFRETROGRADE:FOREVECTOR.
-            SET requestedAOA TO VANG(
-                retrogradeDirection,
-                accelerationWorld
-            ).
-            SET commandedAOA TO MIN(requestedAOA, maxQuadraticAOA).
-            IF requestedAOA > maxQuadraticAOA {
-                LOCAL aoaAxis IS VCRS(
-                    retrogradeDirection,
-                    accelerationWorld
-                ):NORMALIZED.
-                SET steeringAcceleration TO accelerationWorld:MAG
-                    * (
-                        ANGLEAXIS(maxQuadraticAOA, aoaAxis)
-                        * retrogradeDirection
-                    ).
-            }
+        IF accelerationShip:MAG > 0.000001 {
             SET steeringTarget TO f9_get_target_steering(
-                steeringAcceleration,
+                accelerationShip,
+                TiS,
+                params["targetRoll"],
+                vecNormal
+            ).
+        }
+        ELSE {
+            SET steeringTarget TO f9_get_target_steering(
+                up:forevector,
                 TiS,
                 params["targetRoll"],
                 vecNormal
             ).
         }
         LOCAL requestedFraction IS
-            SHIP:MASS * accelerationWorld:MAG / _maxThrust.
+            SHIP:MASS * accelerationShip:MAG / _maxThrust.
         SET throttleTarget TO f9_continuous_throttle(
             requestedFraction,
             minThrottle,
@@ -321,7 +352,7 @@ FUNCTION f9_landing_burn {
         f9_print_at(
             14,
             "Command acceleration: "
-                + ROUND(accelerationWorld:MAG, 2) + " m/s2"
+                + ROUND(accelerationShip:MAG, 2) + " m/s2"
         ).
         f9_print_at(
             15,
