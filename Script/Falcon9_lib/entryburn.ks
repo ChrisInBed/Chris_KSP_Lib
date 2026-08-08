@@ -21,6 +21,10 @@ FUNCTION f9_entry_burn {
         f9_print_result("ERROR: entry engines have no thrust").
         RETURN FALSE.
     }
+    IF NOT f9_initialize_ltr(params) {
+        RETURN FALSE.
+    }
+    LOCAL vecNormal IS f9_get_surface_normal().
 
     f9_print_at(11, "Phase: entry - coasting retrograde").
     f9_print_at(
@@ -35,7 +39,8 @@ FUNCTION f9_entry_burn {
     LOCAL steeringTarget IS f9_get_target_steering(
         SRFRETROGRADE:FOREVECTOR,
         engineInfo["TiS"],
-        params["targetRoll"]
+        params["targetRoll"],
+        vecNormal
     ).
     SAS OFF.
     LOCK STEERING TO steeringTarget.
@@ -47,7 +52,8 @@ FUNCTION f9_entry_burn {
         SET steeringTarget TO f9_get_target_steering(
             SRFRETROGRADE:FOREVECTOR,
             engineInfo["TiS"],
-            params["targetRoll"]
+            params["targetRoll"],
+            vecNormal
         ).
         f9_print_recovery_vehicle().
         f9_print_at(
@@ -70,10 +76,20 @@ FUNCTION f9_entry_burn {
         RETURN TRUE.
     }
 
-    f9_refresh_target(targetContext).
-    LOCAL targetPosition IS f9_get_target_position(targetContext).
+    LOCAL prediction IS f9_ltr_predict(
+        params,
+        targetContext,
+        vecNormal
+    ).
+    IF NOT f9_ltr_prediction_is_valid(prediction) {
+        f9_print_result("ERROR: LTR entry prediction failed").
+        UNLOCK THROTTLE.
+        UNLOCK STEERING.
+        RETURN FALSE.
+    }
+    LOCAL targetPosition IS prediction["targetPosition"].
     LOCAL remainingVelocity IS f9_get_entry_vgo(
-        targetPosition,
+        prediction,
         params["entryVSpeed"]
     ).
     f9_print_target_position(targetContext).
@@ -90,7 +106,8 @@ FUNCTION f9_entry_burn {
     SET steeringTarget TO f9_get_target_steering(
         remainingVelocity,
         engineInfo["TiS"],
-        params["targetRoll"]
+        params["targetRoll"],
+        vecNormal
     ).
     LOCAL alignmentError IS VANG(
         (SHIP:FACING * engineInfo["TiS"]:INVERSE):FOREVECTOR,
@@ -103,16 +120,27 @@ FUNCTION f9_entry_burn {
     ).
     f9_print_at(14, "Alignment error: " + ROUND(alignmentError, 2) + " deg").
     UNTIL alignmentError <= params["burnAlignTolerance"] {
-        f9_refresh_target(targetContext).
-        SET targetPosition TO f9_get_target_position(targetContext).
+        SET prediction TO f9_ltr_predict(
+            params,
+            targetContext,
+            vecNormal
+        ).
+        IF NOT f9_ltr_prediction_is_valid(prediction) {
+            f9_print_result("ERROR: LTR entry prediction failed").
+            UNLOCK THROTTLE.
+            UNLOCK STEERING.
+            RETURN FALSE.
+        }
+        SET targetPosition TO prediction["targetPosition"].
         SET remainingVelocity TO f9_get_entry_vgo(
-            targetPosition,
+            prediction,
             params["entryVSpeed"]
         ).
         SET steeringTarget TO f9_get_target_steering(
             remainingVelocity,
             engineInfo["TiS"],
-            params["targetRoll"]
+            params["targetRoll"],
+            vecNormal
         ).
         SET alignmentError TO VANG(
             (SHIP:FACING * engineInfo["TiS"]:INVERSE):FOREVECTOR,
@@ -139,19 +167,29 @@ FUNCTION f9_entry_burn {
 
     f9_print_at(11, "Phase: entry - powered guidance").
     activate_engines(entryEngines).
+    LOCAL predictionFailed IS FALSE.
     f9_print_at(16, "Engines: active").
     UNTIL SHIP:VERTICALSPEED >= -params["entryVSpeed"] {
-        f9_refresh_target(targetContext).
-        SET targetPosition TO f9_get_target_position(targetContext).
+        SET prediction TO f9_ltr_predict(
+            params,
+            targetContext,
+            vecNormal
+        ).
+        IF NOT f9_ltr_prediction_is_valid(prediction) {
+            SET predictionFailed TO TRUE.
+            BREAK.
+        }
+        SET targetPosition TO prediction["targetPosition"].
         SET remainingVelocity TO f9_get_entry_vgo(
-            targetPosition,
+            prediction,
             params["entryVSpeed"]
         ).
         IF remainingVelocity:MAG > 0.001 {
             SET steeringTarget TO f9_get_target_steering(
                 remainingVelocity,
                 engineInfo["TiS"],
-                params["targetRoll"]
+                params["targetRoll"],
+                vecNormal
             ).
         }
         f9_print_target_position(targetContext).
@@ -180,5 +218,9 @@ FUNCTION f9_entry_burn {
     deactivate_engines(entryEngines).
     UNLOCK THROTTLE.
     UNLOCK STEERING.
+    IF predictionFailed {
+        f9_print_result("ERROR: LTR entry prediction failed").
+        RETURN FALSE.
+    }
     RETURN TRUE.
 }

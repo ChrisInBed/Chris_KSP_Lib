@@ -6,6 +6,7 @@ GLOBAL F9_DISPLAY_FIELD_WIDTH IS 48.
 GLOBAL F9_GUIDANCE_FIRST_ROW IS 11.
 GLOBAL F9_GUIDANCE_LAST_ROW IS 18.
 GLOBAL F9_RESULT_ROW IS 21.
+GLOBAL F9_LTR_INITIALIZED IS FALSE.
 
 // Print into a fixed-width field so a shorter update erases the previous line.
 FUNCTION f9_print_at {
@@ -175,6 +176,129 @@ FUNCTION f9_get_surface_normal {
     RETURN orbitNormal.
 }
 
+// aeroTargetOffset is always measured along the booster's downrange axis.
+// Keeping this in one helper ensures boostback, entry, and glide all aim at
+// the same offset point while powered landing continues to use the raw target.
+FUNCTION f9_get_aero_target_position {
+    PARAMETER params.
+    PARAMETER targetContext.
+    PARAMETER vecNormal.
+
+    LOCAL downrangeAxis IS VCRS(vecNormal, UP:FOREVECTOR).
+    IF downrangeAxis:MAG < 0.000001 {
+        SET downrangeAxis TO VXCL(
+            UP:FOREVECTOR,
+            SHIP:VELOCITY:SURFACE
+        ).
+    }
+    IF downrangeAxis:MAG < 0.000001 {
+        SET downrangeAxis TO NORTH:FOREVECTOR.
+    } ELSE {
+        SET downrangeAxis TO downrangeAxis:NORMALIZED.
+    }
+    RETURN f9_get_target_position(targetContext)
+        + params["aeroTargetOffset"] * downrangeAxis.
+}
+
+// Initialize LTR only after stage separation so FAR samples the booster rather
+// than the complete launch stack. The coefficient matrices use speed rows and
+// altitude/density columns, matching kOS-AFS and kOS-LTR.
+FUNCTION f9_initialize_ltr {
+    PARAMETER params.
+    IF F9_LTR_INITIALIZED {
+        RETURN TRUE.
+    }
+    IF NOT ADDONS:HASADDON("LTR") {
+        f9_print_result("ERROR: kOS-LTR addon is unavailable").
+        RETURN FALSE.
+    }
+
+    LOCAL ltr IS ADDONS:LTR.
+    ltr:InitAtmModel().
+    SET ltr:MASS TO SHIP:MASS.
+    SET ltr:AREA TO ltr:REFAREA.
+    SET ltr:CtrlSpeedSamples TO params["ltrCtrlSpeedSamples"].
+    SET ltr:CtrlAOASamples TO params["ltrCtrlAOASamples"].
+    SET ltr:predict_min_step TO params["ltrPredictMinStep"].
+    SET ltr:predict_max_step TO params["ltrPredictMaxStep"].
+    SET ltr:predict_tmax TO params["ltrPredictTMax"].
+
+    LOCAL cdRows IS LIST().
+    LOCAL clRows IS LIST().
+    FOR speed IN params["ltrAeroSpeedSamples"] {
+        LOCAL cdRow IS LIST().
+        LOCAL clRow IS LIST().
+        LOCAL aoaCommand IS ltr:GetAOACmd(speed)["AOA"].
+        FOR sampleAltitude IN params["ltrAeroAltitudeSamples"] {
+            LOCAL coefficients IS ltr:GetFARAeroCoefs(LEXICON(
+                "altitude", sampleAltitude,
+                "speed", speed,
+                "AOA", aoaCommand
+            )).
+            cdRow:ADD(coefficients["Cd"] * params["ltrCdFactor"]).
+            clRow:ADD(coefficients["Cl"] * params["ltrClFactor"]).
+        }
+        cdRows:ADD(cdRow).
+        clRows:ADD(clRow).
+    }
+    SET ltr:AeroSpeedSamples TO params["ltrAeroSpeedSamples"].
+    ltr:SetAeroDsFromAlt(params["ltrAeroAltitudeSamples"]).
+    SET ltr:AeroCdSamples TO cdRows.
+    SET ltr:AeroClSamples TO clRows.
+    SET F9_LTR_INITIALIZED TO TRUE.
+    RETURN TRUE.
+}
+
+// Run one prediction from the latest state. Async execution yields the kOS CPU
+// while the C# RKF45 integrator works, then returns a result and the exact target
+// vector used for that prediction.
+FUNCTION f9_ltr_predict {
+    PARAMETER params.
+    PARAMETER targetContext.
+    PARAMETER vecNormal.
+
+    f9_refresh_target(targetContext).
+    LOCAL targetPosition IS f9_get_aero_target_position(
+        params,
+        targetContext,
+        vecNormal
+    ).
+    LOCAL targetBodyPosition IS targetPosition - SHIP:BODY:POSITION.
+    LOCAL ltr IS ADDONS:LTR.
+    SET ltr:MASS TO SHIP:MASS.
+    SET ltr:target_altitude TO targetContext["altitude"].
+    SET ltr:RTarget TO targetBodyPosition.
+    LOCAL state IS ltr:GetState().
+    LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
+        "t", 0,
+        "vecR", state["vecR"],
+        "vecV", state["vecV"]
+    )).
+    UNTIL ltr:CheckTask(handle) {
+        1.
+    }
+    LOCAL result IS ltr:GetTaskResult(handle).
+    SET result["initialVecR"] TO state["vecR"].
+    SET result["initialVecV"] TO state["vecV"].
+    // Refresh ship-relative geometry after the asynchronous calculation. The
+    // prediction state remains the captured initial state above.
+    f9_refresh_target(targetContext).
+    SET targetPosition TO f9_get_aero_target_position(
+        params,
+        targetContext,
+        vecNormal
+    ).
+    SET result["targetPosition"] TO targetPosition.
+    SET result["targetBodyPosition"] TO targetBodyPosition.
+    RETURN result.
+}
+
+FUNCTION f9_ltr_prediction_is_valid {
+    PARAMETER prediction.
+    RETURN prediction["ok"]
+        AND prediction["status"] = "COMPLETED".
+}
+
 // PEGLand-style steering: burnVector is the desired acceleration direction,
 // TiS is Engine:facing:inverse * Ship:facing, and targetRoll fixes roll.
 FUNCTION f9_get_target_steering {
@@ -196,40 +320,39 @@ FUNCTION f9_get_target_steering {
     RETURN LOOKDIRUP(burnVector, topVector) * TiS.
 }
 
-FUNCTION f9_get_boostback_vgo {
-    PARAMETER targetPosition.
-
-    LOCAL rr IS -SHIP:BODY:POSITION.
-    LOCAL vv IS SHIP:VELOCITY:SURFACE.
-    LOCAL rTarget IS targetPosition - SHIP:BODY:POSITION.
-    LOCAL unitR IS rr:NORMALIZED.
-    LOCAL g IS SHIP:BODY:MU / rr:MAG^2.
-    LOCAL gravity IS -g * unitR.
-    LOCAL radialSpeed IS VDOT(unitR, vv).
-    LOCAL height IS VDOT(unitR, rr - rTarget).
-    LOCAL timeToGo IS (radialSpeed + SQRT(MAX(0, radialSpeed^2 + 2*g*height))) / g.
-    SET timeToGo TO MAX(0.001, timeToGo).
-
-    RETURN (rTarget - rr - 0.5*gravity*timeToGo^2) / timeToGo - vv.
+FUNCTION f9_get_boostback_error {
+    PARAMETER prediction.
+    RETURN prediction["targetBodyPosition"]
+        - prediction["finalVecR"].
 }
 
 FUNCTION f9_get_entry_vgo {
-    PARAMETER targetPosition.
+    PARAMETER prediction.
     PARAMETER entrySpeed.
 
-    LOCAL rr IS -SHIP:BODY:POSITION.
-    LOCAL vv IS SHIP:VELOCITY:SURFACE.
-    LOCAL rTarget IS targetPosition - SHIP:BODY:POSITION.
+    LOCAL rr IS prediction["initialVecR"].
+    LOCAL vv IS prediction["initialVecV"].
+    LOCAL rTarget IS prediction["targetBodyPosition"].
+    LOCAL impactPosition IS prediction["finalVecR"].
     LOCAL unitR IS rr:NORMALIZED.
     LOCAL g IS SHIP:BODY:MU / rr:MAG^2.
     LOCAL gravity IS -g * unitR.
-    LOCAL postBurnVerticalSpeed IS -entrySpeed.
+    LOCAL targetRadialSpeed IS -entrySpeed.
+    LOCAL impactRadialSpeed IS VDOT(unitR, vv).
     LOCAL height IS VDOT(unitR, rr - rTarget).
-    LOCAL timeToGo IS (postBurnVerticalSpeed
-        + SQRT(MAX(0, postBurnVerticalSpeed^2 + 2*g*height))) / g.
-    SET timeToGo TO MAX(0.001, timeToGo).
+    LOCAL targetTime IS (targetRadialSpeed
+        + SQRT(MAX(0, targetRadialSpeed^2 + 2*g*height))) / g.
+    LOCAL impactTime IS (impactRadialSpeed
+        + SQRT(MAX(0, impactRadialSpeed^2 + 2*g*height))) / g.
+    SET targetTime TO MAX(0.001, targetTime).
+    SET impactTime TO MAX(0.001, impactTime).
 
-    RETURN (rTarget - rr - 0.5*gravity*timeToGo^2) / timeToGo - vv.
+    // This is the plan's hybrid prediction/vacuum law written relative to the
+    // current position. The relative form is algebraically frame-invariant and
+    // avoids subtracting planet-radius-sized terms divided by different times.
+    RETURN (rTarget - rr) / targetTime
+        - (impactPosition - rr) / impactTime
+        - 0.5 * gravity * (targetTime - impactTime).
 }
 
 FUNCTION f9_get_bottom_height {

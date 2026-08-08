@@ -71,8 +71,8 @@ FUNCTION f9_landing_burn {
         f9_print_result("ERROR: no valid landing target").
         RETURN FALSE.
     }
-    IF NOT ADDONS:TR:AVAILABLE {
-        f9_print_result("ERROR: Trajectories is unavailable").
+    IF NOT ADDONS:HASADDON("LTR") {
+        f9_print_result("ERROR: kOS-LTR addon is unavailable").
         RETURN FALSE.
     }
 
@@ -90,6 +90,9 @@ FUNCTION f9_landing_burn {
         f9_print_result("ERROR: landing engines have no thrust").
         RETURN FALSE.
     }
+    IF NOT f9_initialize_ltr(params) {
+        RETURN FALSE.
+    }
 
     LOCAL pitchPID IS PIDLOOP(
         params["aeroPitchKp"],
@@ -104,7 +107,11 @@ FUNCTION f9_landing_burn {
 
     f9_refresh_target(targetContext).
     LOCAL vecNormal IS f9_get_surface_normal().
-    LOCAL targetPosition IS f9_get_target_position(targetContext) + VCRS(vecNormal, up:forevector):NORMALIZED * params["aeroTargetOffset"].
+    LOCAL targetPosition IS f9_get_aero_target_position(
+        params,
+        targetContext,
+        vecNormal
+    ).
     LOCAL bottomHeight IS f9_get_bottom_height(TiS).
     LOCAL nextBoundsUpdate IS TIME:SECONDS + params["boundsUpdatePeriod"].
     LOCAL steeringTarget IS f9_get_target_steering(
@@ -120,8 +127,12 @@ FUNCTION f9_landing_burn {
     f9_print_at(11, "Phase: landing - aerodynamic guidance").
     f9_print_at(16, "Ignition: armed  Engines: inactive").
     UNTIL FALSE {
-        f9_refresh_target(targetContext).
-        SET targetPosition TO f9_get_target_position(targetContext) + VCRS(vecNormal, up:forevector):NORMALIZED * params["aeroTargetOffset"].
+        LOCAL prediction IS f9_ltr_predict(
+            params,
+            targetContext,
+            vecNormal
+        ).
+        SET targetPosition TO prediction["targetPosition"].
         IF TIME:SECONDS >= nextBoundsUpdate {
             SET bottomHeight TO f9_get_bottom_height(TiS).
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
@@ -177,11 +188,12 @@ FUNCTION f9_landing_burn {
         }
 
         LOCAL desiredVector IS SRFRETROGRADE:FOREVECTOR.
-        IF ADDONS:TR:HASIMPACT {
-            LOCAL impactError IS ADDONS:TR:IMPACTPOS:POSITION
-                - targetPosition.
+        IF f9_ltr_prediction_is_valid(prediction) {
+            LOCAL impactError IS prediction["finalVecR"]
+                - prediction["targetBodyPosition"].
             LOCAL normalizedError IS impactError
-                / MAX(1, targetPosition:MAG) * 180 / constant:pi
+                / MAX(1, (-SHIP:BODY:POSITION):MAG)
+                * 180 / constant:pi
                 / (1 + ship:q * 101 / 40).  // TO deg, normalized by dynamic pressure
             LOCAL upAxis IS UP:FOREVECTOR.
             LOCAL downrangeAxis IS VXCL(
@@ -227,7 +239,7 @@ FUNCTION f9_landing_burn {
                 upAxis
             ) * desiredVector.
         } ELSE {
-            f9_print_at(13, "Impact prediction: unavailable").
+            f9_print_at(13, "LTR prediction: " + prediction["status"]).
             f9_print_at(14, "Aero command: surface retrograde").
         }
         f9_print_at(16, "Ignition: armed  Engines: inactive").

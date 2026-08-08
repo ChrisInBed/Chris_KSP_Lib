@@ -14,8 +14,8 @@ FUNCTION gof9d_main {
         PRINT "F9 booster executive: invalid recovery configuration".
         RETURN FALSE.
     }
-    IF NOT ADDONS:TR:AVAILABLE {
-        PRINT "F9 booster executive: Trajectories is required".
+    IF NOT ADDONS:HASADDON("LTR") {
+        PRINT "F9 booster executive: kOS-LTR is required".
         RETURN FALSE.
     }
 

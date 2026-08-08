@@ -1,20 +1,20 @@
 # Falcon 9 Reusable First-Stage Guidance
 
-This directory contains lightweight kOS guidance for launching a two-stage RO vehicle and recovering its first stage. The recovery system uses algebraic, closed-loop guidance in the body-fixed surface frame: target and vehicle state are recomputed every physics frame, while gravity is treated as constant over each calculation. It deliberately avoids numerical trajectory propagation so it can run at practical kOS instruction rates.
+This directory contains kOS guidance for launching a two-stage RO vehicle and recovering its first stage. Recovery uses the `kOS-LTR` C# addon to propagate an open-loop lifting trajectory with an RKF45 integrator. The kOS guidance updates the body-fixed target and vehicle state before each prediction, then closes the loop around the predicted impact point.
 
 The software provides:
 
 - vertical launch, programmed pitch-over, MECO, and upper-stage handoff;
-- closed-loop boostback and entry burns toward a waypoint or vessel;
-- Trajectories-assisted aerodynamic impact correction;
+- LTR-predicted closed-loop boostback and entry burns toward a waypoint or vessel;
+- LTR-predicted aerodynamic impact correction;
 - spool-compensated landing-burn ignition;
 - fixed-time quadratic landing guidance with a dynamic angle-of-attack limit;
 - a terminal vertical braking phase using one continuous landing-engine ignition.
 
 ## Requirements and operation
 
-- `Chris_GNC_Suite >= 0.9.9` is available
-- `Trajectories` is required for first-stage recovery.
+- `Chris_GNC_Suite >= 0.9.9` is available.
+- FAR and the `kOS-LTR` addon from `src/kOS-LTR` are installed for first-stage recovery.
 - Engines must have the configured kOS tags. One engine may have several role tags if appropriate.
 - Select an active waypoint or set a target vessel before recovery starts. The waypoint has precedence. A waypoint is cached; a vessel's position and altitude are refreshed every frame.
 - Start `gof9u.ks` on the upper-stage CPU before launch and `gof9d.ks` on the booster CPU before separation.
@@ -27,13 +27,13 @@ All distances are metres, speeds are m/s, masses are tonnes as reported by kOS, 
 | Script | Function |
 |---|---|
 | `params.ks` | Defines `F9_PARAMS` and tunes the kOS steering manager. This is the vehicle-specific configuration file. |
-| `f9utility.ks` | Provides validation, fixed-row displays, target acquisition and refresh, altitude-aware target positions, PEGLand-style thrust-axis/roll steering, body-fixed remaining-velocity calculations, bounds updates, and continuous throttle mapping. |
+| `f9utility.ks` | Provides validation, fixed-row displays, target acquisition, the common downrange-offset target, LTR/FAR initialization and prediction, PEGLand-style thrust-axis/roll steering, body-fixed entry guidance, bounds updates, and continuous throttle mapping. |
 | `f9launch.ks` | Implements the vertical rise, programmed pitch turn, MECO, separation, and upper-stage control handoff through `f9_launch(params)`. |
-| `f9boostback.ks` | Implements post-separation engine reacquisition, alignment, closed-loop boostback steering, and minimum-remaining-velocity cutoff through `f9_boostback(params, targetContext)`. |
+| `f9boostback.ks` | Implements post-separation engine reacquisition, LTR impact-error steering, and minimum-impact-error cutoff through `f9_boostback(params, targetContext)`. |
 | `entryburn.ks` | Implements retrograde coast, the descending entry trigger, entry-burn alignment, guidance, and vertical-speed cutoff through `f9_entry_burn(params, targetContext)`. |
 | `f9landingburn.ks` | Implements aerodynamic correction, landing ignition prediction, AOA-limited quadratic guidance, terminal braking, gear deployment, and engine cutoff through `f9_landing_burn(params, targetContext)`. |
 | `gof9u.ks` | Upper-stage executive. Clears the display, loads the launch modules, and runs `f9_launch`. |
-| `gof9d.ks` | Booster executive. Validates recovery configuration and Trajectories, initializes the target, then runs boostback, entry, and landing in sequence. |
+| `gof9d.ks` | Booster executive. Validates recovery configuration and kOS-LTR availability, initializes the target, then runs boostback, entry, and landing in sequence. |
 
 Each public phase function returns a Boolean. The executive stops if target acquisition, configuration, engines, thrust data, or another prerequisite is unavailable.
 
@@ -47,7 +47,7 @@ $$
 h_T=h_{ASL}+h_{offset},
 $$
 
-where `h_ASL` is the waypoint or target-vessel altitude and `h_offset` is `altitudeOffset`. The target vector is always obtained with `GeoCoordinates:ALTITUDEPOSITION(h_T)`; terrain altitude is not substituted. Therefore boostback, entry, aerodynamic guidance, and both landing phases share the same three-dimensional target.
+where `h_ASL` is the waypoint or target-vessel altitude and `h_offset` is `altitudeOffset`. The target vector is always obtained with `GeoCoordinates:ALTITUDEPOSITION(h_T)`; terrain altitude is not substituted. Boostback, entry, and aerodynamic glide add `aeroTargetOffset` along downrange. Powered landing deliberately returns to the raw altitude-aware target.
 
 The current surface normal and a fixed trajectory-plane normal define the steering frame. The requested thrust vector is corrected by the engine thrust-axis rotation `TiS`, while `targetRoll` fixes vehicle roll. For landing clearance, the bounds are sampled along thrust-down to obtain `bottomHeight`, then the code projects `SHIP:POSITION - bottomHeight * UP:FOREVECTOR` onto the target-altitude plane. Radar altitude is not used.
 
@@ -63,25 +63,13 @@ at `targetHeading`, where $\omega_p$ is `pitchOmega`. When mass reaches `mecoMas
 
 ### Boostback
 
-Let $\mathbf r$ be the current body-centred position, $\mathbf v$ the surface velocity, $\mathbf r_T$ the altitude-aware target position, and
+Let $\mathbf r_P$ be LTR's predicted impact position and $\mathbf r_T$ the altitude-aware, downrange-offset target. Boostback points thrust along
 
 $$
-g=\frac{\mu}{\lVert\mathbf r\rVert^2}.
+\mathbf v_g \parallel \mathbf r_T-\mathbf r_P.
 $$
 
-Using current radial speed $v_r$ and radial height difference $h$, the estimated ballistic time is
-
-$$
-T=\frac{v_r+\sqrt{v_r^2+2gh}}{g}.
-$$
-
-With the inward gravity vector $\mathbf g$, the commanded remaining velocity is
-
-$$
-\mathbf v_{go}=\frac{\mathbf r_T-\mathbf r-\tfrac12\mathbf gT^2}{T}-\mathbf v.
-$$
-
-This estimate is recalculated every frame, so errors in the initial constant-gravity estimate are progressively corrected. The stage waits for `boostBackMass`, delays by `boostBackDelay`, reacquires the post-separation engine set, aligns within `burnAlignTolerance`, and starts the burn. Cutoff occurs after $\lVert\mathbf v_{go}\rVert<20$ m/s when its magnitude first begins to increase, identifying the closed-loop minimum.
+The omitted positive scale is irrelevant to attitude. The stage waits for `boostBackMass`, delays by `boostBackDelay`, initializes LTR from the separated booster, aligns within `burnAlignTolerance`, and starts the burn. A fresh prediction is made after every guidance update. Cutoff occurs when $\lVert\mathbf r_T-\mathbf r_P\rVert$ first stops decreasing.
 
 ### Entry burn
 
@@ -91,17 +79,27 @@ $$
 v_E=-\texttt{entryVSpeed}.
 $$
 
-The time estimate becomes
+Let $\mathbf r$ and $\mathbf v$ be the current body-centred position and surface velocity, $v_r=\hat{\mathbf r}\cdot\mathbf v$, $h$ the radial height above the target, and $g=\mu/\lVert\mathbf r\rVert^2$. The target and current-state vacuum fall times are
 
 $$
-T=\frac{v_E+\sqrt{v_E^2+2gh}}{g},
+T_T=\frac{v_E+\sqrt{v_E^2+2gh}}{g},\qquad
+T_P=\frac{v_r+\sqrt{v_r^2+2gh}}{g}.
 $$
 
-and the same closed-loop $\mathbf v_{go}$ construction steers the burn. If the stage is already descending no faster than `entryVSpeed`, the burn is skipped. Otherwise cutoff occurs when vertical speed reaches $-\texttt{entryVSpeed}$.
+Using LTR's atmospheric impact point $\mathbf r_P$, entry steering applies the cancellation-safe, current-relative form
+
+$$
+\mathbf v_g=
+\frac{\mathbf r_T-\mathbf r}{T_T}
+-\frac{\mathbf r_P-\mathbf r}{T_P}
+-\frac12\mathbf g(T_T-T_P).
+$$
+
+The prediction and remaining velocity are updated throughout alignment and powered flight. If the stage is already descending no faster than `entryVSpeed`, the burn is skipped. Otherwise cutoff occurs when vertical speed reaches $-\texttt{entryVSpeed}$.
 
 ### Aerodynamic guidance and landing ignition
 
-Without a Trajectories impact prediction, the stage holds surface retrograde. With a prediction, the impact error relative to the altitude-aware target is projected into downrange and crossrange components. `aeroTargetOffset` moves only the aerodynamic aim point along signed downrange. Independent pitch and yaw PIDs rotate the retrograde vector, bounded by `aeroMaxPitch` and `aeroMaxYaw`. Error authority is attenuated with dynamic pressure to reduce high-q oscillation.
+Each glide update uses LTR's predicted impact at the configured target altitude. The body-centred impact error is projected into downrange and crossrange components. Independent pitch and yaw PIDs rotate the retrograde vector, bounded by `aeroMaxPitch` and `aeroMaxYaw`; dynamic pressure attenuates error authority to reduce high-q oscillation. A failed or timed-out individual prediction falls back to surface retrograde for that update.
 
 Landing-engine spool-up is predicted with constant gravity:
 
@@ -206,6 +204,22 @@ The executives validate the main required and safety-critical values before comm
 | `entryBurnAlt` | `60000` | Absolute ASL altitude at which a descending stage may begin entry-burn alignment. It is not relative to target altitude. |
 | `entryVSpeed` | `650` | Positive magnitude of the desired downward vertical speed after entry burn. |
 
+### LTR prediction
+
+| Parameter | Current default | Meaning |
+|---|---:|---|
+| `ltrCtrlSpeedSamples` | `0, 500, 1000, 2000, 3000` | Strictly increasing speed axis for the open-loop AOA profile. |
+| `ltrCtrlAOASamples` | `0, 0, 0, 0, 0` | AOA commands corresponding to `ltrCtrlSpeedSamples`, in degrees. |
+| `ltrAeroSpeedSamples` | `100, 500, 1000, 2000, 3000` | Strictly increasing speeds at which FAR coefficients are sampled after separation. |
+| `ltrAeroAltitudeSamples` | `0, 10000, 30000, 50000, 70000` | Altitudes at which FAR coefficients and density coordinates are sampled. Must be strictly monotonic. |
+| `ltrCdFactor` | `1` | Multiplier applied to sampled drag coefficients for model calibration. |
+| `ltrClFactor` | `1` | Multiplier applied to sampled lift coefficients for model calibration. |
+| `ltrPredictMinStep` | `0.001` | Minimum accepted RKF45 step in seconds. |
+| `ltrPredictMaxStep` | `0.5` | Maximum RKF45 step in seconds. |
+| `ltrPredictTMax` | `1200` | Maximum propagated flight time in seconds before a prediction reports `TIMEOUT`. |
+
+The speed and altitude grids control startup cost and interpolation fidelity. Coefficients are sampled only once, after separation, while mass and the moving target are refreshed before every prediction.
+
 ### Aerodynamic guidance
 
 | Parameter | Current default | Meaning |
@@ -218,7 +232,7 @@ The executives validate the main required and safety-critical values before comm
 | `aeroYawKd` | `0.5` | Derivative gain for crossrange damping. |
 | `aeroMaxPitch` | `15` | Maximum aerodynamic pitch correction from surface retrograde. |
 | `aeroMaxYaw` | `15` | Maximum aerodynamic yaw correction from surface retrograde. |
-| `aeroTargetOffset` | `0` | Signed downrange displacement of the Trajectories aim point in metres. It does not move the powered-landing target. |
+| `aeroTargetOffset` | `0` | Signed downrange displacement of the LTR aim point used by boostback, entry, and glide. It does not move the powered-landing target. |
 
 ### Landing guidance
 
