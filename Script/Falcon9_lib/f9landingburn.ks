@@ -114,11 +114,7 @@ FUNCTION f9_landing_burn {
     ).
     LOCAL bottomHeight IS f9_get_bottom_height(TiS).
     LOCAL nextBoundsUpdate IS TIME:SECONDS + params["boundsUpdatePeriod"].
-    LOCAL steeringTarget IS f9_get_target_steering(
-        SRFRETROGRADE:FOREVECTOR,
-        TiS,
-        params["targetRoll"]
-    ).
+    LOCAL steeringTarget IS f9_get_aero_steering(srfPrograde).
     SAS OFF.
     LOCK STEERING TO steeringTarget.
     LOCK THROTTLE TO 0.
@@ -187,12 +183,12 @@ FUNCTION f9_landing_burn {
             BREAK.
         }
 
-        LOCAL desiredVector IS SRFRETROGRADE:FOREVECTOR.
+        LOCAL desiredDirection IS srfPrograde.
         IF f9_ltr_prediction_is_valid(prediction) {
             LOCAL impactError IS prediction["finalVecR"]
                 - prediction["targetBodyPosition"].
             LOCAL normalizedError IS impactError
-                / MAX(1, (-SHIP:BODY:POSITION):MAG)
+                / MAX(1, (ship:body:position + prediction["targetBodyPosition"]):MAG)
                 * 180 / constant:pi
                 / (1 + ship:q * 101 / 40).  // TO deg, normalized by dynamic pressure
             LOCAL upAxis IS UP:FOREVECTOR.
@@ -207,22 +203,22 @@ FUNCTION f9_landing_burn {
             }
             LOCAL crossrangeAxis IS VCRS(upAxis, downrangeAxis):NORMALIZED.
 
-            LOCAL pitchError IS VDOT(normalizedError, downrangeAxis).
-            LOCAL yawError IS VDOT(normalizedError, crossrangeAxis).
-            LOCAL pitchCommand IS pitchPID:UPDATE(TIME:SECONDS, pitchError).
-            LOCAL yawCommand IS yawPID:UPDATE(TIME:SECONDS, yawError).
+            LOCAL rangeError IS VDOT(normalizedError, downrangeAxis).
+            LOCAL crossError IS VDOT(normalizedError, crossrangeAxis).
+            LOCAL pitchCommand IS pitchPID:UPDATE(TIME:SECONDS, rangeError).
+            LOCAL yawCommand IS yawPID:UPDATE(TIME:SECONDS, crossError).
             SET pitchCommand TO MAX(
                 -params["aeroMaxPitch"],
                 MIN(params["aeroMaxPitch"], pitchCommand)
-            ).
+            ) + addons:ltr:GetAOACmd(ship:airspeed)["AOA"].
             SET yawCommand TO MAX(
                 -params["aeroMaxYaw"],
                 MIN(params["aeroMaxYaw"], yawCommand)
             ).
             f9_print_at(
                 13,
-                "Impact err D/X: " + ROUND(pitchError, 3)
-                    + " / " + ROUND(yawError, 3) + " deg"
+                "Impact err D/X: " + ROUND(rangeError, 3)
+                    + " / " + ROUND(crossError, 3) + " deg"
             ).
             f9_print_at(
                 14,
@@ -230,25 +226,13 @@ FUNCTION f9_landing_burn {
                     + " / " + ROUND(yawCommand, 2) + " deg"
             ).
 
-            SET desiredVector TO ANGLEAXIS(
-                -pitchCommand,
-                crossrangeAxis
-            ) * desiredVector.
-            SET desiredVector TO ANGLEAXIS(
-                yawCommand,
-                upAxis
-            ) * desiredVector.
+            SET desiredDirection TO srfPrograde * R(-pitchCommand, yawCommand, 0).
         } ELSE {
             f9_print_at(13, "LTR prediction: " + prediction["status"]).
             f9_print_at(14, "Aero command: surface retrograde").
         }
         f9_print_at(16, "Ignition: armed  Engines: inactive").
-        SET steeringTarget TO f9_get_target_steering(
-            desiredVector,
-            TiS,
-            params["targetRoll"],
-            vecNormal
-        ).
+        SET steeringTarget TO f9_get_aero_steering(desiredDirection).
         WAIT 0.
     }
 

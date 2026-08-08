@@ -222,6 +222,7 @@ FUNCTION f9_initialize_ltr {
     SET ltr:predict_min_step TO params["ltrPredictMinStep"].
     SET ltr:predict_max_step TO params["ltrPredictMaxStep"].
     SET ltr:predict_tmax TO params["ltrPredictTMax"].
+    SET ltr:rotation TO R(180, 0, params["targetRoll"]).
 
     LOCAL cdRows IS LIST().
     LOCAL clRows IS LIST().
@@ -316,8 +317,13 @@ FUNCTION f9_get_target_steering {
     IF topVector:MAG < 0.000001 {
         SET topVector TO NORTH:FOREVECTOR.
     }
-    SET topVector TO ANGLEAXIS(targetRoll, burnVector) * topVector.
-    RETURN LOOKDIRUP(burnVector, topVector) * TiS.
+    RETURN LOOKDIRUP(burnVector, topVector) * R(0, 0, targetRoll) * TiS.
+}
+
+// UEntry-style steering: Give desired plane-like direction then transform it into vessel direction
+FUNCTION f9_get_aero_steering {
+    PARAMETER desiredDirection.
+    RETURN desiredDirection * ADDONS:LTR:rotation:INVERSE.
 }
 
 FUNCTION f9_get_boostback_error {

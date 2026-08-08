@@ -36,12 +36,7 @@ FUNCTION f9_entry_burn {
         "Descent target: " + ROUND(params["entryVSpeed"], 1) + " m/s"
     ).
     f9_print_at(16, "Engines: armed  Throttle: 0.00").
-    LOCAL steeringTarget IS f9_get_target_steering(
-        SRFRETROGRADE:FOREVECTOR,
-        engineInfo["TiS"],
-        params["targetRoll"],
-        vecNormal
-    ).
+    LOCAL steeringTarget IS f9_get_aero_steering(srfPrograde).
     SAS OFF.
     LOCK STEERING TO steeringTarget.
     LOCK THROTTLE TO 0.
@@ -49,12 +44,7 @@ FUNCTION f9_entry_burn {
 
     UNTIL (SHIP:VERTICALSPEED < 0
         AND SHIP:ALTITUDE <= params["entryBurnAlt"]) {
-        SET steeringTarget TO f9_get_target_steering(
-            SRFRETROGRADE:FOREVECTOR,
-            engineInfo["TiS"],
-            params["targetRoll"],
-            vecNormal
-        ).
+        SET steeringTarget TO f9_get_aero_steering(srfPrograde).
         f9_print_recovery_vehicle().
         f9_print_at(
             13,

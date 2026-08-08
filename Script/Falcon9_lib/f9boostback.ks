@@ -157,7 +157,7 @@ FUNCTION f9_boostback {
             "Engines: active  Throttle: "
                 + ROUND(SHIP:CONTROL:MAINTHROTTLE, 2)
         ).
-        IF currentMagnitude >= previousMagnitude {
+        IF currentMagnitude <= 10000 AND currentMagnitude >= previousMagnitude {
             BREAK.
         }
         SET previousMagnitude TO currentMagnitude.
