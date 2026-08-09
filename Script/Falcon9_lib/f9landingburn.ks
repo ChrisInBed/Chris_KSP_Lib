@@ -126,7 +126,8 @@ FUNCTION f9_landing_burn {
         LOCAL prediction IS f9_ltr_predict(
             params,
             targetContext,
-            vecNormal
+            vecNormal,
+            params["landingBurnAltitude"]
         ).
         SET targetPosition TO prediction["targetPosition"].
         IF TIME:SECONDS >= nextBoundsUpdate {
@@ -244,7 +245,7 @@ FUNCTION f9_landing_burn {
     LOCK THROTTLE TO throttleTarget.
 
     // Phase 1: three-dimensional fixed-time quadratic divert.
-    LOCK maxQuadraticAOA TO (params["QuadraticAOABase"]/(1+ship:q*101/10)).
+    LOCK maxQuadraticAOA TO (params["QuadraticAOABase"]/(1+ship:q*101/40)).
     LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
     LOCAL g IS SHIP:BODY:MU / radius^2.
     LOCAL refAccStart IS _maxThrust * (0.9 + 0.1*minThrottle) / SHIP:MASS - g.

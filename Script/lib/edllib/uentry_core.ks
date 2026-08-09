@@ -59,19 +59,24 @@ function entry_async_set_aeroprofile {
     }
 }
 
-function entry_initialize {
-    if (not addons:hasaddon("AFS")) {
-        print "AFS addon is not installed. Please install the AFS addon to use this script.".
-        print 1/0.
-    }
-
+function entry_initAtmModel {
     // Initialize atmosphere density model
     AFS:InitAtmModel().
     // set AFS:mu to body:mu.
     // set AFS:R to body:radius.
     // set AFS:molar_mass to body:atm:molarmass.
     // set AFS:atm_height to body:atm:height.
-    // set AFS:bodySpin to body:angularvel.
+    // There is something wrong with CelestialBody.angularVel API, so here we set it with kOS values
+    set AFS:bodySpin to body:angularvel.
+}
+
+function entry_initialize {
+    if (not addons:hasaddon("AFS")) {
+        print "AFS addon is not installed. Please install the AFS addon to use this script.".
+        print 1/0.
+    }
+
+    entry_initAtmModel().
 
     // set basic ship parameters
     set AFS:mass to ship:mass.

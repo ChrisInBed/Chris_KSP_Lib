@@ -118,7 +118,7 @@ function edl_MakeEDLGUI {
             return.
         }
         set _entrygui_preset to presetName.
-        AFS:InitAtmModel().
+        entry_gui_initAtmModel().
         local _presetBody to readJSON(_path).
         local _vesselInfo to _presetBody["vessel"].
         set AFS:mass to _vesselInfo["mass"].
@@ -401,7 +401,7 @@ function edl_MakeEDLGUI {
     }.
     declare global gui_edl_planner_update_button to gui_edl_planner_box1:addbutton(UI_LANG["uentryGui.btn_update_pred"]).
     set gui_edl_planner_update_button:onclick to {
-        AFS:InitAtmModel().
+        entry_gui_initAtmModel().
         // Propagate to entry
         local tt to 0.
         local vecR to v(0,0,0).
@@ -544,7 +544,7 @@ function edl_MakeAeroGUI {
         }
         set AFS:mass to gui_aero_mass_input:text:tonumber.
         set AFS:area to AFS:REFAREA.
-        AFS:InitAtmModel().
+        entry_gui_initAtmModel().
         local CtrlSpeedSamples to str2arr(gui_aero_speedsamples_input:text).
         mscalarmul(CtrlSpeedSamples, 1e3).  // convert to m/s
         local CtrlAOASamples to str2arr(gui_aero_AOAsamples_input:text).
@@ -813,4 +813,15 @@ function fc_MakeKCLGUI {
 
     gui_kclmain:show().
     return gui_kclmain.
+}
+
+function entry_gui_initAtmModel {
+    // Initialize atmosphere density model
+    AFS:InitAtmModel().
+    // set AFS:mu to body:mu.
+    // set AFS:R to body:radius.
+    // set AFS:molar_mass to body:atm:molarmass.
+    // set AFS:atm_height to body:atm:height.
+    // There is something wrong with CelestialBody.angularVel API, so here we set it with kOS values
+    set AFS:bodySpin to body:angularvel.
 }

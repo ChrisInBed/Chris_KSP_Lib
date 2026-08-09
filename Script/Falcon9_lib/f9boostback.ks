@@ -42,7 +42,8 @@ FUNCTION f9_boostback {
     LOCAL prediction IS f9_ltr_predict(
         params,
         targetContext,
-        vecNormal
+        vecNormal,
+        params["landingBurnAltitude"]
     ).
     IF NOT f9_ltr_prediction_is_valid(prediction) {
         f9_print_result("ERROR: LTR boostback prediction failed").
@@ -83,7 +84,8 @@ FUNCTION f9_boostback {
         SET prediction TO f9_ltr_predict(
             params,
             targetContext,
-            vecNormal
+            vecNormal,
+            params["landingBurnAltitude"]
         ).
         IF NOT f9_ltr_prediction_is_valid(prediction) {
             f9_print_result("ERROR: LTR boostback prediction failed").
@@ -132,7 +134,8 @@ FUNCTION f9_boostback {
         SET prediction TO f9_ltr_predict(
             params,
             targetContext,
-            vecNormal
+            vecNormal,
+            params["landingBurnAltitude"]
         ).
         IF NOT f9_ltr_prediction_is_valid(prediction) {
             SET predictionFailed TO TRUE.

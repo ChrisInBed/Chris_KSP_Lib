@@ -30,7 +30,7 @@ function entry_phase {
     local startTime to time:seconds.
     set AFS:mass to ship:mass.
     set AFS:area to AFS:REFAREA.
-    AFS:InitAtmModel().
+    entry_initAtmModel().
     local initInfo to entry_initialize_guidance(0, -body:position, ship:velocity:orbit, entry_bank_i, entry_bank_f).
     if (not initInfo["ok"]) {
         print "Error: (" + initInfo["status"] + ")" + initInfo["msg"] AT(0, 30).
@@ -83,7 +83,7 @@ function entry_phase {
     until (ee < ef or done or (not guidance_active)) {
         set AFS:mass to ship:mass.
         set AFS:area to AFS:REFAREA.
-        AFS:InitAtmModel().
+        entry_initAtmModel().
         set stepInfo to entry_step_guidance(0, -body:position, ship:velocity:surface, gst).
         if (not stepInfo["ok"]) {
             print "Error: (" + stepInfo["status"] + ")" + stepInfo["msg"] AT(0, 30).

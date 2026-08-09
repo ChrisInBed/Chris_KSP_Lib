@@ -310,7 +310,7 @@ namespace AFS
 
         public static PhyState GetPhyState(Vessel vessel)
         {
-            Vector3d vecR = vessel.CurrentPosition() - vessel.mainBody.position;
+            Vector3d vecR = vessel.CoMD - vessel.mainBody.position;
             Vector3d vecV = vessel.srf_velocity;
             return new PhyState(
                 new double3(vecR.x, vecR.y, vecR.z),

@@ -4,14 +4,14 @@
 
 GLOBAL F9_UNSET IS -999999.
 
-set steeringManager:maxstoppingtime to 15.
-set steeringManager:pitchts to 2.
-// set steeringManager:pitchpid:kd to 0.1.
-set steeringManager:yawts to 2.
-// set steeringManager:yawpid:kd to 0.1.
-set steeringManager:rollts to 3.
-set steeringManager:rollpid:kd to 0.5.
-// set steeringManager:rollpid:epsilon to 0.1.
+// set steeringManager:maxstoppingtime to 5.
+// set steeringManager:pitchts to 5.
+// // set steeringManager:pitchpid:kd to 0.1.
+// set steeringManager:yawts to 5.
+// // set steeringManager:yawpid:kd to 0.1.
+// set steeringManager:rollts to 5.
+// // set steeringManager:rollpid:kd to 0.5.
+// // set steeringManager:rollpid:epsilon to 0.1.
 
 local payloadMass to 16.651.
 
@@ -50,8 +50,9 @@ GLOBAL F9_PARAMS IS LEXICON(
     // kOS-LTR open-loop trajectory predictor. The speed-AOA profile is the
     // attitude assumed by the predictor; aerodynamic coefficients are sampled
     // from FAR once the booster has separated.
-    "ltrCtrlSpeedSamples", LIST(600, 1000),
-    "ltrCtrlAOASamples", LIST(12, 15),
+    "ltrCtrlSpeedSamples", LIST(300, 600, 1000),
+    "ltrCtrlAOASamples", LIST(0, 8, 11),
+    // "ltrCtrlAOASamples", LIST(0, 0),
     "ltrAeroSpeedSamples", LIST(100, 500, 1000, 2000, 3000),
     "ltrAeroAltitudeSamples", LIST(0, 10000, 30000, 50000, 70000),
     "ltrCdFactor", 1,
@@ -62,23 +63,23 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Aerodynamic guidance. These must be tuned for the vehicle before flight.
     // PID outputs are pitch/yaw correction angles in degrees.
-    "aeroPitchKp", 15,
-    "aeroPitchKi", 0.5,
+    "aeroPitchKp", 40,
+    "aeroPitchKi", 0,
     "aeroPitchKd", 0.5,
-    "aeroYawKp", 15,
-    "aeroYawKi", 0.5,
+    "aeroYawKp", 40,
+    "aeroYawKi", 0,
     "aeroYawKd", 0.5,
     "aeroMaxPitch", 15,
     "aeroMaxYaw", 15,
-    "aeroTargetOffset", 0,  // Aerodynamic gliding phase is aiming at target + aeroTargetOffset * downRangeVector, m
+    "aeroTargetOffset", -50,  // Aerodynamic gliding phase is aiming at target + aeroTargetOffset * downRangeVector, m
 
     // Landing burn
     "QuadraticAOABase", 20,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
     "QuadraticAOADot", 0.5,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
-    "landingBurnAltitude", 3000,  // Ignite landing engine when altitude is below this, m
+    "landingBurnAltitude", 2500,  // Ignite landing engine when altitude is below this, m
     "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
-    "landingPhase2Time", 8,  // time of untargeted landing phase 2, s
+    "landingPhase2Time", 0.001,  // time of untargeted landing phase 2, s
     "landingCutoffHeight", 0.2,  // cut off landing engines when height is below this, m
     "boundsUpdatePeriod", 1,  // frequency of updating bounding box, s
     // Keep a continuously ignited RO engine above zero command until cutoff.

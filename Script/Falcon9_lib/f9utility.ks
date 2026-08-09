@@ -200,23 +200,39 @@ FUNCTION f9_get_aero_target_position {
         + params["aeroTargetOffset"] * downrangeAxis.
 }
 
+FUNCTION f9_initialize_ltr_body {
+    PARAMETER ltr.
+
+    // Let the addon build its atmosphere interpolation tables automatically.
+    // All other body parameters are assigned explicitly because the values in
+    // LTR's C# constructor are only external-test fixtures. BODY:ANGULARVEL is
+    // in the same raw reference frame as the body-centred prediction state.
+    ltr:InitAtmModel().
+    // There is something wrong with CelestialBody.angularVel API, so here we set it with kOS values
+    SET ltr:bodySpin TO BODY:ANGULARVEL.
+    RETURN TRUE.
+}
+
 // Initialize LTR only after stage separation so FAR samples the booster rather
 // than the complete launch stack. The coefficient matrices use speed rows and
 // altitude/density columns, matching kOS-AFS and kOS-LTR.
 FUNCTION f9_initialize_ltr {
     PARAMETER params.
-    IF F9_LTR_INITIALIZED {
-        RETURN TRUE.
-    }
+    // IF F9_LTR_INITIALIZED {
+    //     RETURN TRUE.
+    // }
     IF NOT ADDONS:HASADDON("LTR") {
         f9_print_result("ERROR: kOS-LTR addon is unavailable").
         RETURN FALSE.
     }
 
     LOCAL ltr IS ADDONS:LTR.
-    ltr:InitAtmModel().
+    IF NOT f9_initialize_ltr_body(ltr) {
+        RETURN FALSE.
+    }
     SET ltr:MASS TO SHIP:MASS.
     SET ltr:AREA TO ltr:REFAREA.
+    SET ltr:AOAReversal TO FALSE.
     SET ltr:CtrlSpeedSamples TO params["ltrCtrlSpeedSamples"].
     SET ltr:CtrlAOASamples TO params["ltrCtrlAOASamples"].
     SET ltr:predict_min_step TO params["ltrPredictMinStep"].
@@ -253,10 +269,14 @@ FUNCTION f9_initialize_ltr {
 // Run one prediction from the latest state. Async execution yields the kOS CPU
 // while the C# RKF45 integrator works, then returns a result and the exact target
 // vector used for that prediction.
+// When the vessel hits burnAltitude, the predictor assumes that the rocket ignite its landing engines
+// and fly a parabola trajectory down. So it calculates a simple offset to the predicted
+// impact point.
 FUNCTION f9_ltr_predict {
     PARAMETER params.
     PARAMETER targetContext.
     PARAMETER vecNormal.
+    PARAMETER burnAltitude IS 0.
 
     f9_refresh_target(targetContext).
     LOCAL targetPosition IS f9_get_aero_target_position(
@@ -269,7 +289,8 @@ FUNCTION f9_ltr_predict {
     SET ltr:MASS TO SHIP:MASS.
     SET ltr:target_altitude TO targetContext["altitude"].
     SET ltr:RTarget TO targetBodyPosition.
-    LOCAL state IS ltr:GetState().
+    // LOCAL state IS ltr:GetState().
+    LOCAL state IS LEXICON("vecR", -ship:body:position, "vecV", ship:velocity:surface).
     LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
         "t", 0,
         "vecR", state["vecR"],
@@ -279,6 +300,11 @@ FUNCTION f9_ltr_predict {
         1.
     }
     LOCAL result IS ltr:GetTaskResult(handle).
+    local finalVecR to result["finalVecR"].
+    local finalVecV to result["finalVecV"].
+    local finalFPA to min(-10, 90 - vAng(finalVecR, finalVecV)).
+    local downrangeAxis to vxcl(finalVecR, finalVecV):normalized.
+    set result["finalVecR"] to finalVecR + 0.5*burnAltitude/tan(finalFPA)*downrangeAxis.
     SET result["initialVecR"] TO state["vecR"].
     SET result["initialVecV"] TO state["vecV"].
     // Refresh ship-relative geometry after the asynchronous calculation. The
@@ -336,29 +362,35 @@ FUNCTION f9_get_entry_vgo {
     PARAMETER prediction.
     PARAMETER entrySpeed.
 
-    LOCAL rr IS prediction["initialVecR"].
-    LOCAL vv IS prediction["initialVecV"].
-    LOCAL rTarget IS prediction["targetBodyPosition"].
-    LOCAL impactPosition IS prediction["finalVecR"].
-    LOCAL unitR IS rr:NORMALIZED.
-    LOCAL g IS SHIP:BODY:MU / rr:MAG^2.
-    LOCAL gravity IS -g * unitR.
-    LOCAL targetRadialSpeed IS -entrySpeed.
-    LOCAL impactRadialSpeed IS VDOT(unitR, vv).
-    LOCAL height IS VDOT(unitR, rr - rTarget).
-    LOCAL targetTime IS (targetRadialSpeed
-        + SQRT(MAX(0, targetRadialSpeed^2 + 2*g*height))) / g.
-    LOCAL impactTime IS (impactRadialSpeed
-        + SQRT(MAX(0, impactRadialSpeed^2 + 2*g*height))) / g.
-    SET targetTime TO MAX(0.001, targetTime).
-    SET impactTime TO MAX(0.001, impactTime).
+    // LOCAL rr IS prediction["initialVecR"].
+    // LOCAL vv IS prediction["initialVecV"].
+    // LOCAL rTarget IS prediction["targetBodyPosition"].
+    // LOCAL impactPosition IS prediction["finalVecR"].
+    // LOCAL unitR IS rr:NORMALIZED.
+    // LOCAL g IS SHIP:BODY:MU / rr:MAG^2.
+    // LOCAL gravity IS -g * unitR.
+    // LOCAL targetRadialSpeed IS -entrySpeed.
+    // LOCAL impactRadialSpeed IS VDOT(unitR, vv).
+    // LOCAL height IS VDOT(unitR, rr - rTarget).
+    // LOCAL targetTime IS (targetRadialSpeed
+    //     + SQRT(MAX(0, targetRadialSpeed^2 + 2*g*height))) / g.
+    // LOCAL impactTime IS (impactRadialSpeed
+    //     + SQRT(MAX(0, impactRadialSpeed^2 + 2*g*height))) / g.
+    // SET targetTime TO MAX(0.001, targetTime).
+    // SET impactTime TO MAX(0.001, impactTime).
 
-    // This is the plan's hybrid prediction/vacuum law written relative to the
-    // current position. The relative form is algebraically frame-invariant and
-    // avoids subtracting planet-radius-sized terms divided by different times.
-    RETURN (rTarget - rr) / targetTime
-        - (impactPosition - rr) / impactTime
-        - 0.5 * gravity * (targetTime - impactTime).
+    // // This is the plan's hybrid prediction/vacuum law written relative to the
+    // // current position. The relative form is algebraically frame-invariant and
+    // // avoids subtracting planet-radius-sized terms divided by different times.
+    // RETURN (rTarget - rr) / targetTime
+    //     - (impactPosition - rr) / impactTime
+    //     - 0.5 * gravity * (targetTime - impactTime).
+
+    // Because the impact point moves a lot when the energy changes
+    // So the above method is not robust, especially for ships that possess a large lift force
+    // We switch to the following simple routine: just burn straight up until the vertical speed reaches entrySpeed
+    local upaxis to up:forevector.
+    return (-entrySpeed - ship:verticalSpeed) * upaxis.
 }
 
 FUNCTION f9_get_bottom_height {

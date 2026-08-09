@@ -69,7 +69,8 @@ FUNCTION f9_entry_burn {
     LOCAL prediction IS f9_ltr_predict(
         params,
         targetContext,
-        vecNormal
+        vecNormal,
+        params["landingBurnAltitude"]
     ).
     IF NOT f9_ltr_prediction_is_valid(prediction) {
         f9_print_result("ERROR: LTR entry prediction failed").
@@ -113,7 +114,8 @@ FUNCTION f9_entry_burn {
         SET prediction TO f9_ltr_predict(
             params,
             targetContext,
-            vecNormal
+            vecNormal,
+            params["landingBurnAltitude"]
         ).
         IF NOT f9_ltr_prediction_is_valid(prediction) {
             f9_print_result("ERROR: LTR entry prediction failed").
@@ -163,7 +165,8 @@ FUNCTION f9_entry_burn {
         SET prediction TO f9_ltr_predict(
             params,
             targetContext,
-            vecNormal
+            vecNormal,
+            params["landingBurnAltitude"]
         ).
         IF NOT f9_ltr_prediction_is_valid(prediction) {
             SET predictionFailed TO TRUE.

@@ -173,7 +173,7 @@ namespace LTR
 
         public static PhyState GetPhyState(Vessel vessel)
         {
-            Vector3d vecR = vessel.CurrentPosition() - vessel.mainBody.position;
+            Vector3d vecR = vessel.CoMD - vessel.mainBody.position;
             Vector3d vecV = vessel.srf_velocity;
             return new PhyState(Vector3dToDouble3(vecR), Vector3dToDouble3(vecV));
         }
