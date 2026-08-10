@@ -82,11 +82,25 @@ FUNCTION f9_landing_burn {
         f9_print_result("ERROR: no landing engines found").
         RETURN FALSE.
     }
-    LOCAL engineInfo IS get_engines_info(landingEngines).
-    LOCAL _maxThrust IS engineInfo["thrust"].
-    LOCAL minThrottle IS engineInfo["minthrottle"].
-    LOCAL TiS IS engineInfo["TiS"].
-    IF _maxThrust <= 0 {
+    LOCAL decEngines IS search_engine(params["landingDecEngineTag"]).
+    IF decEngines:LENGTH = 0 {
+        SET decEngines TO landingEngines.
+    }
+    LOCAL shutDownEngines IS LIST().
+    for _eng in decEngines {
+        IF NOT _eng:tag:contains(params["landingEngineTag"]) {
+            shutDownEngines:add(_eng).
+        }
+    }
+    LOCAL engineInfo1 IS get_engines_info(decEngines).
+    LOCAL maxThrust1 IS engineInfo1["thrust"].
+    LOCAL minThrottle1 IS engineInfo1["minthrottle"].
+    LOCAL TiS1 IS engineInfo1["TiS"].
+    LOCAL engineInfo2 IS get_engines_info(landingEngines).
+    LOCAL maxThrust2 IS engineInfo2["thrust"].
+    LOCAL minThrottle2 IS engineInfo2["minthrottle"].
+    LOCAL TiS2 IS engineInfo2["TiS"].
+    IF maxThrust1 <= 0 OR maxThrust2 <= 0 {
         f9_print_result("ERROR: landing engines have no thrust").
         RETURN FALSE.
     }
@@ -112,7 +126,7 @@ FUNCTION f9_landing_burn {
         targetContext,
         vecNormal
     ).
-    LOCAL bottomHeight IS f9_get_bottom_height(TiS).
+    LOCAL bottomHeight IS f9_get_bottom_height(TiS2).
     LOCAL nextBoundsUpdate IS TIME:SECONDS + params["boundsUpdatePeriod"].
     LOCAL steeringTarget IS f9_get_aero_steering(srfPrograde).
     SAS OFF.
@@ -133,7 +147,7 @@ FUNCTION f9_landing_burn {
         ).
         SET targetPosition TO prediction["targetPosition"].
         IF TIME:SECONDS >= nextBoundsUpdate {
-            SET bottomHeight TO f9_get_bottom_height(TiS).
+            SET bottomHeight TO f9_get_bottom_height(TiS2).
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
         }
 
@@ -143,24 +157,11 @@ FUNCTION f9_landing_burn {
         ).
         LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
         LOCAL g IS SHIP:BODY:MU / radius^2.
-        LOCAL referenceAcceleration IS
-            ((1 + minThrottle) * 0.5 * _maxThrust) / SHIP:MASS.
-        IF referenceAcceleration <= g {
-            f9_print_result("ERROR: reference thrust below gravity").
-            UNLOCK THROTTLE.
-            UNLOCK STEERING.
-            RETURN FALSE.
-        }
 
-        LOCAL spoolTime IS engineInfo["spooluptime"].
-        LOCAL futureVelocity IS SHIP:VELOCITY:SURFACE
-            - g * spoolTime * UP:FOREVECTOR.
+        LOCAL spoolTime IS engineInfo1["spooluptime"].
         LOCAL futureHeight IS bottomAltitude
             + SHIP:VERTICALSPEED * spoolTime
             - 0.5 * g * spoolTime^2.
-        LOCAL futureRequiredAcceleration IS
-            (futureVelocity:MAG^2 - params["touchDownSpeed"]^2)
-            / (2 * MAX(0.01, futureHeight)) + g.
 
         f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
@@ -174,14 +175,7 @@ FUNCTION f9_landing_burn {
             "Height now/future: " + ROUND(bottomAltitude, 1)
                 + " / " + ROUND(futureHeight, 1) + " m"
         ).
-        f9_print_at(
-            15,
-            "Accel required/ref: "
-                + ROUND(futureRequiredAcceleration, 2)
-                + " / " + ROUND(referenceAcceleration, 2)
-        ).
-        IF (futureHeight <= params["landingBurnAltitude"]
-            AND futureRequiredAcceleration >= referenceAcceleration) {
+        IF (futureHeight <= params["landingBurnAltitude"]) {
             f9_print_at(16, "Ignition condition: met").
             BREAK.
         }
@@ -241,17 +235,15 @@ FUNCTION f9_landing_burn {
 
     f9_clear_guidance_display().
     f9_print_at(11, "Phase: landing - phase 1").
-    activate_engines(landingEngines).
+    activate_engines(decEngines).
     f9_print_at(16, "Engines: active  Continuous ignition").
-    LOCAL throttleTarget IS 1.
-    LOCK THROTTLE TO throttleTarget.
 
     // Phase 1: three-dimensional fixed-time quadratic divert.
     LOCK maxQuadraticAOA TO (params["QuadraticAOABase"]/(1+ship:q*101/40)).
     LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
     LOCAL g IS SHIP:BODY:MU / radius^2.
-    LOCAL refAccStart IS _maxThrust * (0.9 + 0.1*minThrottle) / SHIP:MASS - g.
-    LOCAL refAccEnd IS max(0.5, _maxThrust * (0.15 + 0.85*minThrottle) / SHIP:MASS - g).
+    LOCAL refAccStart IS maxThrust1 * (0.9 + 0.1*minThrottle1) / SHIP:MASS - g.
+    LOCAL refAccEnd IS max(0.5, maxThrust2 * (0.15 + 0.85*minThrottle2) / SHIP:MASS - g).
     f9_print_at(
         19,
         "AccStart = " + round(refAccStart, 1)
@@ -260,7 +252,7 @@ FUNCTION f9_landing_burn {
     if (refAccStart <= 0) {
         f9_print_result("ERROR: invalid phase-1 acceleration").
         LOCK THROTTLE TO 0.
-        deactivate_engines(landingEngines).
+        deactivate_engines(decEngines).
         UNLOCK THROTTLE.
         UNLOCK STEERING.
         RETURN FALSE.
@@ -269,12 +261,45 @@ FUNCTION f9_landing_burn {
     LOCAL _accDot to (refAccStart - refAccEnd) / _T.
     LOCAL _getTimeToGo to { return -(-refAccEnd+sqrt(refAccEnd*refAccEnd-2*_accDot*(SHIP:velocity:surface:mag-params["touchDownSpeed"])))/_accDot. }.
     LOCAL timeToGo IS _T.
+
+    // throttle, steering and engine routine
+    LOCAL done IS FALSE.
+    LOCAL TiS IS TiS1.
+    LOCAL _maxThrust IS maxThrust1.
+    LOCAL minThrottle IS minThrottle1.
+    LOCAL accTarget IS maxThrust1/SHIP:MASS * steeringTarget:forevector.
+    LOCAL thrustCutoff IS maxThrust2 * (0.9 + 0.1*minThrottle2).
+    LOCAL throttleTarget IS 1.
+    LOCK THROTTLE TO throttleTarget.
+    when (not done) then {
+        LOCAL thrustTarget TO accTarget:mag * ship:mass.
+        if (thrustTarget < thrustCutoff) {
+            deactivate_engines(shutDownEngines).
+            SET TiS TO TiS2.
+            SET _maxThrust TO maxThrust2.
+            SET minThrottle TO minThrottle2.
+        }
+        LOCAL requestedFraction IS thrustTarget / _maxThrust.
+        SET throttleTarget TO f9_continuous_throttle(
+            requestedFraction,
+            minThrottle,
+            params["minLandingThrottleCommand"]
+        ).
+        SET steeringTarget TO f9_get_target_steering(
+            accTarget,
+            TiS,
+            params["targetRoll"],
+            vecNormal
+        ).
+        return true.
+    }
+
     UNTIL FALSE {
         f9_refresh_target(targetContext).
         SET targetPosition TO f9_get_target_position(targetContext).
         if (ship:airspeed < params["legDeploySpeed"] and (not GEAR)) GEAR ON.
         IF TIME:SECONDS >= nextBoundsUpdate {
-            SET bottomHeight TO f9_get_bottom_height(TiS).
+            SET bottomHeight TO f9_get_bottom_height(TiS2).
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
         }
 
@@ -315,35 +340,9 @@ FUNCTION f9_landing_burn {
             upAxis,
             g
         ).
-        LOCAL qT IS quadraticControl["qT"].
-        LOCAL accelerationShip IS quadraticControl["cmdA"].
+        SET accTarget TO quadraticControl["cmdA"].
         // set _drawAcc to vecDraw(V(0,0,0), accelerationShip * 5, RGB(0, 255, 0), "Acc", 1, true).
 
-        LOCAL requestedAOA IS 0.
-        LOCAL commandedAOA IS 0.
-        IF accelerationShip:MAG > 0.000001 {
-            SET steeringTarget TO f9_get_target_steering(
-                accelerationShip,
-                TiS,
-                params["targetRoll"],
-                vecNormal
-            ).
-        }
-        ELSE {
-            SET steeringTarget TO f9_get_target_steering(
-                up:forevector,
-                TiS,
-                params["targetRoll"],
-                vecNormal
-            ).
-        }
-        LOCAL requestedFraction IS
-            SHIP:MASS * accelerationShip:MAG / _maxThrust.
-        SET throttleTarget TO f9_continuous_throttle(
-            requestedFraction,
-            minThrottle,
-            params["minLandingThrottleCommand"]
-        ).
         f9_print_at(
             13,
             "Position error: " + ROUND(relativePosition:MAG, 2) + " m"
@@ -351,11 +350,11 @@ FUNCTION f9_landing_burn {
         f9_print_at(
             14,
             "Command acceleration: "
-                + ROUND(accelerationShip:MAG, 2) + " m/s2"
+                + ROUND(accTarget:MAG, 2) + " m/s2"
         ).
         f9_print_at(
             15,
-            "Throttle req/cmd: " + ROUND(requestedFraction, 3)
+            "Throttle req/cmd: " + ROUND(accTarget:MAG*ship:mass/_maxThrust, 3)
                 + " / " + ROUND(throttleTarget, 3)
         ).
         f9_print_at(
@@ -368,11 +367,6 @@ FUNCTION f9_landing_burn {
             "Local vertical speed: "
                 + ROUND(ship:verticalspeed, 2) + " m/s"
         ).
-        f9_print_at(
-            18,
-            "AOA req/cmd: " + ROUND(requestedAOA, 2)
-                + " / " + ROUND(commandedAOA, 2) + " deg"
-        ).
         WAIT 0.
     }
 
@@ -380,12 +374,6 @@ FUNCTION f9_landing_burn {
     f9_clear_guidance_display().
     f9_print_at(11, "Phase: landing - phase 2").
     f9_print_at(16, "Engines: active  Continuous ignition").
-    LOCAL phase2Start IS TIME:SECONDS.
-    SET steeringTarget TO f9_get_target_steering(
-        UP:FOREVECTOR,
-        TiS,
-        params["targetRoll"]
-    ).
     LOCAL bottomAltitude IS f9_get_bottom_altitude(
         targetPosition,
         bottomHeight
@@ -395,7 +383,6 @@ FUNCTION f9_landing_burn {
         OR bottomAltitude <= params["landingCutoffHeight"]) {
         f9_refresh_target(targetContext).
         SET targetPosition TO f9_get_target_position(targetContext).
-        LOCAL phase2Elapsed IS TIME:SECONDS - phase2Start.
 
         IF TIME:SECONDS >= nextBoundsUpdate {
             SET bottomHeight TO f9_get_bottom_height(TiS).
@@ -410,29 +397,12 @@ FUNCTION f9_landing_burn {
         LOCAL requiredAcceleration IS
             (downwardSpeed^2 - params["touchDownSpeed"]^2)
             / (2 * MAX(0.01, bottomAltitude)) + g.
-        SET requiredAcceleration TO MAX(0, requiredAcceleration).
-        LOCAL requestedFraction IS
-            SHIP:MASS * requiredAcceleration / _maxThrust.
-        SET throttleTarget TO f9_continuous_throttle(
-            requestedFraction,
-            minThrottle,
-            params["minLandingThrottleCommand"]
-        ).
-        if (SHIP:groundspeed > 0.5) {
-            SET steeringTarget TO f9_get_target_steering(
-                srfRetrograde:forevector,
-                TiS,
-                params["targetRoll"],
-                vecNormal
-            ).
+        
+        if (SHIP:groundspeed > 0.1) {
+            SET accTarget TO MAX(0, requiredAcceleration) * srfRetrograde:forevector.
         }
         else {
-            SET steeringTarget TO f9_get_target_steering(
-                UP:FOREVECTOR,
-                TiS,
-                params["targetRoll"],
-                vecNormal
-            ).
+            SET accTarget TO MAX(0, requiredAcceleration) * up:forevector.
         }
         f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
@@ -456,7 +426,7 @@ FUNCTION f9_landing_burn {
         ).
         f9_print_at(
             15,
-            "Throttle req/cmd: " + ROUND(requestedFraction, 3)
+            "Throttle req/cmd: " + ROUND(accTarget:mag*ship:mass/_maxThrust, 3)
                 + " / " + ROUND(throttleTarget, 3)
         ).
         f9_print_at(

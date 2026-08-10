@@ -4,10 +4,10 @@
 
 GLOBAL F9_UNSET IS -999999.
 
-// set steeringManager:maxstoppingtime to 5.
-// set steeringManager:pitchts to 5.
+set steeringManager:maxstoppingtime to 2.
+set steeringManager:pitchts to 8.
 // // set steeringManager:pitchpid:kd to 0.1.
-// set steeringManager:yawts to 5.
+set steeringManager:yawts to 8.
 // // set steeringManager:yawpid:kd to 0.1.
 // set steeringManager:rollts to 5.
 // // set steeringManager:rollpid:kd to 0.5.
@@ -19,11 +19,11 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Runtime
     "kOSIPU", 2000,
 
-    // Engine role tags. search_engine() matches these against Engine:TAG.
     "liftoffEngineTag", "liftoff",
     "boostbackEngineTag", "boostback",
     "entryEngineTag", "entry",
-    "landingEngineTag", "landing",
+    "landingDecEngineTag", "landing1",
+    "landingEngineTag", "landing2",
 
     // Vehicle-specific values. These must be set before flight.
     "payloadMass", payloadMass,  // Mass of the payload, ton
@@ -63,10 +63,10 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Aerodynamic guidance. These must be tuned for the vehicle before flight.
     // PID outputs are pitch/yaw correction angles in degrees.
-    "aeroPitchKp", 40,
+    "aeroPitchKp", 10,
     "aeroPitchKi", 0,
     "aeroPitchKd", 0.5,
-    "aeroYawKp", 40,
+    "aeroYawKp", 10,
     "aeroYawKi", 0,
     "aeroYawKd", 0.5,
     "aeroMaxPitch", 6,
@@ -76,10 +76,10 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Landing burn
     "QuadraticAOABase", 20,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
     "QuadraticAOADot", 0.5,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
-    "landingBurnAltitude", 2300,  // Ignite landing engine when altitude is below this, m
+    "landingBurnAltitude", 2200,  // Ignite decelerating engines (or landing fallback) below this, m
     "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
-    "landingPhase2Time", 0.001,  // time of untargeted landing phase 2, s
+    "landingPhase2Time", 2,  // time of untargeted landing phase 2, s
     "landingCutoffHeight", 0.2,  // cut off landing engines when height is below this, m
     "boundsUpdatePeriod", 1,  // frequency of updating bounding box, s
     // Keep a continuously ignited RO engine above zero command until cutoff.
