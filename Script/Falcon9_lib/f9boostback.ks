@@ -43,6 +43,8 @@ FUNCTION f9_boostback {
         params,
         targetContext,
         vecNormal,
+        params["entryBurnAlt"],
+        params["entryVSpeed"],
         params["landingBurnAltitude"]
     ).
     IF NOT f9_ltr_prediction_is_valid(prediction) {
@@ -85,6 +87,8 @@ FUNCTION f9_boostback {
             params,
             targetContext,
             vecNormal,
+            params["entryBurnAlt"],
+            params["entryVSpeed"],
             params["landingBurnAltitude"]
         ).
         IF NOT f9_ltr_prediction_is_valid(prediction) {
@@ -135,6 +139,8 @@ FUNCTION f9_boostback {
             params,
             targetContext,
             vecNormal,
+            params["entryBurnAlt"],
+            params["entryVSpeed"],
             params["landingBurnAltitude"]
         ).
         IF NOT f9_ltr_prediction_is_valid(prediction) {

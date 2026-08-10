@@ -269,6 +269,7 @@ FUNCTION f9_initialize_ltr {
 // Run one prediction from the latest state. Async execution yields the kOS CPU
 // while the C# RKF45 integrator works, then returns a result and the exact target
 // vector used for that prediction.
+// When the vessel hits entryAlt, the rocket burn upward to reduce vertical speed to entrySpeed
 // When the vessel hits burnAltitude, the predictor assumes that the rocket ignite its landing engines
 // and fly a parabola trajectory down. So it calculates a simple offset to the predicted
 // impact point.
@@ -276,6 +277,8 @@ FUNCTION f9_ltr_predict {
     PARAMETER params.
     PARAMETER targetContext.
     PARAMETER vecNormal.
+    PARAMETER entryAlt IS 9999999999.
+    PARAMETER entrySpeed IS 9999999999.
     PARAMETER burnAltitude IS 0.
 
     f9_refresh_target(targetContext).
@@ -287,14 +290,39 @@ FUNCTION f9_ltr_predict {
     LOCAL targetBodyPosition IS targetPosition - SHIP:BODY:POSITION.
     LOCAL ltr IS ADDONS:LTR.
     SET ltr:MASS TO SHIP:MASS.
-    SET ltr:target_altitude TO targetContext["altitude"].
     SET ltr:RTarget TO targetBodyPosition.
-    // LOCAL state IS ltr:GetState().
-    LOCAL state IS LEXICON("vecR", -ship:body:position, "vecV", ship:velocity:surface).
+
+    LOCAL initVecR TO -ship:body:position.
+    LOCAL initVecV TO ship:velocity:surface.
+    LOCAL vecR to initVecR.
+    LOCAL vecV to initVecV.
+    LOCAL tt TO 0.
+    if (ship:altitude > entryAlt) {
+        // Propagate to entry interface
+        SET ltr:target_altitude TO entryAlt.
+        LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
+            "t", tt,
+            "vecR", vecR,
+            "vecV", vecV
+        )).
+        UNTIL ltr:CheckTask(handle) {
+            1.
+        }
+        LOCAL result IS ltr:GetTaskResult(handle).
+        SET tt TO result["t"].
+        SET vecR TO result["finalVecR"].
+        SET vecV TO result["finalVecV"].
+        LOCAL entryUpAxis TO vecR:normalized.
+        SET vecV TO vxcl(entryUpAxis, vecV) - min(entrySpeed, -vDot(vecV, entryUpAxis)) * entryUpAxis.
+    }
+
+    SET ltr:target_altitude TO targetContext["altitude"].
+    LOCAL state IS ltr:GetState().
+    // LOCAL state IS LEXICON("vecR", -ship:body:position, "vecV", ship:velocity:surface).
     LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
-        "t", 0,
-        "vecR", state["vecR"],
-        "vecV", state["vecV"]
+        "t", tt,
+        "vecR", vecR,
+        "vecV", vecV
     )).
     UNTIL ltr:CheckTask(handle) {
         1.
@@ -304,9 +332,9 @@ FUNCTION f9_ltr_predict {
     local finalVecV to result["finalVecV"].
     local finalFPA to min(-10, 90 - vAng(finalVecR, finalVecV)).
     local downrangeAxis to vxcl(finalVecR, finalVecV):normalized.
-    set result["finalVecR"] to finalVecR + 0.5*burnAltitude/tan(finalFPA)*downrangeAxis.
-    SET result["initialVecR"] TO state["vecR"].
-    SET result["initialVecV"] TO state["vecV"].
+    set result["finalVecR"] to finalVecR + 0.33*burnAltitude/tan(finalFPA)*downrangeAxis.
+    SET result["initialVecR"] TO initVecR.
+    SET result["initialVecV"] TO initVecV.
     // Refresh ship-relative geometry after the asynchronous calculation. The
     // prediction state remains the captured initial state above.
     f9_refresh_target(targetContext).
@@ -390,7 +418,7 @@ FUNCTION f9_get_entry_vgo {
     // So the above method is not robust, especially for ships that possess a large lift force
     // We switch to the following simple routine: just burn straight up until the vertical speed reaches entrySpeed
     local upaxis to up:forevector.
-    return (-entrySpeed - ship:verticalSpeed) * upaxis.
+    return max(0, -entrySpeed - ship:verticalSpeed) * upaxis.
 }
 
 FUNCTION f9_get_bottom_height {

@@ -69,14 +69,14 @@ GLOBAL F9_PARAMS IS LEXICON(
     "aeroYawKp", 40,
     "aeroYawKi", 0,
     "aeroYawKd", 0.5,
-    "aeroMaxPitch", 15,
-    "aeroMaxYaw", 15,
-    "aeroTargetOffset", -50,  // Aerodynamic gliding phase is aiming at target + aeroTargetOffset * downRangeVector, m
+    "aeroMaxPitch", 6,
+    "aeroMaxYaw", 10,
+    "aeroTargetOffset", 0,  // Aerodynamic gliding phase is aiming at target + aeroTargetOffset * downRangeVector, m
 
     // Landing burn
     "QuadraticAOABase", 20,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
     "QuadraticAOADot", 0.5,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
-    "landingBurnAltitude", 2500,  // Ignite landing engine when altitude is below this, m
+    "landingBurnAltitude", 2300,  // Ignite landing engine when altitude is below this, m
     "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
     "landingPhase2Time", 0.001,  // time of untargeted landing phase 2, s

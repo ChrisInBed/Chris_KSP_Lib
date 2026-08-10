@@ -127,6 +127,8 @@ FUNCTION f9_landing_burn {
             params,
             targetContext,
             vecNormal,
+            99999999999,
+            99999999999,
             params["landingBurnAltitude"]
         ).
         SET targetPosition TO prediction["targetPosition"].

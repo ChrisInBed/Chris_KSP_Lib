@@ -66,21 +66,21 @@ FUNCTION f9_entry_burn {
         RETURN TRUE.
     }
 
-    LOCAL prediction IS f9_ltr_predict(
-        params,
-        targetContext,
-        vecNormal,
-        params["landingBurnAltitude"]
-    ).
-    IF NOT f9_ltr_prediction_is_valid(prediction) {
-        f9_print_result("ERROR: LTR entry prediction failed").
-        UNLOCK THROTTLE.
-        UNLOCK STEERING.
-        RETURN FALSE.
-    }
-    LOCAL targetPosition IS prediction["targetPosition"].
+    // LOCAL prediction IS f9_ltr_predict(
+    //     params,
+    //     targetContext,
+    //     vecNormal,
+    //     params["landingBurnAltitude"]
+    // ).
+    // IF NOT f9_ltr_prediction_is_valid(prediction) {
+    //     f9_print_result("ERROR: LTR entry prediction failed").
+    //     UNLOCK THROTTLE.
+    //     UNLOCK STEERING.
+    //     RETURN FALSE.
+    // }
+    // LOCAL targetPosition IS prediction["targetPosition"].
     LOCAL remainingVelocity IS f9_get_entry_vgo(
-        prediction,
+        LEXICON(),
         params["entryVSpeed"]
     ).
     f9_print_target_position(targetContext).
@@ -111,21 +111,21 @@ FUNCTION f9_entry_burn {
     ).
     f9_print_at(14, "Alignment error: " + ROUND(alignmentError, 2) + " deg").
     UNTIL alignmentError <= params["burnAlignTolerance"] {
-        SET prediction TO f9_ltr_predict(
-            params,
-            targetContext,
-            vecNormal,
-            params["landingBurnAltitude"]
-        ).
-        IF NOT f9_ltr_prediction_is_valid(prediction) {
-            f9_print_result("ERROR: LTR entry prediction failed").
-            UNLOCK THROTTLE.
-            UNLOCK STEERING.
-            RETURN FALSE.
-        }
-        SET targetPosition TO prediction["targetPosition"].
+        // SET prediction TO f9_ltr_predict(
+        //     params,
+        //     targetContext,
+        //     vecNormal,
+        //     params["landingBurnAltitude"]
+        // ).
+        // IF NOT f9_ltr_prediction_is_valid(prediction) {
+        //     f9_print_result("ERROR: LTR entry prediction failed").
+        //     UNLOCK THROTTLE.
+        //     UNLOCK STEERING.
+        //     RETURN FALSE.
+        // }
+        // SET targetPosition TO prediction["targetPosition"].
         SET remainingVelocity TO f9_get_entry_vgo(
-            prediction,
+            LEXICON(),
             params["entryVSpeed"]
         ).
         SET steeringTarget TO f9_get_target_steering(
@@ -162,19 +162,19 @@ FUNCTION f9_entry_burn {
     LOCAL predictionFailed IS FALSE.
     f9_print_at(16, "Engines: active").
     UNTIL SHIP:VERTICALSPEED >= -params["entryVSpeed"] {
-        SET prediction TO f9_ltr_predict(
-            params,
-            targetContext,
-            vecNormal,
-            params["landingBurnAltitude"]
-        ).
-        IF NOT f9_ltr_prediction_is_valid(prediction) {
-            SET predictionFailed TO TRUE.
-            BREAK.
-        }
-        SET targetPosition TO prediction["targetPosition"].
+        // SET prediction TO f9_ltr_predict(
+        //     params,
+        //     targetContext,
+        //     vecNormal,
+        //     params["landingBurnAltitude"]
+        // ).
+        // IF NOT f9_ltr_prediction_is_valid(prediction) {
+        //     SET predictionFailed TO TRUE.
+        //     BREAK.
+        // }
+        // SET targetPosition TO prediction["targetPosition"].
         SET remainingVelocity TO f9_get_entry_vgo(
-            prediction,
+            LEXICON(),
             params["entryVSpeed"]
         ).
         IF remainingVelocity:MAG > 0.001 {

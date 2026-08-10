@@ -42,18 +42,16 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\repos\KOS\src\kOS.Safe\kOS.Safe.csproj">
-      <Project>{9912cde2-56f1-08b7-c276-8da5ac171567}</Project>
-      <Name>kOS.Safe</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\..\..\..\repos\KOS\src\kOS\kOS.csproj">
-      <Project>{2b6ee586-e980-25ef-299a-3dcc30ba420e}</Project>
-      <Name>kOS</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <Reference Include="FerramAerospaceResearch">
       <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\FerramAerospaceResearch\Plugins\FerramAerospaceResearch.dll</HintPath>
+    </Reference>
+    <Reference Include="kOS, Version=1.5.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\kOS\Plugins\kOS.dll</HintPath>
+    </Reference>
+    <Reference Include="kOS.Safe, Version=1.5.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\kOS\Plugins\kOS.Safe.dll</HintPath>
     </Reference>
     <Reference Include="Unity.Mathematics">
       <HintPath>..\..\..\..\..\..\..\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_RP1\Kerbal Space Program\GameData\000_KSPBurst\Plugins\Unity.Mathematics.dll</HintPath>
