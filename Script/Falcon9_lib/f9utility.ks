@@ -297,7 +297,7 @@ FUNCTION f9_initialize_ltr {
 // Run one prediction from the latest state. Async execution yields the kOS CPU
 // while the C# RKF45 integrator works, then returns a result and the exact target
 // vector used for that prediction.
-// When the vessel hits entryAlt, the rocket burn upward to reduce vertical speed to entrySpeed
+// When the vessel hits entryAlt, the rocket burn retrograde to reduce speed to entrySpeed
 // When the vessel hits burnAltitude, the predictor assumes that the rocket ignite its landing engines
 // and fly a parabola trajectory down. So it calculates a simple offset to the predicted
 // impact point.
@@ -340,8 +340,7 @@ FUNCTION f9_ltr_predict {
         SET tt TO result["t"].
         SET vecR TO result["finalVecR"].
         SET vecV TO result["finalVecV"].
-        LOCAL entryUpAxis TO vecR:normalized.
-        SET vecV TO vxcl(entryUpAxis, vecV) - min(entrySpeed, -vDot(vecV, entryUpAxis)) * entryUpAxis.
+        SET vecV TO vecV:normalized * min(entrySpeed, vecV:mag).
     }
 
     SET ltr:target_altitude TO targetContext["altitude"].
@@ -418,35 +417,7 @@ FUNCTION f9_get_entry_vgo {
     PARAMETER prediction.
     PARAMETER entrySpeed.
 
-    // LOCAL rr IS prediction["initialVecR"].
-    // LOCAL vv IS prediction["initialVecV"].
-    // LOCAL rTarget IS prediction["targetBodyPosition"].
-    // LOCAL impactPosition IS prediction["finalVecR"].
-    // LOCAL unitR IS rr:NORMALIZED.
-    // LOCAL g IS SHIP:BODY:MU / rr:MAG^2.
-    // LOCAL gravity IS -g * unitR.
-    // LOCAL targetRadialSpeed IS -entrySpeed.
-    // LOCAL impactRadialSpeed IS VDOT(unitR, vv).
-    // LOCAL height IS VDOT(unitR, rr - rTarget).
-    // LOCAL targetTime IS (targetRadialSpeed
-    //     + SQRT(MAX(0, targetRadialSpeed^2 + 2*g*height))) / g.
-    // LOCAL impactTime IS (impactRadialSpeed
-    //     + SQRT(MAX(0, impactRadialSpeed^2 + 2*g*height))) / g.
-    // SET targetTime TO MAX(0.001, targetTime).
-    // SET impactTime TO MAX(0.001, impactTime).
-
-    // // This is the plan's hybrid prediction/vacuum law written relative to the
-    // // current position. The relative form is algebraically frame-invariant and
-    // // avoids subtracting planet-radius-sized terms divided by different times.
-    // RETURN (rTarget - rr) / targetTime
-    //     - (impactPosition - rr) / impactTime
-    //     - 0.5 * gravity * (targetTime - impactTime).
-
-    // Because the impact point moves a lot when the energy changes
-    // So the above method is not robust, especially for ships that possess a large lift force
-    // We switch to the following simple routine: just burn straight up until the vertical speed reaches entrySpeed
-    local upaxis to up:forevector.
-    return max(0, -entrySpeed - ship:verticalSpeed) * upaxis.
+    return srfRetrograde:forevector * max(0, ship:airspeed - entrySpeed).
 }
 
 FUNCTION f9_get_bottom_height {

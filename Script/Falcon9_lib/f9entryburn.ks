@@ -166,7 +166,7 @@ FUNCTION f9_entry_burn {
     activate_engines(entryEngines).
     LOCAL predictionFailed IS FALSE.
     f9_print_at(16, "Engines: active").
-    UNTIL SHIP:VERTICALSPEED >= -params["entryVSpeed"] {
+    UNTIL SHIP:airspeed <= params["entryVSpeed"] {
         // SET prediction TO f9_ltr_predict(
         //     params,
         //     targetContext,

@@ -33,7 +33,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     // attitude assumed by the predictor; aerodynamic coefficients are sampled
     // from FAR once the booster has separated.
     "ltrCtrlSpeedSamples", LIST(300, 600, 1000),
-    "ltrCtrlAOASamples", LIST(0, 5, 8),
+    "ltrCtrlAOASamples", LIST(0, 8, 10),
     "ltrAeroSpeedSamples", LIST(100, 500, 1000, 2000, 3000),
     "ltrAeroAltitudeSamples", LIST(0, 10000, 30000, 50000, 70000),
     "ltrCdFactor", 1,
@@ -75,7 +75,7 @@ FUNCTION pre_boostback_hook {
     // set steeringManager:yawts to 8.
     set steeringManager:yawpid:kd to 0.5.
     // set steeringManager:rollts to 5.
-    // set steeringManager:rollpid:kd to 0.5.
+    set steeringManager:rollpid:kd to 0.5.
     // set steeringManager:rollpid:epsilon to 0.1.
 }
 
