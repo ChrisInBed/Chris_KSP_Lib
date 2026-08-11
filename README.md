@@ -1,10 +1,11 @@
 # Chris GNC Suite
 Advanced guidance and control research for Kerbal Space Program.
 
-Chris GNC Suite is a powerful autopilot mod containing PEGLand and UEntry programs that enable precise spacecraft landings on the Moon or Earth. It is based on kOS, a scipt language and interpreter for KSP autopilot. This mod is capable of:
+Chris GNC Suite is a powerful autopilot mod containing PEGLand, UEntry, and BORG guidance programs for precise spacecraft landing and reusable-booster recovery. It is based on kOS, a scipt language and interpreter for KSP autopilot. This mod is capable of:
 
 - Fuel optimal, precise, realisctic (just like Apollo) and safe powered pin-point landing on the Moon, or any other celectials without atmosphere, with almost any proper lander designs;
 - Mild, precise, realistic lifting reentry guidance back to runway on the Earth, or any other celectials with a decent atmosphere, with spaceplanes or reentry capsules;
+- Hardware-aware, general-purpose booster recovery with BORG, including land or drone-ship targets and configurable Falcon 9-like or New Glenn-like recovery schemes;
 - High precision maneuver node executor, for both stock and Principia nodes.
 
 Though frontends of Chris GNC Suite is written in kOS, but you don't have to learn kOS script grammar. PEGLand and UEntry applications comes with user-friendly GUIs.

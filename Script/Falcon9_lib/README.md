@@ -1,6 +1,11 @@
-# Falcon 9 Reusable First-Stage Guidance
+# BORG — Booster Operation, Recovery and Guidance
 
-This directory contains kOS guidance for launching a two-stage RO vehicle and recovering its first stage. Recovery uses the `kOS-LTR` C# addon to propagate an open-loop lifting trajectory with an RKF45 integrator. The kOS guidance updates the body-fixed target and vehicle state before each prediction, then closes the loop around the predicted impact point.
+BORG is a work-in-progress, general-purpose kOS system for operating and recovering reusable boosters. It is hardware-aware: after engine roles are tagged, it discovers the selected engine groups and their operating characteristics, while `kOS-LTR` samples the FAR aerodynamic configuration for prediction. Its configurable engine groups and landing targets are intended to support land or drone-ship recovery and both Falcon 9-like and New Glenn-like recovery schemes.
+
+This directory contains the optional open-loop ascent guidance and the independent booster recovery guidance. Recovery uses the `kOS-LTR` C# addon to propagate an open-loop lifting trajectory with an RKF45 integrator. The kOS guidance updates the body-fixed target and vehicle state before each prediction, then closes the loop around the predicted impact point.
+
+> [!NOTE]
+> The `Falcon9_lib` directory and `f9*.ks` identifiers are legacy technical names. They remain unchanged to avoid unnecessary flight-code retesting; the public project name is BORG.
 
 The software provides:
 
@@ -13,7 +18,7 @@ The software provides:
 
 ## Requirements and operation
 
-- `Chris_GNC_Suite >= 0.9.9` is available.
+- `Chris_GNC_Suite >= 1.0.0` is available.
 - FAR and the `kOS-LTR` addon from `src/kOS-LTR` are installed for first-stage recovery.
 - Engines must have the configured kOS tags. One engine may have several role tags if appropriate.
 - Configure `landingSiteUse` in `boot/f9recovery.ks` as `geo`, `waypoint`, or

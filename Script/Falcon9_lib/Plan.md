@@ -1,8 +1,8 @@
-# Falcon-9 launch and recovery script
+# BORG launch and recovery script
 
 ## Overall
 
-- `Falcon9_lib/f9launch.ks`: Open loop ascent guidance for Falcon-9 rocket first stage, MECO at right timing to keep fuel for landing. This script is running on upper stage
+- `Falcon9_lib/f9launch.ks`: Open loop ascent guidance for the example reusable rocket, MECO at right timing to keep fuel for landing. This script is running on upper stage
 - `Falcon9_lib/f9boostback.ks`: Align to horizontal remaining velocity and fire boostback engines, to a RTLS or drone ship trajectory
 - `Falcon9_lib/entryburn.ks`: Wait until altitude reaches 80km, align to remaining velocity direction, fire entryburn engines to decelerate while still targeting target, until the remaining velocity are all executed
 - `Falcon9_lib/f9landingburn.ks`: Perform a 2-stage suicide landing burn, the first stage use quadratic guidance to approach target, and the second stage use untargeted landing burn to touchdown safely to recovery site

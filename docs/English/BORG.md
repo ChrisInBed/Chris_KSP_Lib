@@ -1,15 +1,28 @@
-# Falcon 9 Reusable First-Stage Tutorial
+# BORG — Booster Operation, Recovery and Guidance
 
-Switch to the [Chinese version](../%E4%B8%AD%E6%96%87/Falcon9.md).
+Switch to the [Chinese version](../%E4%B8%AD%E6%96%87/BORG.md).
 
 ## 1. What this program does
 
-The Falcon 9 project is a pair of kOS programs for a two-stage rocket with a reusable first stage:
+BORG is a work-in-progress, general-purpose booster recovery system for kOS. Its name stands for **Booster Operation, Recovery and Guidance**. BORG is not tied to one replica or one recovery architecture: give it a reusable booster, identify the engine roles, choose a landing site, and let it work out how to bring the stage home.
+
+> **One recovery system, many boosters.** BORG is being developed for land and drone-ship recovery, with enough flexibility for both Falcon 9-like and New Glenn-like recovery schemes.
+
+BORG is designed to be:
+
+- **hardware-aware:** after you assign role tags, it discovers the matching engine groups and their thrust, minimum throttle, thrust alignment, and spool behavior; it also samples the vehicle's FAR aerodynamic configuration for trajectory prediction;
+- **versatile:** boostback, entry, aerodynamic descent, and landing engine groups can overlap or differ, so vehicles do not have to copy one particular booster layout;
+- **target-flexible:** it can recover toward fixed coordinates, a waypoint, or a vessel such as a moving drone ship.
+
+The current BORG frontend consists of two independent kOS programs for a two-stage rocket with a reusable first stage:
 
 - `f9ascent.ks` provides a basic launch, programmed pitch-over, main-engine cutoff, stage separation, and upper-stage ignition.
 - `f9recovery.ks` guides the separated booster through boostback, entry, aerodynamic correction, and landing.
 
 Recovery uses FAR and the `kOS-LTR` addon to estimate where the booster will land. It repeatedly corrects the trajectory toward the landing site selected in the recovery boot file.
+
+> [!NOTE]
+> BORG is still a work in progress. Expect to tune vehicle-specific limits and keep enough margin for test flights.
 
 > [!IMPORTANT]
 > The ascent guidance is deliberately **very simple open-loop guidance**. It is completely separate from the recovery guidance. You do **not** have to use it.
