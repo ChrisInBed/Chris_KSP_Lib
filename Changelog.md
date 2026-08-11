@@ -138,3 +138,20 @@ Major version update
 ## 2026/07/25 v0.9.11
 
 - PEGLand: Fixed reference throttle strategy for final phase, to ensure landing safety for unthrottable landers
+
+## 2026/08/12 v1.0.0
+
+Major version update
+
+- Added **BORG — Booster Operation, Recovery and Guidance**, a work-in-progress general-purpose reusable-booster recovery system:
+  - Hardware-aware engine handling based on role tags, including automatic detection of thrust, minimum throttle, thrust alignment, spool-up behavior, and separate deceleration/landing engine groups
+  - Automatic FAR aerodynamic sampling for the configured booster
+  - Recovery targets from fixed coordinates, waypoints, or vessels, including moving drone ships
+  - Configurable recovery flow intended for both Falcon 9-like and New Glenn-like booster architectures
+  - Independent boostback, entry-burn, aerodynamic-descent, and landing guidance
+  - Optional simple open-loop ascent program; BORG recovery can instead follow MechJeb, PEGAS, another autopilot, or a manual ascent
+- Added the `kOS-LTR` addon for fast atmospheric impact-point prediction using a configurable speed-AOA profile and FAR aerodynamic data
+- Added landing guidance with distinct deceleration and landing engine sets, automatic engine-group transition, spool-up compensation, aerodynamic attitude limiting, and terminal braking
+- Added an RP-1 Falcon 9 example craft, ascent/recovery boot configurations, diagrams, and complete English and Chinese BORG tutorials
+- UEntry/kOS-AFS: corrected vessel centre-of-mass state acquisition and explicit body-rotation initialization
+- PEGLand: improved restart-aware throttle control and corrected minimum-throttle calculation for engines using thrust limiters
