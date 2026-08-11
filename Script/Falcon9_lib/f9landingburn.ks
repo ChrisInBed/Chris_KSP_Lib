@@ -1,4 +1,3 @@
-RUNONCEPATH("0:/Falcon9_lib/params.ks").
 RUNONCEPATH("0:/Falcon9_lib/f9utility.ks").
 
 // Fixed-time form of PEGLand's quadratic guidance. The public time-to-go is
@@ -77,6 +76,7 @@ FUNCTION f9_landing_burn {
     }
 
     f9_clear_guidance_display().
+    pre_landingburn_hook().
     LOCAL landingEngines IS search_engine(params["landingEngineTag"]).
     IF landingEngines:LENGTH = 0 {
         f9_print_result("ERROR: no landing engines found").
@@ -443,5 +443,6 @@ FUNCTION f9_landing_burn {
     deactivate_engines(landingEngines).
     UNLOCK THROTTLE.
     UNLOCK STEERING.
+    SET done TO TRUE.
     RETURN TRUE.
 }

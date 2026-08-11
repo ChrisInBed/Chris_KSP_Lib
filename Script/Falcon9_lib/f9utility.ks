@@ -81,10 +81,12 @@ FUNCTION f9_init_recovery_display {
     CLEARSCREEN.
     f9_print_at(0, "Falcon 9 Recovery Guidance").
     f9_print_at(1, "---------------- TARGET ----------------").
-    IF targetContext["moving"] {
+    IF targetContext["source"] = "vessel" {
         f9_print_at(2, "Target source: vessel (moving)").
+    } ELSE IF targetContext["source"] = "waypoint" {
+        f9_print_at(2, "Target source: waypoint (fixed)").
     } ELSE {
-        f9_print_at(2, "Target source: active waypoint (fixed)").
+        f9_print_at(2, "Target source: geoposition (fixed)").
     }
     f9_print_target_position(targetContext).
     f9_print_at(5, "--------------- VEHICLE ----------------").
@@ -102,48 +104,74 @@ FUNCTION f9_print_recovery_vehicle {
     f9_print_at(8, "Mass: " + ROUND(SHIP:MASS, 2) + " t").
 }
 
-// Select a fixed active waypoint first. If none is selected, capture the
-// current KSP target so a moving target vessel can be refreshed in flight.
+// Acquire the configured landing site. The recovery boot file owns the
+// selector and its associated value; no active waypoint or KSP target is
+// consulted implicitly.
 FUNCTION f9_initialize_target {
     PARAMETER params.
 
-    LOCAL activeWaypoint IS get_active_waypoint().
+    LOCAL source IS params["landingSiteUse"].
     LOCAL rawAltitude IS 0.
-    IF activeWaypoint <> 0 {
-        SET rawAltitude TO activeWaypoint:ALTITUDE.
-        RETURN LEXICON(
-            "ok", TRUE,
-            "moving", FALSE,
-            "geo", activeWaypoint:GEOPOSITION,
-            "rawAltitude", rawAltitude,
-            "altitudeOffset", params["altitudeOffset"],
-            "altitude", rawAltitude + params["altitudeOffset"],
-            "object", activeWaypoint
-        ).
+    LOCAL targetGeo IS 0.
+    LOCAL targetObject IS 0.
+    LOCAL moving IS FALSE.
+
+    IF source = "geo" {
+        LOCAL geoSpec IS params["landingSiteGeo"].
+        IF geoSpec:LENGTH < 2 {
+            PRINT "F9 target error: landingSiteGeo needs longitude and latitude".
+            RETURN LEXICON("ok", FALSE, "source", source).
+        }
+        LOCAL _longitude IS geoSpec[0].
+        LOCAL _latitude IS geoSpec[1].
+        IF (_longitude < -180 OR _longitude > 180
+            OR _latitude < -90 OR _latitude > 90) {
+            PRINT "F9 target error: landingSiteGeo is out of range".
+            RETURN LEXICON("ok", FALSE, "source", source).
+        }
+        SET targetGeo TO LATLNG(_latitude, _longitude).
+        SET rawAltitude TO targetGeo:TERRAINHEIGHT.
+    } ELSE IF source = "waypoint" {
+        LOCAL waypointName IS params["landingSiteWaypoint"].
+        LOCAL waypointList IS ALLWAYPOINTS().
+        FOR waypoint IN waypointList {
+            IF waypoint:NAME = waypointName {
+                SET targetObject TO waypoint.
+                BREAK.
+            }
+        }
+        IF targetObject = 0 {
+            PRINT "F9 target error: waypoint '" + waypointName
+                + "' was not found".
+            RETURN LEXICON("ok", FALSE, "source", source).
+        }
+        SET targetGeo TO targetObject:GEOPOSITION.
+        SET rawAltitude TO targetObject:ALTITUDE.
+    } ELSE IF source = "vessel" {
+        LOCAL vesselName IS params["landingSiteVessel"].
+        SET targetObject TO VESSEL(vesselName).
+        IF targetObject:ISDEAD {
+            PRINT "F9 target error: vessel '" + vesselName
+                + "' was not found".
+            RETURN LEXICON("ok", FALSE, "source", source).
+        }
+        SET targetGeo TO targetObject:GEOPOSITION.
+        SET rawAltitude TO targetObject:ALTITUDE.
+        SET moving TO TRUE.
+    } ELSE {
+        PRINT "F9 target error: landingSiteUse must be geo, waypoint, or vessel".
+        RETURN LEXICON("ok", FALSE, "source", source).
     }
 
-    IF HASTARGET {
-        SET rawAltitude TO TARGET:ALTITUDE.
-        RETURN LEXICON(
-            "ok", TRUE,
-            "moving", TRUE,
-            "geo", TARGET:GEOPOSITION,
-            "rawAltitude", rawAltitude,
-            "altitudeOffset", params["altitudeOffset"],
-            "altitude", rawAltitude + params["altitudeOffset"],
-            "object", TARGET
-        ).
-    }
-
-    PRINT "F9 target error: select a waypoint or target vessel".
     RETURN LEXICON(
-        "ok", FALSE,
-        "moving", FALSE,
-        "geo", SHIP:GEOPOSITION,
-        "rawAltitude", SHIP:ALTITUDE,
+        "ok", TRUE,
+        "source", source,
+        "moving", moving,
+        "geo", targetGeo,
+        "rawAltitude", rawAltitude,
         "altitudeOffset", params["altitudeOffset"],
-        "altitude", SHIP:ALTITUDE + params["altitudeOffset"],
-        "object", SHIP
+        "altitude", rawAltitude + params["altitudeOffset"],
+        "object", targetObject
     ).
 }
 
@@ -317,7 +345,7 @@ FUNCTION f9_ltr_predict {
     }
 
     SET ltr:target_altitude TO targetContext["altitude"].
-    LOCAL state IS ltr:GetState().
+    // LOCAL state IS ltr:GetState().
     // LOCAL state IS LEXICON("vecR", -ship:body:position, "vecV", ship:velocity:surface).
     LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
         "t", tt,
@@ -439,4 +467,146 @@ FUNCTION f9_continuous_throttle {
     PARAMETER minThrottle.
     PARAMETER minCommand.
     RETURN MAX(minCommand, MIN(1, simple_get_throttle(requestedFraction, minThrottle))).
+}
+
+FUNCTION f9_validate_required_keys {
+    PARAMETER params.
+    PARAMETER requiredKeys.
+    PARAMETER context IS "configuration".
+
+    IF NOT params:HASSUFFIX("HASKEY") {
+        PRINT "F9 " + context + " config error: params must be a lexicon".
+        RETURN FALSE.
+    }
+
+    LOCAL ok IS TRUE.
+    FOR key IN requiredKeys {
+        IF NOT params:HASKEY(key) {
+            PRINT "F9 " + context + " config error: missing required key '"
+                + key + "'".
+            SET ok TO FALSE.
+        }
+    }
+    RETURN ok.
+}
+
+FUNCTION f9_validate_launch_params {
+    PARAMETER params.
+
+    LOCAL requiredKeys IS LIST(
+        "kOSIPU", "liftoffEngineTag", "mecoMass", "targetHeading",
+        "turnSpeed", "pitchOmega", "stageSeparationDelay",
+        "upperStageIgnitionDelay"
+    ).
+    IF NOT f9_validate_required_keys(params, requiredKeys, "launch") {
+        RETURN FALSE.
+    }
+
+    LOCAL ok IS TRUE.
+    IF params["mecoMass"] <= 0 {
+        PRINT "F9 config error: mecoMass must be positive".
+        SET ok TO FALSE.
+    }
+    IF (params["turnSpeed"] <= 0 OR params["pitchOmega"] <= 0) {
+        PRINT "F9 config error: turnSpeed and pitchOmega must be positive".
+        SET ok TO FALSE.
+    }
+    RETURN ok.
+}
+
+FUNCTION f9_validate_recovery_params {
+    PARAMETER params.
+
+    LOCAL requiredKeys IS LIST(
+        "kOSIPU", "boostbackEngineTag", "entryEngineTag",
+        "landingDecEngineTag", "landingEngineTag", "boostBackMass",
+        "landingSiteUse",
+        "targetRoll", "altitudeOffset", "boostBackDelay", "entryBurnAlt",
+        "entryVSpeed", "burnAlignTolerance", "ltrCtrlSpeedSamples",
+        "ltrCtrlAOASamples",
+        "ltrAeroSpeedSamples", "ltrAeroAltitudeSamples", "ltrCdFactor",
+        "ltrClFactor", "ltrPredictMinStep", "ltrPredictMaxStep",
+        "ltrPredictTMax", "aeroPitchKp", "aeroPitchKi", "aeroPitchKd",
+        "aeroYawKp", "aeroYawKi", "aeroYawKd", "aeroMaxPitch",
+        "aeroMaxYaw", "aeroTargetOffset", "QuadraticAOABase",
+        "QuadraticAOADot", "landingBurnAltitude",
+        "legDeploySpeed", "touchDownSpeed", "landingPhase2Time",
+        "landingCutoffHeight", "boundsUpdatePeriod",
+        "minLandingThrottleCommand"
+    ).
+    IF NOT f9_validate_required_keys(params, requiredKeys, "recovery") {
+        RETURN FALSE.
+    }
+
+    LOCAL ok IS TRUE.
+    IF (params["landingSiteUse"] <> "geo"
+        AND params["landingSiteUse"] <> "waypoint"
+        AND params["landingSiteUse"] <> "vessel") {
+        PRINT "F9 recovery config error: landingSiteUse must be geo, waypoint, or vessel".
+        SET ok TO FALSE.
+    } ELSE IF params["landingSiteUse"] = "geo" {
+        IF NOT f9_validate_required_keys(
+            params,
+            LIST("landingSiteGeo"),
+            "recovery"
+        ) {
+            SET ok TO FALSE.
+        }
+    } ELSE IF params["landingSiteUse"] = "waypoint" {
+        IF NOT f9_validate_required_keys(
+            params,
+            LIST("landingSiteWaypoint"),
+            "recovery"
+        ) {
+            SET ok TO FALSE.
+        }
+    } ELSE {
+        IF NOT f9_validate_required_keys(
+            params,
+            LIST("landingSiteVessel"),
+            "recovery"
+        ) {
+            SET ok TO FALSE.
+        }
+    }
+    IF params["boostBackMass"] <= 0 {
+        PRINT "F9 config error: boostBackMass must be positive".
+        SET ok TO FALSE.
+    }
+
+    IF params["aeroMaxPitch"] <= 0 {
+        PRINT "F9 config error: aeroMaxPitch must be positive".
+        SET ok TO FALSE.
+    }
+    IF params["aeroMaxYaw"] <= 0 {
+        PRINT "F9 config error: aeroMaxYaw must be positive".
+        SET ok TO FALSE.
+    }
+    IF (params["entryBurnAlt"] <= 0 OR params["entryVSpeed"] <= 0) {
+        PRINT "F9 config error: entry burn altitude and speed must be positive".
+        SET ok TO FALSE.
+    }
+    IF (params["ltrCtrlSpeedSamples"]:LENGTH = 0
+        OR params["ltrCtrlSpeedSamples"]:LENGTH
+            <> params["ltrCtrlAOASamples"]:LENGTH) {
+        PRINT "F9 config error: LTR speed/AOA profiles must be nonempty and equal-length".
+        SET ok TO FALSE.
+    }
+    IF (params["ltrAeroSpeedSamples"]:LENGTH = 0
+        OR params["ltrAeroAltitudeSamples"]:LENGTH = 0) {
+        PRINT "F9 config error: LTR aerodynamic sample axes must be nonempty".
+        SET ok TO FALSE.
+    }
+    IF (params["ltrPredictMinStep"] < 0
+        OR params["ltrPredictMaxStep"] <= 0
+        OR params["ltrPredictMinStep"] > params["ltrPredictMaxStep"]
+        OR params["ltrPredictTMax"] <= 0) {
+        PRINT "F9 config error: invalid LTR predictor step/time limits".
+        SET ok TO FALSE.
+    }
+    IF (params["touchDownSpeed"] < 0) {
+        PRINT "F9 config error: invalid landing speed".
+        SET ok TO FALSE.
+    }
+    RETURN ok.
 }

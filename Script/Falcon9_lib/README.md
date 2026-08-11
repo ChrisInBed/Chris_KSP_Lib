@@ -16,8 +16,13 @@ The software provides:
 - `Chris_GNC_Suite >= 0.9.9` is available.
 - FAR and the `kOS-LTR` addon from `src/kOS-LTR` are installed for first-stage recovery.
 - Engines must have the configured kOS tags. One engine may have several role tags if appropriate.
-- Select an active waypoint or set a target vessel before recovery starts. The waypoint has precedence. A waypoint is cached; a vessel's position and altitude are refreshed every frame.
-- Start `gof9u.ks` on the upper-stage CPU before launch and `gof9d.ks` on the booster CPU before separation.
+- Configure `landingSiteUse` in `boot/f9recovery.ks` as `geo`, `waypoint`, or
+  `vessel`, then set the matching `landingSiteGeo`, `landingSiteWaypoint`, or
+  `landingSiteVessel` value. No active waypoint or KSP target is consulted
+  implicitly. Vessel position and altitude are refreshed every frame.
+- Start `boot/f9ascent.ks` on the upper-stage CPU before launch and
+  `boot/f9recovery.ks` on the booster CPU before separation. Each boot file
+  owns its parameter lexicon and dispatches the corresponding executive.
 - When prompted after the upper-stage throttle handoff, change action group 10 to release the launch script's steering and throttle locks.
 
 All distances are metres, speeds are m/s, masses are tonnes as reported by kOS, times are seconds, and angles are degrees unless noted otherwise.
@@ -26,11 +31,12 @@ All distances are metres, speeds are m/s, masses are tonnes as reported by kOS, 
 
 | Script | Function |
 |---|---|
-| `params.ks` | Defines `F9_PARAMS` and tunes the kOS steering manager. This is the vehicle-specific configuration file. |
+| `boot/f9ascent.ks` | Defines `F9_ASCENT_PARAMS`, waits for AG10, and dispatches `gof9u.ks`. |
+| `boot/f9recovery.ks` | Defines `F9_PARAMS`, recovery hooks, and dispatches `gof9d.ks`. |
 | `f9utility.ks` | Provides validation, fixed-row displays, target acquisition, the common downrange-offset target, LTR/FAR initialization and prediction, PEGLand-style thrust-axis/roll steering, body-fixed entry guidance, bounds updates, and continuous throttle mapping. |
 | `f9launch.ks` | Implements the vertical rise, programmed pitch turn, MECO, separation, and upper-stage control handoff through `f9_launch(params)`. |
 | `f9boostback.ks` | Implements post-separation engine reacquisition, LTR impact-error steering, and minimum-impact-error cutoff through `f9_boostback(params, targetContext)`. |
-| `entryburn.ks` | Implements retrograde coast, the descending entry trigger, entry-burn alignment, guidance, and vertical-speed cutoff through `f9_entry_burn(params, targetContext)`. |
+| `f9entryburn.ks` | Implements retrograde coast, the descending entry trigger, entry-burn alignment, guidance, and vertical-speed cutoff through `f9_entry_burn(params, targetContext)`. |
 | `f9landingburn.ks` | Implements aerodynamic correction, landing ignition prediction, AOA-limited quadratic guidance, terminal braking, gear deployment, and engine cutoff through `f9_landing_burn(params, targetContext)`. |
 | `gof9u.ks` | Upper-stage executive. Clears the display, loads the launch modules, and runs `f9_launch`. |
 | `gof9d.ks` | Booster executive. Validates recovery configuration and kOS-LTR availability, initializes the target, then runs boostback, entry, and landing in sequence. |
@@ -44,10 +50,14 @@ Each public phase function returns a Boolean. The executive stops if target acqu
 Guidance uses `SHIP:VELOCITY:SURFACE` and a body-fixed target. The final target altitude is
 
 $$
-h_T=h_{ASL}+h_{offset},
+h_T=h_{raw}+h_{offset},
 $$
 
-where `h_ASL` is the waypoint or target-vessel altitude and `h_offset` is `altitudeOffset`. The target vector is always obtained with `GeoCoordinates:ALTITUDEPOSITION(h_T)`; terrain altitude is not substituted. Boostback, entry, and aerodynamic glide add `aeroTargetOffset` along downrange. Powered landing deliberately returns to the raw altitude-aware target.
+where `h_raw` is the configured geoposition terrain altitude, waypoint altitude,
+or vessel altitude, and `h_offset` is `altitudeOffset`. The target vector is
+always obtained with `GeoCoordinates:ALTITUDEPOSITION(h_T)`. Boostback, entry,
+and aerodynamic glide add `aeroTargetOffset` along downrange. Powered landing
+deliberately returns to the raw altitude-aware target.
 
 The current surface normal and a fixed trajectory-plane normal define the steering frame. The requested thrust vector is corrected by the engine thrust-axis rotation `TiS`, while `targetRoll` fixes vehicle roll. For landing clearance, the bounds are sampled along thrust-down to obtain `bottomHeight`, then the code projects `SHIP:POSITION - bottomHeight * UP:FOREVECTOR` onto the target-altitude plane. Radar altitude is not used.
 
@@ -157,9 +167,9 @@ $$
 
 The same continuous throttle mapping is retained. Steering stays surface retrograde while horizontal motion is significant, then becomes target-local up. The engines shut down when vertical speed becomes non-negative or bottom height falls below `landingCutoffHeight`; all guidance locks are then released.
 
-## Configuring `params.ks`
+## Configuring the boot-file parameter lexicons
 
-Copy the existing `params.ks` as the starting point and change values for the actual vehicle. At minimum:
+Change the parameter lexicon in the applicable boot file for the actual vehicle. The ascent and recovery lexicons are intentionally separate because they run on different CPUs. At minimum:
 
 1. Tag engines and verify each role is discoverable after staging.
 2. Measure wet/staging masses and set `mecoMass` and `boostBackMass`.
@@ -178,7 +188,12 @@ The executives validate the main required and safety-critical values before comm
 | `liftoffEngineTag` | `"liftoff"` | Engine tag used for launch and MECO. |
 | `boostbackEngineTag` | `"boostback"` | Engine tag reacquired for boostback after separation. |
 | `entryEngineTag` | `"entry"` | Engine tag used for the entry burn. |
-| `landingEngineTag` | `"landing"` | Engine tag used for the continuous landing burn. |
+| `landingSiteUse` | `"waypoint"` | Landing-site selector: `geo`, `waypoint`, or `vessel`. |
+| `landingSiteGeo` | `0, 0` | `[longitude, latitude]`; terrain height is used as the raw altitude. |
+| `landingSiteWaypoint` | `"VAB"` | Waypoint name used when `landingSiteUse` is `waypoint`. |
+| `landingSiteVessel` | `"drone"` | Vessel name used when `landingSiteUse` is `vessel`. |
+| `landingDecEngineTag` | `"landing1"` | Engine tag used for the initial landing-deceleration set. |
+| `landingEngineTag` | `"landing2"` | Engine tag used for the continuous landing burn. |
 | `payloadMass` | `16.651` | Payload mass used to construct the current MECO mass setting. It is a local convenience value, also copied into `F9_PARAMS`. |
 | `mecoMass` | `190 + payloadMass` | Vehicle mass at launch-engine cutoff. Include the payload and upper stage still attached at MECO. |
 | `boostBackMass` | `150` | Booster mass below which the recovery script recognizes separation and starts its post-separation delay. |
@@ -252,6 +267,6 @@ The final `"_", ""` lexicon entry is only a trailing syntax placeholder; it is n
 
 ### Steering-manager tuning
 
-The first lines of `params.ks` also set `STEERINGMANAGER` response: `MAXSTOPPINGTIME`, pitch/yaw/roll torque settling times, and roll PID derivative gain. These are not guidance gains. Tune them for the vehicle's actuator strength and inertia before tuning aerodynamic or landing guidance; an unstable attitude controller invalidates higher-level guidance tests.
+The recovery boot hooks set `STEERINGMANAGER` response: `MAXSTOPPINGTIME`, pitch/yaw/roll torque settling times, and roll PID derivative gain. These are not guidance gains. Tune them for the vehicle's actuator strength and inertia before tuning aerodynamic or landing guidance; an unstable attitude controller invalidates higher-level guidance tests.
 
 Flight-test all changes in simulation. In particular, confirm engine tag changes across staging, available landing thrust at minimum throttle, ignition count, impact-prediction convention, target altitude, and vessel bounds before attempting a full recovery.

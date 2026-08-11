@@ -1,5 +1,26 @@
-RUNONCEPATH("0:/Falcon9_lib/params.ks").
 RUNONCEPATH("0:/Falcon9_lib/f9utility.ks").
+
+FUNCTION f9_boostback_getImpactErr {
+    PARAMETER params.
+    PARAMETER targetContext.
+    PARAMETER vecNormal.
+
+    LOCAL predTime TO time:seconds.
+    LOCAL prediction IS f9_ltr_predict(
+        params,
+        targetContext,
+        vecNormal,
+        params["entryBurnAlt"],
+        params["entryVSpeed"],
+        params["landingBurnAltitude"]
+    ).
+    IF NOT f9_ltr_prediction_is_valid(prediction) {
+        f9_print_result("ERROR: LTR boostback prediction failed").
+        RETURN LEXICON("ok", FALSE).
+    }
+    LOCAL impactError IS f9_get_boostback_error(prediction).
+    return LEXICON("err", impactError, "time", predTime, "ok", TRUE).
+}
 
 FUNCTION f9_boostback {
     PARAMETER params.
@@ -24,6 +45,7 @@ FUNCTION f9_boostback {
     }
     WAIT params["boostBackDelay"].
 
+    pre_boostback_hook().
     LOCAL boostbackEngines IS search_engine(params["boostbackEngineTag"]).
     IF boostbackEngines:LENGTH = 0 {
         f9_print_result("ERROR: no boostback engines found").
@@ -38,82 +60,81 @@ FUNCTION f9_boostback {
         RETURN FALSE.
     }
 
+    // Initialize 2 predictions
     LOCAL vecNormal IS f9_get_surface_normal().
-    LOCAL prediction IS f9_ltr_predict(
-        params,
-        targetContext,
-        vecNormal,
-        params["entryBurnAlt"],
-        params["entryVSpeed"],
-        params["landingBurnAltitude"]
-    ).
-    IF NOT f9_ltr_prediction_is_valid(prediction) {
-        f9_print_result("ERROR: LTR boostback prediction failed").
-        RETURN FALSE.
+    LOCAL _predres IS f9_boostback_getImpactErr(params, targetContext, vecNormal).
+    if (not _predres["ok"]) { return FALSE. }
+    LOCAL lastPredTime TO _predres["time"].
+    LOCAL lastPredErr TO _predres["err"].
+    WAIT 0.
+    SET _predres TO f9_boostback_getImpactErr(params, targetContext, vecNormal).
+    if (not _predres["ok"]) { return FALSE. }
+    LOCAL predTime TO _predres["time"].
+    LOCAL predErr TO _predres["err"].
+    LOCAL errDot TO (predErr - lastPredErr) / (predTime - lastPredTime).
+    WAIT 0.
+    function update_predictions {
+        parameter _predErr.
+        parameter _predTime.
+
+        set lastPredTime to predTime.
+        set lastPredErr to predErr.
+        set predErr to _predErr.
+        set predTime to _predTime.
+        set errDot TO (predErr - lastPredErr) / max(0.001, predTime - lastPredTime).
     }
-    LOCAL impactError IS f9_get_boostback_error(prediction).
+
     f9_print_target_position(targetContext).
     f9_print_recovery_vehicle().
-    IF impactError:MAG < 0.001 {
+    IF predErr:MAG < 0.001 {
         f9_print_at(11, "Phase: boostback - no burn required").
         f9_print_at(12, "Predicted impact error: 0.0 m").
         RETURN TRUE.
     }
 
     f9_print_at(11, "Phase: boostback - aligning").
-    LOCAL steeringTarget IS f9_get_target_steering(
-        impactError,
-        engineInfo["TiS"],
-        params["targetRoll"]
-    ).
     SAS OFF.
+    // Steering routine: lock steering to predErr
+    LOCAL done to False.
+    LOCAL steeringTarget TO "kill".
+    when (not done) then {
+        SET steeringTarget TO f9_get_target_steering(
+            predErr,
+            engineInfo["TiS"],
+            params["targetRoll"]
+        ).
+        return true.
+    }
     LOCK STEERING TO steeringTarget.
     LOCK THROTTLE TO 0.
     RCS ON.
 
     LOCAL alignmentError IS VANG(
         (SHIP:FACING * engineInfo["TiS"]:INVERSE):FOREVECTOR,
-        impactError
+        predErr
     ).
     f9_print_at(
         12,
         "Predicted impact error: "
-            + ROUND(impactError:MAG, 2) + " m"
+            + ROUND(predErr:MAG, 2) + " m"
     ).
     f9_print_at(13, "Alignment error: " + ROUND(alignmentError, 2) + " deg").
     f9_print_at(16, "Engines: armed  Throttle: 0.00").
     UNTIL alignmentError <= params["burnAlignTolerance"] {
-        SET prediction TO f9_ltr_predict(
-            params,
-            targetContext,
-            vecNormal,
-            params["entryBurnAlt"],
-            params["entryVSpeed"],
-            params["landingBurnAltitude"]
-        ).
-        IF NOT f9_ltr_prediction_is_valid(prediction) {
-            f9_print_result("ERROR: LTR boostback prediction failed").
-            UNLOCK THROTTLE.
-            UNLOCK STEERING.
-            RETURN FALSE.
-        }
-        SET impactError TO f9_get_boostback_error(prediction).
-        SET steeringTarget TO f9_get_target_steering(
-            impactError,
-            engineInfo["TiS"],
-            params["targetRoll"],
-            vecNormal
-        ).
+        SET _predres TO f9_boostback_getImpactErr(params, targetContext, vecNormal).
+        if not _predres["ok"] { BREAK. }
+        update_predictions(_predres["err"], _predres["time"]).
+
         SET alignmentError TO VANG(
             (SHIP:FACING * engineInfo["TiS"]:INVERSE):FOREVECTOR,
-            impactError
+            predErr
         ).
         f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
         f9_print_at(
             12,
             "Predicted impact error: "
-                + ROUND(impactError:MAG, 2) + " m"
+                + ROUND(predErr:MAG, 2) + " m"
         ).
         f9_print_at(
             13,
@@ -129,26 +150,31 @@ FUNCTION f9_boostback {
 
     f9_print_at(11, "Phase: boostback - powered guidance").
     activate_engines(boostbackEngines).
-    LOCAL previousMagnitude IS impactError:MAG.
     LOCAL predictionFailed IS FALSE.
     f9_print_at(16, "Engines: active").
     WAIT 0.
 
-    UNTIL FALSE {
-        SET prediction TO f9_ltr_predict(
-            params,
-            targetContext,
-            vecNormal,
-            params["entryBurnAlt"],
-            params["entryVSpeed"],
-            params["landingBurnAltitude"]
-        ).
-        IF NOT f9_ltr_prediction_is_valid(prediction) {
+    // Guidance with prediction latency
+    // throttle and steering routine
+    when (not done) then {
+        // given last prediction, last time, current prediction, current time
+        LOCAL currentErr TO predErr + errDot * (time:seconds - predTime).
+        LOCAL errMagDot TO vDot(currentErr, errDot).
+        IF (currentErr:mag <= 1000 AND errMagDot >= 0) {
+            SET done TO true.
+            LOCK THROTTLE TO 0.
+        }
+        return true.
+    }
+    UNTIL done {
+        SET _predres TO f9_boostback_getImpactErr(params, targetContext, vecNormal).
+        if not _predres["ok"] {
             SET predictionFailed TO TRUE.
             BREAK.
         }
-        SET impactError TO f9_get_boostback_error(prediction).
-        LOCAL currentMagnitude IS impactError:MAG.
+        update_predictions(_predres["err"], _predres["time"]).
+
+        LOCAL currentMagnitude IS predErr:MAG.
         f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
         f9_print_at(
@@ -158,26 +184,14 @@ FUNCTION f9_boostback {
         ).
         f9_print_at(
             14,
-            "Previous impact error: "
-                + ROUND(previousMagnitude, 2) + " m"
+            "errDot: "
+                + ROUND(2*vDot(predErr, errDot)/max(0.01, predErr:mag), 2) + " m"
         ).
         f9_print_at(
             16,
             "Engines: active  Throttle: "
                 + ROUND(SHIP:CONTROL:MAINTHROTTLE, 2)
         ).
-        IF currentMagnitude <= 10000 AND currentMagnitude >= previousMagnitude {
-            BREAK.
-        }
-        SET previousMagnitude TO currentMagnitude.
-        IF currentMagnitude > 0.001 {
-            SET steeringTarget TO f9_get_target_steering(
-                impactError,
-                engineInfo["TiS"],
-                params["targetRoll"],
-                vecNormal
-            ).
-        }
         WAIT 0.
     }
 

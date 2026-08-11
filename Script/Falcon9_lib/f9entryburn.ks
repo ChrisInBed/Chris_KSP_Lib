@@ -1,4 +1,3 @@
-RUNONCEPATH("0:/Falcon9_lib/params.ks").
 RUNONCEPATH("0:/Falcon9_lib/f9utility.ks").
 
 FUNCTION f9_entry_burn {
@@ -11,6 +10,7 @@ FUNCTION f9_entry_burn {
     }
 
     f9_clear_guidance_display().
+    pre_entryburn_hook().
     LOCAL entryEngines IS search_engine(params["entryEngineTag"]).
     IF entryEngines:LENGTH = 0 {
         f9_print_result("ERROR: no entry engines found").
@@ -36,7 +36,7 @@ FUNCTION f9_entry_burn {
         "Descent target: " + ROUND(params["entryVSpeed"], 1) + " m/s"
     ).
     f9_print_at(16, "Engines: armed  Throttle: 0.00").
-    LOCAL steeringTarget IS f9_get_aero_steering(srfPrograde).
+    LOCAL steeringTarget IS "KILL".
     SAS OFF.
     LOCK STEERING TO steeringTarget.
     LOCK THROTTLE TO 0.
@@ -44,7 +44,12 @@ FUNCTION f9_entry_burn {
 
     UNTIL (SHIP:VERTICALSPEED < 0
         AND SHIP:ALTITUDE <= params["entryBurnAlt"]) {
-        SET steeringTarget TO f9_get_aero_steering(srfPrograde).
+        IF SHIP:verticalspeed >= 0 {
+            SET steeringTarget TO f9_get_aero_steering(lookDirUp(vxcl(up:forevector, srfPrograde:forevector), srfPrograde:upvector)).
+        }
+        ELSE {
+            SET steeringTarget TO f9_get_aero_steering(srfPrograde).
+        }
         f9_print_recovery_vehicle().
         f9_print_at(
             13,

@@ -2,10 +2,9 @@ CLEARSCREEN.
 WAIT UNTIL SHIP:UNPACKED.
 SWITCH TO 0.
 
-RUNONCEPATH("0:/Falcon9_lib/params.ks").
 RUNONCEPATH("0:/Falcon9_lib/f9utility.ks").
 RUNONCEPATH("0:/Falcon9_lib/f9boostback.ks").
-RUNONCEPATH("0:/Falcon9_lib/entryburn.ks").
+RUNONCEPATH("0:/Falcon9_lib/f9entryburn.ks").
 RUNONCEPATH("0:/Falcon9_lib/f9landingburn.ks").
 
 FUNCTION gof9d_main {

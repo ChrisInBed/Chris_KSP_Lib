@@ -1,4 +1,3 @@
-RUNONCEPATH("0:/Falcon9_lib/params.ks").
 RUNONCEPATH("0:/Falcon9_lib/f9utility.ks").
 
 FUNCTION f9_launch {
