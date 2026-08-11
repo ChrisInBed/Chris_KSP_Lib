@@ -33,7 +33,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     // attitude assumed by the predictor; aerodynamic coefficients are sampled
     // from FAR once the booster has separated.
     "ltrCtrlSpeedSamples", LIST(300, 600, 1000),
-    "ltrCtrlAOASamples", LIST(0, 8, 11),
+    "ltrCtrlAOASamples", LIST(0, 5, 8),
     "ltrAeroSpeedSamples", LIST(100, 500, 1000, 2000, 3000),
     "ltrAeroAltitudeSamples", LIST(0, 10000, 30000, 50000, 70000),
     "ltrCdFactor", 1,
@@ -57,7 +57,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Landing burn
     "QuadraticAOABase", 25,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
     "QuadraticAOADot", 0.5,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
-    "landingBurnAltitude", 2200,  // Ignite decelerating engines (or landing fallback) below this, m
+    "landingBurnAltitude", 2300,  // Ignite decelerating engines (or landing fallback) below this, m
     "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
     "landingPhase2Time", 2,  // time of untargeted landing phase 2, s

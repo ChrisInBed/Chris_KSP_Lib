@@ -101,7 +101,8 @@ FUNCTION f9_boostback {
         SET steeringTarget TO f9_get_target_steering(
             predErr,
             engineInfo["TiS"],
-            params["targetRoll"]
+            params["targetRoll"],
+            vecNormal
         ).
         return true.
     }

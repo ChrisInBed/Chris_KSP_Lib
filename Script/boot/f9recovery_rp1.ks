@@ -60,7 +60,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     "landingBurnAltitude", 2000,  // Ignite decelerating engines (or landing fallback) below this, m
     "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
-    "landingPhase2Time", 2,  // time of untargeted landing phase 2, s
+    "landingPhase2Time", 8,  // time of untargeted landing phase 2, s
     "landingCutoffHeight", 0.2,  // cut off landing engines when height is below this, m
     "boundsUpdatePeriod", 1,  // frequency of updating bounding box, s
     // Keep a continuously ignited RO engine above zero command until cutoff.
