@@ -151,6 +151,7 @@ FUNCTION f9_boostback {
 
     f9_print_at(11, "Phase: boostback - powered guidance").
     activate_engines(boostbackEngines).
+    LOCK throttle TO params["boostBackThrottle"].
     LOCAL predictionFailed IS FALSE.
     f9_print_at(16, "Engines: active").
     WAIT 0.

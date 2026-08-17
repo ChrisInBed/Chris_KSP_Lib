@@ -164,6 +164,7 @@ FUNCTION f9_entry_burn {
 
     f9_print_at(11, "Phase: entry - powered guidance").
     activate_engines(entryEngines).
+    LOCK throttle to params["entryThrottle"].
     LOCAL predictionFailed IS FALSE.
     f9_print_at(16, "Engines: active").
     UNTIL SHIP:airspeed <= params["entryVSpeed"] {

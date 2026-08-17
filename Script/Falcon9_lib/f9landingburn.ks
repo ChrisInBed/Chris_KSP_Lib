@@ -95,6 +95,7 @@ FUNCTION f9_landing_burn {
     LOCAL engineInfo1 IS get_engines_info(decEngines).
     LOCAL maxThrust1 IS engineInfo1["thrust"].
     LOCAL minThrottle1 IS engineInfo1["minthrottle"].
+    LOCAL spoolUpTime1 IS engineInfo1["spooluptime"].
     LOCAL TiS1 IS engineInfo1["TiS"].
     LOCAL engineInfo2 IS get_engines_info(landingEngines).
     LOCAL maxThrust2 IS engineInfo2["thrust"].
@@ -136,6 +137,8 @@ FUNCTION f9_landing_burn {
 
     f9_print_at(11, "Phase: landing - aerodynamic guidance").
     f9_print_at(16, "Ignition: armed  Engines: inactive").
+    LOCAL _engineLitFlag IS FALSE.
+    LOCAL _engineLitTime IS 0.
     UNTIL FALSE {
         LOCAL prediction IS f9_ltr_predict(
             params,
@@ -175,8 +178,13 @@ FUNCTION f9_landing_burn {
             "Height now/future: " + ROUND(bottomAltitude, 1)
                 + " / " + ROUND(futureHeight, 1) + " m"
         ).
-        IF (futureHeight <= params["landingBurnAltitude"]) {
+        IF (futureHeight <= params["landingBurnAltitude"] AND (NOT _engineLitFlag)) {
             f9_print_at(16, "Ignition condition: met").
+            activate_engines(decEngines).
+            SET _engineLitFlag TO TRUE.
+            SET _engineLitTime TO time:seconds.
+        }
+        IF (_engineLitFlag AND time:seconds >= _engineLitTime + spoolUpTime1) {
             BREAK.
         }
 
@@ -235,7 +243,6 @@ FUNCTION f9_landing_burn {
 
     f9_clear_guidance_display().
     f9_print_at(11, "Phase: landing - phase 1").
-    activate_engines(decEngines).
     f9_print_at(16, "Engines: active  Continuous ignition").
 
     // Phase 1: three-dimensional fixed-time quadratic divert.
@@ -439,10 +446,13 @@ FUNCTION f9_landing_burn {
 
     f9_print_at(11, "Phase: landing - cutoff").
     f9_print_at(16, "Engines: cutoff  Throttle: 0.00").
-    LOCK THROTTLE TO 0.
+    deactivate_engines(decEngines).
     deactivate_engines(landingEngines).
+    SET done TO TRUE.
+    LOCK THROTTLE TO 0.
+    LOCK steering TO lookDirUp(up:forevector, (ship:facing*TiS:inverse):topvector) * TiS.
+    WAIT 5.  // 5 seconds to hold rocket upward
     UNLOCK THROTTLE.
     UNLOCK STEERING.
-    SET done TO TRUE.
     RETURN TRUE.
 }

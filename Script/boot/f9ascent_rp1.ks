@@ -8,7 +8,7 @@ local payloadMass to 14.573.
 GLOBAL F9_ASCENT_PARAMS IS LEXICON(
     // Runtime
     "kOSIPU", 2000,
-    "liftoffEngineTag", "liftoff",
+    "liftoffEngineTag", "liftoff_",
 
     // Vehicle-specific values. These must be set before flight.
     "payloadMass", payloadMass,  // Mass of the payload, ton

@@ -4192,9 +4192,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 340.750214
-		initialFlightData = 340.750214
-		missionStartTime = 55452.530733415777
+		currentFlightData = 473.744598
+		initialFlightData = 473.744598
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -12924,7 +12924,7 @@ PART
 	{
 		name = KOSNameTag
 		isEnabled = True
-		nameTag = liftoff_boostback_entry_landing2
+		nameTag = liftoff_boostback_entry_landing2_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -13015,9 +13015,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -13495,7 +13495,7 @@ PART
 	{
 		name = KOSNameTag
 		isEnabled = True
-		nameTag = liftoff
+		nameTag = liftoff_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -13586,9 +13586,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -14065,8 +14065,8 @@ PART
 	MODULE
 	{
 		name = KOSNameTag
-		isEnabled = False
-		nameTag = liftoff
+		isEnabled = True
+		nameTag = liftoff_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -14157,9 +14157,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -14636,8 +14636,8 @@ PART
 	MODULE
 	{
 		name = KOSNameTag
-		isEnabled = False
-		nameTag = liftoff
+		isEnabled = True
+		nameTag = liftoff_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -14728,9 +14728,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -15208,7 +15208,7 @@ PART
 	{
 		name = KOSNameTag
 		isEnabled = True
-		nameTag = liftoff
+		nameTag = liftoff_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -15299,9 +15299,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -15778,8 +15778,8 @@ PART
 	MODULE
 	{
 		name = KOSNameTag
-		isEnabled = False
-		nameTag = liftoff_boostback_entry
+		isEnabled = True
+		nameTag = liftoff_boostback_entry_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -15870,9 +15870,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -16350,7 +16350,7 @@ PART
 	{
 		name = KOSNameTag
 		isEnabled = True
-		nameTag = liftoff_boostback_entry
+		nameTag = liftoff_boostback_entry_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -16441,9 +16441,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -16920,8 +16920,8 @@ PART
 	MODULE
 	{
 		name = KOSNameTag
-		isEnabled = False
-		nameTag = liftoff
+		isEnabled = True
+		nameTag = liftoff_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -17012,9 +17012,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -17492,7 +17492,7 @@ PART
 	{
 		name = KOSNameTag
 		isEnabled = True
-		nameTag = liftoff
+		nameTag = liftoff_
 		stagingEnabled = True
 		EVENTS
 		{
@@ -17583,9 +17583,9 @@ PART
 		isEnabled = True
 		operatingTime = 0
 		lastMET = 0
-		currentFlightData = 5000
-		initialFlightData = 5000
-		missionStartTime = 55452.530733415777
+		currentFlightData = 7000
+		initialFlightData = 7000
+		missionStartTime = 57093.200391470193
 		activeConfig = 
 		stagingEnabled = True
 		EVENTS
@@ -19205,7 +19205,7 @@ PART
 	sym = landingLeg1-2_4279919742
 	sym = landingLeg1-2_4279919610
 	sym = landingLeg1-2_4279919478
-	srfN = srfAttach,RO-RFTank-Integral_4285809358,collisionMesh,0|2.70309782|0.400314689,0|0.716970623|1.02393997,0|2.70309782|0.400314689
+	srfN = srfAttach,RO-RFTank-Integral_4285809358,collisionMesh,0|4.05464649|0.600472033,0|0.716970623|1.02393997,0|4.05464649|0.600472033
 	EVENTS
 	{
 	}
@@ -19507,7 +19507,7 @@ PART
 	sym = landingLeg1-2_4279919610
 	sym = landingLeg1-2_4279919478
 	sym = landingLeg1-2_4279922160
-	srfN = srfAttach,RO-RFTank-Integral_4285809358,collisionMesh,0|2.70309782|0.400314689,0|0.716970623|1.02393997,0|2.70309782|0.400314689
+	srfN = srfAttach,RO-RFTank-Integral_4285809358,collisionMesh,0|4.05464649|0.600472033,0|0.716970623|1.02393997,0|4.05464649|0.600472033
 	EVENTS
 	{
 	}
@@ -19809,7 +19809,7 @@ PART
 	sym = landingLeg1-2_4279919478
 	sym = landingLeg1-2_4279922160
 	sym = landingLeg1-2_4279919742
-	srfN = srfAttach,RO-RFTank-Integral_4285809358,collisionMesh,0|2.70309782|0.400314689,0|0.716970623|1.02393997,0|2.70309782|0.400314689
+	srfN = srfAttach,RO-RFTank-Integral_4285809358,collisionMesh,0|4.05464649|0.600472033,0|0.716970623|1.02393997,0|4.05464649|0.600472033
 	EVENTS
 	{
 	}
@@ -20111,7 +20111,7 @@ PART
 	sym = landingLeg1-2_4279922160
 	sym = landingLeg1-2_4279919742
 	sym = landingLeg1-2_4279919610
-	srfN = srfAttach,RO-RFTank-Integral_4285809358,collisionMesh,0|2.70309782|0.400314689,0|0.716970623|1.02393997,0|2.70309782|0.400314689
+	srfN = srfAttach,RO-RFTank-Integral_4285809358,collisionMesh,0|4.05464649|0.600472033,0|0.716970623|1.02393997,0|4.05464649|0.600472033
 	EVENTS
 	{
 	}

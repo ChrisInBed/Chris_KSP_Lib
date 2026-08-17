@@ -11,10 +11,10 @@ GLOBAL F9_PARAMS IS LEXICON(
     "landingSiteWaypoint", "VAB",  // name of waypoint, use waypoint altitude as altitude
     "landingSiteVessel", "drone",  // name of target vessel, use vessel altitude as altitude, the vessel can move slowly
 
-    "boostbackEngineTag", "boostback",
-    "entryEngineTag", "entry",
-    "landingDecEngineTag", "landing1",
-    "landingEngineTag", "landing2",
+    "boostbackEngineTag", "boostback_",
+    "entryEngineTag", "entry_",
+    "landingDecEngineTag", "landing1_",
+    "landingEngineTag", "landing2_",
 
     // Vehicle-specific values. These must be set before flight.
     "boostBackMass", 150,  // After second stage seperation, the mass of first stage should be less than this, ton
@@ -24,10 +24,12 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Powered-burn alignment and timing
     "boostBackDelay", 4,  // Time between 1st stage separation and boostback maneuver, s
     "burnAlignTolerance", 130,  // Alignment angle error tolerance, deg
+    "boostBackThrottle", 1,  // throttle (0~1) during boost back maneuver
 
     // Entry burn
     "entryBurnAlt", 60000,  // Altitude to perform entry burn, m
     "entryVSpeed", 650,  // Target descent rate, m/s
+    "entryThrottle", 1,  // throttle (0~1) during entry burn
 
     // kOS-LTR open-loop trajectory predictor. The speed-AOA profile is the
     // attitude assumed by the predictor; aerodynamic coefficients are sampled
