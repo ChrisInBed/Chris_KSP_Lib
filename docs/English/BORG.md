@@ -62,18 +62,19 @@ This repository includes an example Falcon 9 rocket, [Falcon9_RP1](../../crafts/
 
 | Engines | Count | kOS tag |
 |---|---:|---|
-| Outer liftoff-only engines | 6 | `liftoff` |
-| Boostback and entry engines | 2 | `liftoff_boostback_entry` |
-| Center landing engine | 1 | `liftoff_boostback_entry_landing2` |
+| Outer liftoff-only engines | 6 | `liftoff_` |
+| Boostback and entry engines | 2 | `liftoff_boostback_entry_` |
+| Center landing engine | 1 | `liftoff_boostback_entry_landing2_` |
 
 These labels produce the following engine groups:
 
-- `liftoff` matches all nine engines;
-- `boostback` matches the two intermediate engines and the center engine;
-- `entry` matches the same three engines;
-- `landing2` matches only the center engine.
+- `liftoffEngineTag = "liftoff_"` matches all nine engines;
+- `boostbackEngineTag = "boostback_"` matches the two intermediate engines and the center engine, for a total of three;
+- `entryEngineTag = "entry_"` matches the same three engines;
+- `landingEngineTag = "landing2_"` matches only the center engine;
+- `landingDecEngineTag = "landing1_"` can be assigned to the deceleration engines when the landing phase uses one engine group for initial deceleration and another for final landing.
 
-The underscores are only separators for people reading the label. Matching is based on the contained words.
+The matching logic is intentionally simple: an engine belongs to a group whenever its tag contains the configured string. Make sure that configured group tags are not substrings of one another. For example, with `landingDecEngineTag = "land1"` and `landingEngineTag = "land"`, the `land1` engines would also be included in the `land` group, unintentionally overlapping the deceleration and final-landing sets.
 
 ![kOS engine labels](../pictures/Falcon9/kOSlabels.png)
 

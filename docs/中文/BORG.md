@@ -60,18 +60,19 @@ BORG 的主要特点是：
 
 | 发动机 | 数量 | kOS 标签 |
 |---|---:|---|
-| 只用于起飞的外圈发动机 | 6 | `liftoff` |
-| 用于助推返回和再入点火的发动机 | 2 | `liftoff_boostback_entry` |
-| 用于最终着陆的中心发动机 | 1 | `liftoff_boostback_entry_landing2` |
+| 只用于起飞的外圈发动机 | 6 | `liftoff_` |
+| 用于助推返回和再入点火的发动机 | 2 | `liftoff_boostback_entry_` |
+| 用于最终着陆的中心发动机 | 1 | `liftoff_boostback_entry_landing2_` |
 
 这些标签会产生以下发动机组：
 
-- `liftoff` 匹配全部 9 台发动机；
-- `boostback` 匹配中间 2 台和中心发动机，共 3 台；
-- `entry` 匹配同样的 3 台发动机；
-- `landing2` 只匹配中心发动机。
+- `liftoffEngineTag = "liftoff_"` 匹配全部 9 台发动机；
+- `boostbackEngineTag = "boostback_"` 匹配中间 2 台和中心发动机，共 3 台；
+- `entryEngineTag = "entry_"` 匹配同样的 3 台发动机；
+- `landingEngineTag = "landing2_"` 只匹配中心发动机；
+- `landingDecEngineTag = "landing1_"` 如果你需要在着陆阶段使用两组引擎，一组负责减速，另一组负责着陆，那么你可以把减速引擎打上这个标签。
 
-下划线只是为了让组合标签更容易阅读。程序真正检查的是标签中是否包含对应单词。
+这里采用的匹配逻辑非常简单，只要你的引擎标签中包含对应字符串，即被视为该组引擎。因此用户应当保证所设定的标签不会互相包含。比如`landingDecEngineTag = "land1", landingEngineTag = "land"`，这样设置会导致最终着陆引擎被一并视作减速引擎
 
 ![kOS labeling](../pictures/Falcon9/kOSlabels.png)
 
