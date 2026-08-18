@@ -413,11 +413,76 @@ FUNCTION f9_get_boostback_error {
         - prediction["finalVecR"].
 }
 
-FUNCTION f9_get_entry_vgo {
-    PARAMETER prediction.
-    PARAMETER entrySpeed.
+FUNCTION f9_step_entry_vgo {
+    PARAMETER params.
+    PARAMETER targetContext.
+    PARAMETER vecVGO.
+    PARAMETER vecNormal.
 
-    return srfRetrograde:forevector * max(0, ship:airspeed - entrySpeed).
+    LOCAL vecR TO -body:position.
+    LOCAL vecV TO ship:velocity:surface.
+    LOCAL entrySpeed TO params["entryVSpeed"].
+    LOCAL g0 TO ship:body:mu / ship:body:radius^2.
+    LOCAL burnAltitude TO params["landingBurnAltitude"].
+
+    f9_refresh_target(targetContext).
+    LOCAL targetPosition IS f9_get_aero_target_position(
+        params,
+        targetContext,
+        vecNormal
+    ).
+    LOCAL vecRT IS targetPosition - SHIP:BODY:POSITION.
+    LOCAL ltr IS ADDONS:LTR.
+    SET ltr:MASS TO SHIP:MASS.
+    SET ltr:RTarget TO vecRT.
+
+    // 1. normalize VGO to meet entry speed constraint
+    LOCAL unitVGO TO vecVGO:normalized.
+    LOCAL xx TO vDot(vecV, unitVGO).
+    LOCAL _m TO xx^2 - (vecV:mag^2 - entrySpeed^2).
+    IF (_m <= 0) {
+        SET vecVGO TO (entrySpeed - vecV:mag) * vecV:normalized.
+    }
+    ELSE {
+        SET VGO TO -xx - sqrt(xx^2 - (vecV:mag^2 - entrySpeed^2)).
+        SET vecVGO TO VGO * unitVGO.
+    }
+    // 2. evaluate reaching time
+    LOCAL upAxis TO vecRT:normalized.
+    LOCAL vy TO vDot(vecV + vecVGO, upAxis).
+    LOCAL ry TO vDot(vecR - vecRT, upAxis).
+    LOCAL tt TO (vy + sqrt(vy^2 + 2*g0*ry)) / g0.
+    // 3. predict impact point
+    SET ltr:target_altitude TO targetContext["altitude"].
+    LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
+        "t", 0,
+        "vecR", vecR,
+        "vecV", vecV + vecVGO
+    )).
+    UNTIL ltr:CheckTask(handle) {
+        1.
+    }
+    LOCAL result IS ltr:GetTaskResult(handle).
+    IF (result["status"] <> "COMPLETED") RETURN LEXICON(
+        "ok", FALSE,
+        "msg", result["msg"],
+        "vecVGO", vecVGO
+    ).
+    LOCAL vecRP TO result["finalVecR"].
+    LOCAL vecVP TO result["finalVecV"].
+    local finalFPA to min(-10, 90 - vAng(vecRP, vecVP)).
+    local downrangeAxis to vxcl(vecRP, vecVP):normalized.
+    set vecRP to vecRP + 0.33*burnAltitude/tan(finalFPA)*downrangeAxis.
+    // 4. update vecVGO
+    SET vecVGO TO vecVGO + (vecRT - vecRP) / tt.
+    IF vAng(vecVGO, -vecV) > 30 {
+        SET vecVGO TO angleAxis(30, vCrs(-vecV, vecVGO)) * (-vecV):normalized * vecVGO:mag.
+    }
+    return LEXICON(
+        "ok", TRUE,
+        "msg", result["msg"],
+        "vecVGO", vecVGO
+    ).
 }
 
 FUNCTION f9_get_bottom_height {

@@ -53,17 +53,17 @@ FUNCTION f9_entry_burn {
         f9_print_recovery_vehicle().
         f9_print_at(
             13,
-            "Descent: " + ROUND(MAX(0, -SHIP:VERTICALSPEED), 1)
+            "Speed: " + ROUND(MAX(0, -SHIP:VERTICALSPEED), 1)
                 + " / " + ROUND(params["entryVSpeed"], 1) + " m/s"
         ).
         WAIT 0.
     }
 
-    IF -SHIP:VERTICALSPEED <= params["entryVSpeed"] {
+    IF ship:airspeed <= params["entryVSpeed"] {
         f9_print_at(11, "Phase: entry - burn not required").
         f9_print_at(
             13,
-            "Descent: " + ROUND(MAX(0, -SHIP:VERTICALSPEED), 1)
+            "Speed: " + ROUND(MAX(0, ship:airspeed), 1)
                 + " / " + ROUND(params["entryVSpeed"], 1) + " m/s"
         ).
         UNLOCK THROTTLE.
@@ -71,30 +71,29 @@ FUNCTION f9_entry_burn {
         RETURN TRUE.
     }
 
-    // LOCAL prediction IS f9_ltr_predict(
-    //     params,
-    //     targetContext,
-    //     vecNormal,
-    //     params["landingBurnAltitude"]
-    // ).
-    // IF NOT f9_ltr_prediction_is_valid(prediction) {
-    //     f9_print_result("ERROR: LTR entry prediction failed").
-    //     UNLOCK THROTTLE.
-    //     UNLOCK STEERING.
-    //     RETURN FALSE.
-    // }
-    // LOCAL targetPosition IS prediction["targetPosition"].
-    LOCAL remainingVelocity IS f9_get_entry_vgo(
-        LEXICON(),
-        params["entryVSpeed"]
+    LOCAL remainingVelocity IS (ship:airspeed - params["entryVSpeed"]) * srfRetrograde:forevector.
+    LOCAL stepRes TO f9_step_entry_vgo(
+        params,
+        targetContext,
+        remainingVelocity,
+        vecNormal
     ).
+    IF (NOT stepRes["ok"]) {
+        f9_print_result("ERROR: " + stepRes["msg"]).
+        UNLOCK THROTTLE.
+        UNLOCK STEERING.
+        RETURN FALSE.
+    }
+    SET remainingVelocity TO stepRes["vecVGO"].
     f9_print_target_position(targetContext).
     f9_print_recovery_vehicle().
     IF remainingVelocity:MAG < 0.001 {
         f9_print_at(11, "Phase: entry - no burn required").
         f9_print_at(12, "Remaining velocity: 0.0 m/s").
-        UNLOCK THROTTLE.
+        LOCK throttle TO 0.
         UNLOCK STEERING.
+        wait 0.
+        UNLOCK THROTTLE.
         RETURN TRUE.
     }
 
@@ -116,23 +115,21 @@ FUNCTION f9_entry_burn {
     ).
     f9_print_at(14, "Alignment error: " + ROUND(alignmentError, 2) + " deg").
     UNTIL alignmentError <= params["burnAlignTolerance"] {
-        // SET prediction TO f9_ltr_predict(
-        //     params,
-        //     targetContext,
-        //     vecNormal,
-        //     params["landingBurnAltitude"]
-        // ).
-        // IF NOT f9_ltr_prediction_is_valid(prediction) {
-        //     f9_print_result("ERROR: LTR entry prediction failed").
-        //     UNLOCK THROTTLE.
-        //     UNLOCK STEERING.
-        //     RETURN FALSE.
-        // }
-        // SET targetPosition TO prediction["targetPosition"].
-        SET remainingVelocity TO f9_get_entry_vgo(
-            LEXICON(),
-            params["entryVSpeed"]
+        SET stepRes TO f9_step_entry_vgo(
+            params,
+            targetContext,
+            remainingVelocity,
+            vecNormal
         ).
+        IF (NOT stepRes["ok"]) {
+            f9_print_result("ERROR: " + stepRes["msg"]).
+            LOCK throttle TO 0.
+            UNLOCK STEERING.
+            wait 0.
+            UNLOCK THROTTLE.
+            RETURN FALSE.
+        }
+        SET remainingVelocity TO stepRes["vecVGO"].
         SET steeringTarget TO f9_get_target_steering(
             remainingVelocity,
             engineInfo["TiS"],
@@ -152,7 +149,7 @@ FUNCTION f9_entry_burn {
         ).
         f9_print_at(
             13,
-            "Descent: " + ROUND(MAX(0, -SHIP:VERTICALSPEED), 1)
+            "Speed: " + ROUND(ship:airspeed, 1)
                 + " / " + ROUND(params["entryVSpeed"], 1) + " m/s"
         ).
         f9_print_at(
@@ -168,21 +165,21 @@ FUNCTION f9_entry_burn {
     LOCAL predictionFailed IS FALSE.
     f9_print_at(16, "Engines: active").
     UNTIL SHIP:airspeed <= params["entryVSpeed"] {
-        // SET prediction TO f9_ltr_predict(
-        //     params,
-        //     targetContext,
-        //     vecNormal,
-        //     params["landingBurnAltitude"]
-        // ).
-        // IF NOT f9_ltr_prediction_is_valid(prediction) {
-        //     SET predictionFailed TO TRUE.
-        //     BREAK.
-        // }
-        // SET targetPosition TO prediction["targetPosition"].
-        SET remainingVelocity TO f9_get_entry_vgo(
-            LEXICON(),
-            params["entryVSpeed"]
+        SET stepRes TO f9_step_entry_vgo(
+            params,
+            targetContext,
+            remainingVelocity,
+            vecNormal
         ).
+        IF (NOT stepRes["ok"]) {
+            f9_print_result("ERROR: " + stepRes["msg"]).
+            LOCK throttle TO 0.
+            UNLOCK STEERING.
+            wait 0.
+            UNLOCK THROTTLE.
+            RETURN FALSE.
+        }
+        SET remainingVelocity TO stepRes["vecVGO"].
         IF remainingVelocity:MAG > 0.001 {
             SET steeringTarget TO f9_get_target_steering(
                 remainingVelocity,
@@ -200,7 +197,7 @@ FUNCTION f9_entry_burn {
         ).
         f9_print_at(
             13,
-            "Descent: " + ROUND(MAX(0, -SHIP:VERTICALSPEED), 1)
+            "Speed: " + ROUND(ship:airspeed, 1)
                 + " / " + ROUND(params["entryVSpeed"], 1) + " m/s"
         ).
         f9_print_at(
