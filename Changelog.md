@@ -155,3 +155,11 @@ Major version update
 - Added an RP-1 Falcon 9 example craft, ascent/recovery boot configurations, diagrams, and complete English and Chinese BORG tutorials
 - UEntry/kOS-AFS: corrected vessel centre-of-mass state acquisition and explicit body-rotation initialization
 - PEGLand: improved restart-aware throttle control and corrected minimum-throttle calculation for engines using thrust limiters
+
+## 2026/08/20 v1.0.1
+
+- Fixed and improved BORG (the configuration-file format has also changed slightly; please update your custom files):
+  - Boostback and entry burns now support configurable throttle settings
+  - Entry-burn guidance now corrects landing-site error
+  - Improved the transition between aerodynamic glide and landing-burn ignition
+  - RCS now maintains vehicle attitude after landing
