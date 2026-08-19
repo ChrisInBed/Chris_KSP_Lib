@@ -180,7 +180,8 @@ FUNCTION f9_entry_burn {
             RETURN FALSE.
         }
         SET remainingVelocity TO stepRes["vecVGO"].
-        IF remainingVelocity:MAG > 0.001 {
+        // When VGO is less than 50m/s stop updating to prevent divergence
+        IF remainingVelocity:MAG > 50 {
             SET steeringTarget TO f9_get_target_steering(
                 remainingVelocity,
                 engineInfo["TiS"],
