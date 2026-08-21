@@ -4,7 +4,7 @@ RUNONCEPATH("0:/Falcon9_lib/f9utility.ks").
 // positive; PEGLand's polynomial uses a negative current time with touchdown
 // at t = 0.
 // Added AOA limit. This algorithm is equivalent to solve a optimization problem
-// mimimize landing error, subject to AOA<AOALimit, target height = end height 
+// mimimize landing error, subject to AOA<AOALimit (when v_horizontal > V1 OR t > T1), and tilt<tileLimit (when v <= V1 AND t < T1), target height = end height
 FUNCTION f9_quadratic_fixed_time {
     PARAMETER currentPosition.
     PARAMETER currentVelocity.
@@ -26,7 +26,18 @@ FUNCTION f9_quadratic_fixed_time {
     
     LOCAL AI TO targetAcceleration + qJ*qT + 0.5*qS*qT^2.
     LOCAL CAI TO AI + g0 * upAxis.
-    if (vAng(CAI, -currentVelocity) < AOALimit) {
+    // // if Ttogo > T1: constrain AOA
+    // if (timeToGo > 5 OR vxcl(upAxis, currentVelocity):mag > 2 AND vAng(CAI, -currentVelocity) >= AOALimit) {
+    //     SET CAI TO (angleAxis(AOALimit, vcrs(-currentVelocity, CAI):normalized) * (-currentVelocity)):normalized.
+    // }
+    // // if Ttogo < T1, constraint tilt
+    // else if (timeToGo <= 5 AND vxcl(upAxis, currentVelocity):mag <= 2 AND vAng(CAI, upAxis) >= AOALimit) {
+    //     SET CAI TO (angleAxis(AOALimit, vcrs(upAxis, CAI):normalized) * (upAxis)):normalized.
+    // }
+    if (vAng(CAI, -currentVelocity) >= AOALimit) {
+        SET CAI TO (angleAxis(AOALimit, vcrs(-currentVelocity, CAI):normalized) * (-currentVelocity)):normalized.
+    }
+    else {
         RETURN LEXICON(
             "withinAOA", TRUE,
             "qT", qT,
@@ -37,7 +48,6 @@ FUNCTION f9_quadratic_fixed_time {
             "RT", targetPosition
         ).
     }
-    SET CAI TO (angleAxis(AOALimit, vcrs(-currentVelocity, CAI):normalized) * (-currentVelocity)):normalized.
     LOCAL RIz to vDot(currentPosition, upAxis).
     LOCAL RTz to vDot(targetPosition, upAxis).
     LOCAL VIz to vDot(currentVelocity, upAxis).
@@ -245,8 +255,12 @@ FUNCTION f9_landing_burn {
     f9_print_at(11, "Phase: landing - phase 1").
     f9_print_at(16, "Engines: active  Continuous ignition").
 
-    // Phase 1: three-dimensional fixed-time quadratic divert.
-    LOCK maxQuadraticAOA TO (params["QuadraticAOABase"]/(1+ship:q*101/40)).
+    LOCAL landingPhase IS 1.
+    LOCAL bottomAltitude IS f9_get_bottom_altitude(
+        targetPosition,
+        bottomHeight
+    ).
+    LOCK maxQuadraticAOA TO (params["QuadraticAOABase"]/(1+ship:q*101/20)).
     LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
     LOCAL g IS SHIP:BODY:MU / radius^2.
     LOCAL refAccStart IS maxThrust1 * (0.9 + 0.1*minThrottle1) / SHIP:MASS - g.
@@ -277,14 +291,16 @@ FUNCTION f9_landing_burn {
     LOCAL accTarget IS maxThrust1/SHIP:MASS * steeringTarget:forevector.
     LOCAL thrustCutoff IS maxThrust2 * (0.9 + 0.1*minThrottle2).
     LOCAL throttleTarget IS 1.
+    LOCAL hasShutdown IS FALSE.
     LOCK THROTTLE TO throttleTarget.
     when (not done) then {
         LOCAL thrustTarget TO accTarget:mag * ship:mass.
-        if (thrustTarget < thrustCutoff) {
+        if ((NOT hasShutdown) AND thrustTarget < thrustCutoff) {
             deactivate_engines(shutDownEngines).
             SET TiS TO TiS2.
             SET _maxThrust TO maxThrust2.
             SET minThrottle TO minThrottle2.
+            SET hasShutdown TO TRUE.
         }
         LOCAL requestedFraction IS thrustTarget / _maxThrust.
         SET throttleTarget TO f9_continuous_throttle(
@@ -301,7 +317,8 @@ FUNCTION f9_landing_burn {
         return true.
     }
 
-    UNTIL FALSE {
+    UNTIL SHIP:VERTICALSPEED >= 0
+        OR bottomAltitude <= params["landingCutoffHeight"] {
         f9_refresh_target(targetContext).
         SET targetPosition TO f9_get_target_position(targetContext).
         if (ship:airspeed < params["legDeploySpeed"] and (not GEAR)) GEAR ON.
@@ -310,7 +327,7 @@ FUNCTION f9_landing_burn {
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
         }
 
-        LOCAL bottomAltitude IS f9_get_bottom_altitude(
+        SET bottomAltitude TO f9_get_bottom_altitude(
             targetPosition,
             bottomHeight
         ).
@@ -324,10 +341,9 @@ FUNCTION f9_landing_burn {
                 + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
         ).
         f9_print_at(12, "Time to go: " + ROUND(timeToGo, 2) + " s").
-        IF (timeToGo <= params["landingPhase2Time"]
-            OR bottomAltitude <= params["landingCutoffHeight"]) {
-            f9_print_at(18, "Transition: landing phase 2").
-            BREAK.
+        IF (timeToGo <= params["landingPhase2Time"]) {
+            f9_print_at(11, "Phase: landing - phase 2").
+            SET landingPhase TO 2.
         }
 
         LOCAL upAxis IS UP:FOREVECTOR.
@@ -336,6 +352,9 @@ FUNCTION f9_landing_burn {
         LOCAL quadraticTargetPosition IS V(0, 0, 0).
         LOCAL targetVelocity IS -params["touchDownSpeed"] * upAxis.
         LOCAL targetAcceleration IS refAccEnd * upAxis.
+        LOCAL _maxAOA TO 0.
+        IF (landingPhase = 1) SET _maxAOA TO min(maxQuadraticAOA, params["QuadraticAOADot"]*timeToGo).
+        ELSE SET _maxAOA TO 0.
         LOCAL quadraticControl IS f9_quadratic_fixed_time(
             relativePosition,
             relativeVelocity,
@@ -343,11 +362,15 @@ FUNCTION f9_landing_burn {
             targetVelocity,
             targetAcceleration,
             timeToGo,
-            min(maxQuadraticAOA, params["QuadraticAOADot"]*timeToGo),
+            _maxAOA,
             upAxis,
             g
         ).
-        SET accTarget TO quadraticControl["cmdA"].
+        IF landingPhase = 2 {
+            // Need to add up additional vertical component to avoid divergence when approaching ground
+            SET accTarget TO quadraticControl["cmdA"]:mag * (-ship:velocity:surface + 10*up:forevector):normalized.
+        }
+        ELSE SET accTarget TO quadraticControl["cmdA"].
         // set _drawAcc to vecDraw(V(0,0,0), accelerationShip * 5, RGB(0, 255, 0), "Acc", 1, true).
 
         f9_print_at(
@@ -373,73 +396,6 @@ FUNCTION f9_landing_burn {
             17,
             "Local vertical speed: "
                 + ROUND(ship:verticalspeed, 2) + " m/s"
-        ).
-        WAIT 0.
-    }
-
-    // Phase 2: vertical terminal braking. The engine remains ignited.
-    f9_clear_guidance_display().
-    f9_print_at(11, "Phase: landing - phase 2").
-    f9_print_at(16, "Engines: active  Continuous ignition").
-    LOCAL bottomAltitude IS f9_get_bottom_altitude(
-        targetPosition,
-        bottomHeight
-    ).
-
-    UNTIL (SHIP:VERTICALSPEED >= 0
-        OR bottomAltitude <= params["landingCutoffHeight"]) {
-        f9_refresh_target(targetContext).
-        SET targetPosition TO f9_get_target_position(targetContext).
-
-        IF TIME:SECONDS >= nextBoundsUpdate {
-            SET bottomHeight TO f9_get_bottom_height(TiS).
-            SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
-        }
-
-        SET bottomAltitude TO f9_get_bottom_altitude(
-            targetPosition,
-            bottomHeight
-        ).
-        LOCAL downwardSpeed IS MAX(0, -SHIP:VERTICALSPEED).
-        LOCAL requiredAcceleration IS
-            (downwardSpeed^2 - params["touchDownSpeed"]^2)
-            / (2 * MAX(0.01, bottomAltitude)) + g.
-        
-        if (SHIP:groundspeed > 0.1) {
-            SET accTarget TO MAX(0, requiredAcceleration) * srfRetrograde:forevector.
-        }
-        else {
-            SET accTarget TO MAX(0, requiredAcceleration) * up:forevector.
-        }
-        f9_print_target_position(targetContext).
-        f9_print_recovery_vehicle().
-        f9_print_at(
-            6,
-            "Altitude: " + ROUND(SHIP:ALTITUDE, 1)
-                + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
-        ).
-        f9_print_at(
-            12,
-            "Bottom height: " + ROUND(bottomAltitude, 2) + " m"
-        ).
-        f9_print_at(
-            13,
-            "Downward speed: " + ROUND(downwardSpeed, 2) + " m/s"
-        ).
-        f9_print_at(
-            14,
-            "Command acceleration: "
-                + ROUND(requiredAcceleration, 2) + " m/s2"
-        ).
-        f9_print_at(
-            15,
-            "Throttle req/cmd: " + ROUND(accTarget:mag*ship:mass/_maxThrust, 3)
-                + " / " + ROUND(throttleTarget, 3)
-        ).
-        f9_print_at(
-            16,
-            "Engines: active  Throttle: "
-                + ROUND(SHIP:CONTROL:MAINTHROTTLE, 2)
         ).
         WAIT 0.
     }

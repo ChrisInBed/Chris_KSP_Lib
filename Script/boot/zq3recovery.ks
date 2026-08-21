@@ -57,12 +57,12 @@ GLOBAL F9_PARAMS IS LEXICON(
     "aeroTargetOffset", -120,  // Aerodynamic gliding phase is aiming at target + aeroTargetOffset * downRangeVector, m
 
     // Landing burn
-    "QuadraticAOABase", 25,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
-    "QuadraticAOADot", 0.5,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
-    "landingBurnAltitude", 1900,  // Ignite decelerating engines (or landing fallback) below this, m
+    "QuadraticAOABase", 30,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
+    "QuadraticAOADot", 1,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
+    "landingBurnAltitude", 2200,  // Ignite decelerating engines (or landing fallback) below this, m
     "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
-    "landingPhase2Time", 2,  // time of untargeted landing phase 2, s
+    "landingPhase2Time", 4,  // time of untargeted landing phase 2, s
     "landingCutoffHeight", 0.2,  // cut off landing engines when height is below this, m
     "boundsUpdatePeriod", 1,  // frequency of updating bounding box, s
     // Keep a continuously ignited RO engine above zero command until cutoff.
