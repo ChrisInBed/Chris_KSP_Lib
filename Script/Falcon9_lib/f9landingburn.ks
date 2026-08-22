@@ -375,7 +375,7 @@ FUNCTION f9_landing_burn {
 
         f9_print_at(
             13,
-            "Position error: " + ROUND(relativePosition:MAG, 2) + " m"
+            "Position error: " + ROUND((quadraticControl["RT"]-quadraticTargetPosition):mag, 2) + " m"
         ).
         f9_print_at(
             14,
