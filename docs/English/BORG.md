@@ -12,7 +12,7 @@ BORG is designed to be:
 
 - **hardware-aware:** after you assign role tags, it discovers the matching engine groups and their thrust, minimum throttle, thrust alignment, and spool behavior; it also samples the vehicle's FAR aerodynamic configuration for trajectory prediction;
 - **versatile:** boostback, entry, aerodynamic descent, and landing engine groups can overlap or differ, so vehicles do not have to copy one particular booster layout;
-- **target-flexible:** it can recover toward fixed coordinates, a waypoint, or a vessel such as a moving drone ship.
+- **target-flexible:** it can discover the natural impact point automatically, or recover toward fixed coordinates, a waypoint, or a vessel such as a moving drone ship.
 
 The current BORG frontend consists of two independent kOS programs for a two-stage rocket with a reusable first stage:
 
@@ -37,8 +37,8 @@ Recovery uses FAR and the `kOS-LTR` addon to estimate where the booster will lan
 2. The booster kOS CPU loads the recovery boot file and waits for stage separation.
 3. Press `0` to toggle Action Group 10 and start the included launch program, or launch with another guidance system.
 4. After separation, the booster detects its new mass and starts recovery.
-5. It performs a boostback burn toward the configured landing site.
-6. It performs an entry burn and uses aerodynamic steering during descent.
+5. If enabled, it performs a boostback burn toward the configured landing site.
+6. If enabled, it performs an entry burn; aerodynamic steering remains active during descent even when the powered entry burn is disabled.
 7. It starts the landing burn, deploys the landing legs, and shuts the engines down at touchdown.
 
 The ascent and recovery CPUs do not need to share one guidance program. Separation is the handoff between two independent jobs.
@@ -138,7 +138,44 @@ Choose exactly one source with `landingSiteUse`:
 "landingSiteVessel", "drone",
 ```
 
+**Use natural-impact point:**
+
+```ks
+"landingSiteUse", "none",
+```
+
+In this mode BORG waits for stage separation and `boostBackDelay`, predicts the booster's natural impact point, and writes that position into `targetContext`. No waypoint or target vessel is required. Use this mode to survey a downrange recovery location before placing an ASDS or recovery pad; use a waypoint or vessel target for the operational recovery flight.
+
 Names must match exactly. Use `altitudeOffset` if the desired touchdown point is above or below the waypoint or vessel reference position.
+
+### Prepare an ASDS or downrange recovery pad
+
+Use a two-flight setup:
+
+1. **Survey the natural impact point.** In the recovery boot file, select automatic targeting and disable the boostback burn:
+
+   ```ks
+   "landingSiteUse", "none",
+   "enableBoostBack", FALSE,
+   ```
+
+   Run a simulation flight with the same ascent, staging conditions, and propellant reserve you intend to use. After upper-stage separation and `boostBackDelay`, read the predicted target latitude and longitude from the booster recovery display.
+
+2. **Place and select the recovery site.** Put a drone ship or recovery pad at the predicted position. Create a waypoint there and update the recovery file:
+
+   ```ks
+   "landingSiteUse", "waypoint",
+   "landingSiteWaypoint", "ASDS",
+   ```
+
+   If the drone ship is a KSP vessel, target it directly instead:
+
+   ```ks
+   "landingSiteUse", "vessel",
+   "landingSiteVessel", "drone",
+   ```
+
+   Set `enableBoostBack` for the recovery profile you want. It can remain `FALSE` when the recovery site is intentionally placed at the natural impact point.
 
 For a first test flight, keep the remaining prediction, aerodynamic, and landing values from the provided example boot file. They are vehicle-specific and may need later flight testing, but they do not need an equation-by-equation setup.
 
