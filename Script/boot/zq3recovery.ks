@@ -6,7 +6,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Runtime
     "kOSIPU", 2000,
 
-    "landingSiteUse", "waypoint",  // use what to extract landing site geoposition. Options: "geo", "waypoint", "vessel"
+    "landingSiteUse", "waypoint",  // Options: "geo", "waypoint", "vessel", "none". "none" selects the predicted natural impact after separation and boostBackDelay
     "landingSiteGeo", list(0, 0),  // longitude and latitude, use terrain height as altitude
     "landingSiteWaypoint", "VAB",  // name of waypoint, use waypoint altitude as altitude
     "landingSiteVessel", "drone",  // name of target vessel, use vessel altitude as altitude, the vessel can move slowly
@@ -22,11 +22,13 @@ GLOBAL F9_PARAMS IS LEXICON(
     "altitudeOffset", 0,  // Additional height added to the selected waypoint, or target COM, m
 
     // Powered-burn alignment and timing
+    "enableBoostBack", TRUE,  // Set FALSE to skip the boostback phase
     "boostBackDelay", 4,  // Time between 1st stage separation and boostback maneuver, s
     "burnAlignTolerance", 130,  // Alignment angle error tolerance, deg
     "boostBackThrottle", 1,  // throttle (0~1) during boost back maneuver
 
     // Entry burn
+    "enableEntryBurn", TRUE,  // Set FALSE to skip only the powered entry burn; aerodynamic gliding remains enabled
     "entryBurnAlt", 55000,  // Altitude to perform entry burn, m
     "entryVSpeed", 900,  // Target descent rate, m/s
     "entryThrottle", 1,  // throttle (0~1) during entry burn

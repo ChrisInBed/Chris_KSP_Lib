@@ -11,6 +11,11 @@ FUNCTION f9_entry_burn {
 
     f9_clear_guidance_display().
     pre_entryburn_hook().
+    IF NOT params["enableEntryBurn"] {
+        f9_print_at(11, "Phase: entry - powered burn disabled").
+        f9_print_at(16, "Engines: skipped  Throttle: 0.00").
+        RETURN TRUE.
+    }
     LOCAL entryEngines IS search_engine(params["entryEngineTag"]).
     IF entryEngines:LENGTH = 0 {
         f9_print_result("ERROR: no entry engines found").

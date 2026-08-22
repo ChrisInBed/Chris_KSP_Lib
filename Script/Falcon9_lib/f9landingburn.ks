@@ -263,8 +263,8 @@ FUNCTION f9_landing_burn {
     LOCK maxQuadraticAOA TO (params["QuadraticAOABase"]/(1+ship:q*101/20)).
     LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
     LOCAL g IS SHIP:BODY:MU / radius^2.
-    LOCAL refAccStart IS maxThrust1 * (0.9 + 0.1*minThrottle1) / SHIP:MASS - g.
-    LOCAL refAccEnd IS max(0.5, maxThrust2 * (0.15 + 0.85*minThrottle2) / SHIP:MASS - g).
+    LOCK refAccStart TO maxThrust1 * (0.9 + 0.1*minThrottle1) / SHIP:MASS * (-ship:verticalspeed / ship:airspeed) - g.
+    LOCK refAccEnd TO max(0.5, maxThrust2 * (0.15 + 0.85*minThrottle2) / SHIP:MASS - g).
     f9_print_at(
         19,
         "AccStart = " + round(refAccStart, 1)
@@ -278,10 +278,16 @@ FUNCTION f9_landing_burn {
         UNLOCK STEERING.
         RETURN FALSE.
     }
-    LOCAL _T to -(SHIP:VELOCITY:SURFACE:MAG - params["touchDownSpeed"]) * 2 / (refAccStart + refAccEnd).
-    LOCAL _accDot to (refAccStart - refAccEnd) / _T.
-    LOCAL _getTimeToGo to { return -(-refAccEnd+sqrt(refAccEnd*refAccEnd-2*_accDot*(SHIP:velocity:surface:mag-params["touchDownSpeed"])))/_accDot. }.
-    LOCAL timeToGo IS _T.
+    LOCAL _refAccStart TO refAccStart.
+    LOCAL _refAccEnd TO refAccEnd.
+    LOCAL _T to -(-ship:verticalspeed - params["touchDownSpeed"]) * 2 / (_refAccStart + _refAccEnd).
+    LOCAL _accDot to (_refAccStart - _refAccEnd) / _T.
+    LOCAL _getTimeToGo to {
+        SET _refAccStart TO refAccStart.
+        SET _refAccEnd TO refAccEnd.
+        return -(-_refAccEnd+sqrt(_refAccEnd*_refAccEnd-2*_accDot*(-ship:verticalSpeed-params["touchDownSpeed"])))/_accDot.
+    }.
+    LOCAL timeToGo IS -_T.
 
     // throttle, steering and engine routine
     LOCAL done IS FALSE.
@@ -289,20 +295,11 @@ FUNCTION f9_landing_burn {
     LOCAL _maxThrust IS maxThrust1.
     LOCAL minThrottle IS minThrottle1.
     LOCAL accTarget IS maxThrust1/SHIP:MASS * steeringTarget:forevector.
-    LOCAL thrustCutoff IS maxThrust2 * (0.9 + 0.1*minThrottle2).
     LOCAL throttleTarget IS 1.
     LOCAL hasShutdown IS FALSE.
     LOCK THROTTLE TO throttleTarget.
     when (not done) then {
-        LOCAL thrustTarget TO accTarget:mag * ship:mass.
-        if ((NOT hasShutdown) AND thrustTarget < thrustCutoff) {
-            deactivate_engines(shutDownEngines).
-            SET TiS TO TiS2.
-            SET _maxThrust TO maxThrust2.
-            SET minThrottle TO minThrottle2.
-            SET hasShutdown TO TRUE.
-        }
-        LOCAL requestedFraction IS thrustTarget / _maxThrust.
+        LOCAL requestedFraction IS accTarget:mag * ship:mass / _maxThrust.
         SET throttleTarget TO f9_continuous_throttle(
             requestedFraction,
             minThrottle,
@@ -332,7 +329,7 @@ FUNCTION f9_landing_burn {
             bottomHeight
         ).
 
-        SET timeToGo TO MAX(0, _getTimeToGo()).
+        SET timeToGo TO MAX(0.02, _getTimeToGo()).
         f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
         f9_print_at(
@@ -372,6 +369,28 @@ FUNCTION f9_landing_burn {
         }
         ELSE SET accTarget TO quadraticControl["cmdA"].
         // set _drawAcc to vecDraw(V(0,0,0), accelerationShip * 5, RGB(0, 255, 0), "Acc", 1, true).
+
+        // Shutdown decelerate engines logic: Sample N points in the trajectory to test if they are all lower than thrust cutoff
+        if (NOT hasShutdown) {
+            LOCAL thrustCutoff IS maxThrust2 * (0.85 + 0.15*minThrottle2).
+            LOCAL timeSeq IS LIST().
+            mlinspace(quadraticControl["qT"], 0, 5, timeSeq).
+            LOCAL shutdownFlag TO TRUE.
+            for _qT in timeSeq {
+                LOCAL cmdThrust TO (targetAcceleration + quadraticControl["qJ"]*_qT + 0.5*quadraticControl["qS"]*_qT^2 + upAxis*g):mag * ship:mass.
+                if (cmdThrust > thrustCutoff) {
+                    SET shutdownFlag TO FALSE.
+                    BREAK.
+                }
+            }
+            if (shutdownFlag) {
+                deactivate_engines(shutDownEngines).
+                SET TiS TO TiS2.
+                SET _maxThrust TO maxThrust2.
+                SET minThrottle TO minThrottle2.
+                SET hasShutdown TO TRUE.
+            }
+        }
 
         f9_print_at(
             13,

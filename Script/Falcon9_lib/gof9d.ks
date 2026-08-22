@@ -25,9 +25,23 @@ FUNCTION gof9d_main {
     }
     f9_init_recovery_display(targetContext).
 
-    IF NOT f9_boostback(F9_PARAMS, targetContext) {
+    IF NOT f9_wait_for_recovery_start(F9_PARAMS) {
         RETURN FALSE.
     }
+    IF NOT f9_resolve_automatic_target(F9_PARAMS, targetContext) {
+        PRINT "F9 booster executive: recovery target is unavailable".
+        RETURN FALSE.
+    }
+    f9_init_recovery_display(targetContext).
+
+    IF F9_PARAMS["enableBoostBack"] {
+        IF NOT f9_boostback(F9_PARAMS, targetContext) {
+            RETURN FALSE.
+        }
+    }
+    // The entry routine owns enableEntryBurn. When the burn is disabled it
+    // returns without using the engines, then landing guidance still performs
+    // the normal aerodynamic gliding phase.
     IF NOT f9_entry_burn(F9_PARAMS, targetContext) {
         RETURN FALSE.
     }

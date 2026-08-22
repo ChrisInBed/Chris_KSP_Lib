@@ -6,12 +6,18 @@ FUNCTION f9_boostback_getImpactErr {
     PARAMETER vecNormal.
 
     LOCAL predTime TO time:seconds.
+    LOCAL predictedEntryAlt IS 9999999999.
+    LOCAL predictedEntrySpeed IS 9999999999.
+    IF params["enableEntryBurn"] {
+        SET predictedEntryAlt TO params["entryBurnAlt"].
+        SET predictedEntrySpeed TO params["entryVSpeed"].
+    }
     LOCAL prediction IS f9_ltr_predict(
         params,
         targetContext,
         vecNormal,
-        params["entryBurnAlt"],
-        params["entryVSpeed"],
+        predictedEntryAlt,
+        predictedEntrySpeed,
         params["landingBurnAltitude"]
     ).
     IF NOT f9_ltr_prediction_is_valid(prediction) {
@@ -32,19 +38,6 @@ FUNCTION f9_boostback {
     }
 
     f9_clear_guidance_display().
-    f9_print_at(11, "Phase: boostback - waiting for separation").
-    UNTIL SHIP:MASS < params["boostBackMass"] {
-        f9_print_recovery_vehicle().
-        f9_print_at(
-            12,
-            "Separation mass: < "
-                + ROUND(params["boostBackMass"], 2) + " t"
-        ).
-        f9_print_at(16, "Engines: waiting").
-        WAIT 0.
-    }
-    WAIT params["boostBackDelay"].
-
     pre_boostback_hook().
     LOCAL boostbackEngines IS search_engine(params["boostbackEngineTag"]).
     IF boostbackEngines:LENGTH = 0 {

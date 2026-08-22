@@ -58,6 +58,12 @@ FUNCTION f9_init_launch_display {
 
 FUNCTION f9_print_target_position {
     PARAMETER targetContext.
+    IF (targetContext["source"] = "none"
+        AND NOT targetContext["resolved"]) {
+        f9_print_at(3, "Lat/Lng: pending natural impact").
+        f9_print_at(4, "Alt raw/off/final: pending").
+        RETURN.
+    }
     LOCAL targetGeo IS targetContext["geo"].
 
     f9_print_at(
@@ -81,7 +87,9 @@ FUNCTION f9_init_recovery_display {
     CLEARSCREEN.
     f9_print_at(0, "Falcon 9 Recovery Guidance").
     f9_print_at(1, "---------------- TARGET ----------------").
-    IF targetContext["source"] = "vessel" {
+    IF targetContext["source"] = "none" {
+        f9_print_at(2, "Target source: natural impact (automatic)").
+    } ELSE IF targetContext["source"] = "vessel" {
         f9_print_at(2, "Target source: vessel (moving)").
     } ELSE IF targetContext["source"] = "waypoint" {
         f9_print_at(2, "Target source: waypoint (fixed)").
@@ -104,6 +112,29 @@ FUNCTION f9_print_recovery_vehicle {
     f9_print_at(8, "Mass: " + ROUND(SHIP:MASS, 2) + " t").
 }
 
+// All recovery phases must start from the separated booster so engine lookup
+// and FAR sampling do not use the complete launch stack. Boostback delay is
+// only part of preparation when boostback will run, or when a natural-impact
+// target must be selected after that delay.
+FUNCTION f9_wait_for_recovery_start {
+    PARAMETER params.
+
+    f9_clear_guidance_display().
+    f9_print_at(11, "Phase: recovery - waiting for separation").
+    UNTIL SHIP:MASS < params["boostBackMass"] {
+        f9_print_recovery_vehicle().
+        f9_print_at(
+            12,
+            "Separation mass: < "
+                + ROUND(params["boostBackMass"], 2) + " t"
+        ).
+        f9_print_at(16, "Engines: waiting").
+        WAIT 0.
+    }
+    WAIT params["boostBackDelay"].
+    RETURN TRUE.
+}
+
 // Acquire the configured landing site. The recovery boot file owns the
 // selector and its associated value; no active waypoint or KSP target is
 // consulted implicitly.
@@ -116,7 +147,13 @@ FUNCTION f9_initialize_target {
     LOCAL targetObject IS 0.
     LOCAL moving IS FALSE.
 
-    IF source = "geo" {
+    IF source = "none" {
+        // This placeholder is replaced with the predicted natural impact point
+        // after separation and boostBackDelay. Sea level is the first-pass
+        // prediction altitude; a second pass uses the terrain at that impact.
+        SET targetGeo TO SHIP:GEOPOSITION.
+        SET rawAltitude TO 0.
+    } ELSE IF source = "geo" {
         LOCAL geoSpec IS params["landingSiteGeo"].
         IF geoSpec:LENGTH < 2 {
             PRINT "F9 target error: landingSiteGeo needs longitude and latitude".
@@ -159,13 +196,14 @@ FUNCTION f9_initialize_target {
         SET rawAltitude TO targetObject:ALTITUDE.
         SET moving TO TRUE.
     } ELSE {
-        PRINT "F9 target error: landingSiteUse must be geo, waypoint, or vessel".
+        PRINT "F9 target error: landingSiteUse must be none, geo, waypoint, or vessel".
         RETURN LEXICON("ok", FALSE, "source", source).
     }
 
     RETURN LEXICON(
         "ok", TRUE,
         "source", source,
+        "resolved", source <> "none",
         "moving", moving,
         "geo", targetGeo,
         "rawAltitude", rawAltitude,
@@ -173,6 +211,76 @@ FUNCTION f9_initialize_target {
         "altitude", rawAltitude + params["altitudeOffset"],
         "object", targetObject
     ).
+}
+
+// Resolve landingSiteUse = "none" to the natural LTR impact point. The first
+// prediction crosses sea level; the second repeats at the terrain/ocean level
+// found under that impact. The final geoposition is written into targetContext
+// so all later phases use the same fixed site.
+FUNCTION f9_resolve_automatic_target {
+    PARAMETER params.
+    PARAMETER targetContext.
+
+    IF targetContext["source"] <> "none" OR targetContext["resolved"] {
+        RETURN TRUE.
+    }
+    IF NOT f9_initialize_ltr(params) {
+        SET targetContext["ok"] TO FALSE.
+        RETURN FALSE.
+    }
+
+    LOCAL vecNormal IS f9_get_surface_normal().
+    FROM {
+        LOCAL pass IS 0.
+    } UNTIL pass >= 2 STEP {
+        SET pass TO pass + 1.
+    } DO {
+        LOCAL prediction IS 0.
+        IF params["enableEntryBurn"] {
+            SET prediction TO f9_ltr_predict(
+                params,
+                targetContext,
+                vecNormal,
+                params["entryBurnAlt"],
+                params["entryVSpeed"],
+                params["landingBurnAltitude"]
+            ).
+        } ELSE {
+            SET prediction TO f9_ltr_predict(
+                params,
+                targetContext,
+                vecNormal,
+                9999999999,
+                9999999999,
+                params["landingBurnAltitude"]
+            ).
+        }
+        IF NOT f9_ltr_prediction_is_valid(prediction) {
+            f9_print_result("ERROR: LTR automatic target prediction failed").
+            SET targetContext["ok"] TO FALSE.
+            RETURN FALSE.
+        }
+
+        // LTR positions are body-centred (SOI-RAW). GEOPOSITIONOF expects a
+        // SHIP-RAW position, so move the origin back to the current vessel.
+        LOCAL impactPosition IS prediction["finalVecR"]
+            + SHIP:BODY:POSITION.
+        LOCAL targetGeo IS SHIP:BODY:GEOPOSITIONOF(impactPosition).
+        LOCAL rawAltitude IS targetGeo:TERRAINHEIGHT.
+        IF SHIP:BODY:HASOCEAN AND rawAltitude < 0 {
+            SET rawAltitude TO 0.
+        }
+        SET targetContext["geo"] TO targetGeo.
+        SET targetContext["rawAltitude"] TO rawAltitude.
+        SET targetContext["altitude"] TO rawAltitude
+            + targetContext["altitudeOffset"].
+    }
+
+    SET targetContext["moving"] TO FALSE.
+    SET targetContext["object"] TO 0.
+    SET targetContext["resolved"] TO TRUE.
+    SET targetContext["ok"] TO TRUE.
+    RETURN TRUE.
 }
 
 FUNCTION f9_refresh_target {
@@ -556,7 +664,7 @@ FUNCTION f9_validate_recovery_params {
     LOCAL requiredKeys IS LIST(
         "kOSIPU", "boostbackEngineTag", "entryEngineTag",
         "landingDecEngineTag", "landingEngineTag", "boostBackMass",
-        "landingSiteUse",
+        "landingSiteUse", "enableBoostBack", "enableEntryBurn",
         "targetRoll", "altitudeOffset", "boostBackDelay", "entryBurnAlt",
         "entryVSpeed", "burnAlignTolerance", "ltrCtrlSpeedSamples",
         "ltrCtrlAOASamples",
@@ -577,8 +685,9 @@ FUNCTION f9_validate_recovery_params {
     LOCAL ok IS TRUE.
     IF (params["landingSiteUse"] <> "geo"
         AND params["landingSiteUse"] <> "waypoint"
-        AND params["landingSiteUse"] <> "vessel") {
-        PRINT "F9 recovery config error: landingSiteUse must be geo, waypoint, or vessel".
+        AND params["landingSiteUse"] <> "vessel"
+        AND params["landingSiteUse"] <> "none") {
+        PRINT "F9 recovery config error: landingSiteUse must be none, geo, waypoint, or vessel".
         SET ok TO FALSE.
     } ELSE IF params["landingSiteUse"] = "geo" {
         IF NOT f9_validate_required_keys(
@@ -596,7 +705,7 @@ FUNCTION f9_validate_recovery_params {
         ) {
             SET ok TO FALSE.
         }
-    } ELSE {
+    } ELSE IF params["landingSiteUse"] = "vessel" {
         IF NOT f9_validate_required_keys(
             params,
             LIST("landingSiteVessel"),
