@@ -163,3 +163,14 @@ Major version update
   - Entry-burn guidance now corrects landing-site error
   - Improved the transition between aerodynamic glide and landing-burn ignition
   - RCS now maintains vehicle attitude after landing
+
+## 2026/08/22 v1.0.2
+
+- BORG: improved the landing-burn algorithm:
+  - Unified divert and terminal landing guidance into one continuous quadratic-guidance process
+  - Improved time-to-go and reference-acceleration estimates using the current vertical descent state and vehicle mass
+  - Improved the transition from deceleration engines to final landing engines by checking the required thrust over the remaining trajectory before shutting engines down
+- BORG: added ASDS recovery support:
+  - Added `landingSiteUse = "none"` to record the LTR-predicted natural impact point after stage separation and `boostBackDelay`, making it possible to survey a drone-ship or downrange-pad location
+  - Added independent `enableBoostBack` and `enableEntryBurn` switches; disabling the powered entry burn does not disable aerodynamic gliding
+  - Added ASDS boot configurations and documented the two-flight site-survey workflow in the English and Chinese tutorials
