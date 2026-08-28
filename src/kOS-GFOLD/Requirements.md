@@ -12,17 +12,14 @@ In the formulation of the optimal landing program defined by these 2 papers, sev
 - Fuel consumption
 - Maximum speed during flight
 - Tilt angle (the angle between thrust vector and up axis)
-- Glide slope contraint
+- Glide slope constraint
+I want you to add another 1 constraint, which is easily to be expressed in convex form
 
-I want you to add another 2 constraints, which is easily to be expressed in convex form
+- The tile angle limit of the terminal thrust vector is provided independently, normally it is more strict than constraint of other nodes: This is to ensure the landing attitude is pointing up (How do you think of the neccessarity of this constraint?)
 
-- Equality constraint: The terminal thrust vector (size and direction): This is to ensure the landing attitude is pointing up (How do you think of the neccessarity of this constraint?)
-- Inequality constraint: **Thrust changing rate**. The time deriative of the thrust magnitude should not exceed threshold $\dot{\Gamma} = (\Gamma_{k+1} - \Gamma_{k})/\Delta t_k < \dot{\Gamma}_{max}, \dot{\Gamma} > -\dot{\Gamma}_{max}$. This is to ensure that the throttle can catch up with command
-- Inequality constraint: **Attitude changing rate**. The rotation speed of the thrust direction should not exceed threshold. This is to ensure that the attitude control can follow the command
+If you find out that some other contraints which can benefit landing, but not destructing the losslessness and convexity of the GFOLD problem, you can talk to me and add it.
 
-If you find out that some other contraints which can benefit landing, you can add it.
-
-And the paper by Neal 2016, introduced pit landing method. It split the trajectory into 2 parts, with different glide slope and tilt constraints, the split time is to be optimized. I need this feature too.
+And the paper by Neal 2016, introduced pit landing method. It split the trajectory into 2 parts, with different glide slope constraints, the split time is to be optimized. I need this feature too. In better design, I want the 2 parts of the trajectory have different maximum speed, tile angle and glide slope constraints. Is it possible?
 
 Another problem is the changing thrust constraint. In some reusable rocket designs, it may switch engines when approaching target. For example, the New Glenn rocket ignites 3 engines, upon approaching target, it shutdown 2 side engines and keeps only the center engine running. This introduce a thrust constraint change during landing. I want to design like this, the user provides the running time of the first part ($t_c$) and thrust constraints of 2 parts. When $t < t_c$ the first thrust constraints are applied to nodes, and when $t >= t_1$, the second thrust constraints are applied. By explicitly assign $t_1$, the problem is still convex.
 
@@ -36,10 +33,11 @@ Program Input
 
 - Body parameters: gravity, radius, body spin (as a omega vector)
 - Initial conditions: initial mass, position, velocity (body-fixed frame)
-- Target conditions: position, velocity and thrust vector at target, 
+- Target conditions: position, velocity
 - Fuel constraint: Fuel mass
 - Thrust constraints: 2 parts, $\rho_1^{(1)}, \rho_2^{(1)}, \rho_1^{(2)}, \rho_2^{(2)}$, and switching time $t_c$
-- Speed, tilt, glide slope, thrust changing rate, attitude changing rate: assigned for 2 phases, the phase time is to be optimized
+- Maximum speed and tilt angle limit for part 1 and part 2, plus terminal tilt constraint.
+- The geometry of glide slope cone + cylinder. A reminder, the height of the cylinder could be zero
 - Number of nodes
 
 Program Output
@@ -55,6 +53,6 @@ Implementation Requirements
 
 ## Plan
 
-1. Read the paper and other requirements, analyze feasibility, improve the plan, derive the math representation of this problem, write it to `Formulation.md`. Note that SOCP solvers like variables to be in proper range, avoiding too large and too low values, you need to normalize this variables to make the solver happy
+1. Read the paper and other requirements, analyze feasibility, improve the plan, derive the math representation of this problem, write it to `Formulation.md`. Note that SOCP solvers like variables to be in proper range, avoiding too large and too low values, you need to normalize this variables to make the solver happy. You might need to discuss with me if you want to make a modification to the plan
 2. Decide which solver to use and program architecture
 3. Implement the addon
