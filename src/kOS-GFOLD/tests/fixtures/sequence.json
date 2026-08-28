@@ -1,0 +1,46 @@
+{
+  "initialize": {
+    "stateTime": 1000.0,
+    "position": [6371500.0, 100.0, 0.0],
+    "velocity": [-30.0, 0.0, 0.0],
+    "mass": 20.0,
+    "mu": 3.986004418e14,
+    "bodyRadius": 6371000.0,
+    "bodySpin": [0.0, 0.0, 7.2921159e-5],
+    "targetPosition": [6371000.0, 0.0, 0.0],
+    "targetVelocity": [0.0, 0.0, 0.0],
+    "pitCenter": [6371000.0, 0.0, 0.0],
+    "fuelMass": 5.0,
+    "thrustMin1": 120.0,
+    "thrustMax1": 420.0,
+    "isp1": 300.0,
+    "thrustMin2": 120.0,
+    "thrustMax2": 420.0,
+    "isp2": 300.0,
+    "engineSwitchTime": 100.0,
+    "descentMaxSpeed": 80.0,
+    "descentTilt": 50.0,
+    "descentGlideSlope": 25.0,
+    "entryMaxSpeed": 40.0,
+    "entryTilt": 30.0,
+    "entryGlideSlope": 0.0,
+    "terminalTilt": 10.0,
+    "terminalTiltWindow": 3.0,
+    "pitRadius": 50.0,
+    "wallBuffer": 0.0,
+    "pitDepth": 0.0,
+    "nodes": 12,
+    "maxSearchEvaluations": 7,
+    "tfMin": 15.0,
+    "tfMax": 35.0
+  },
+  "updates": [
+    {
+      "stateTime": 1002.7272727273,
+      "position": [6371432.79465785, 89.33406366, 0.0],
+      "velocity": [-25.88144922, -6.21274978, 0.0],
+      "mass": 19.78744609,
+      "maxSearchEvaluations": 7
+    }
+  ]
+}

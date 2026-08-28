@@ -10,5 +10,6 @@ Script/entry_presets/*
 
 *.pdb
 *.dll
+src/kOS-GFOLD/tests/results/
 
 !Script/entry_presets/*.json

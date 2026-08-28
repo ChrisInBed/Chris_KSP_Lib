@@ -54,6 +54,12 @@ Public vectors are body-fixed and body-centered. Internally use a local pit/targ
 
 The local origin is the pit rim/cylinder-axis center; for ordinary surface landing it is the target/reference point.
 
+The target is the center of the cylinder floor. Therefore its local position must be
+`[0, -pitDepth, 0]` within geometry tolerance. Equivalently,
+`targetPosition = pitCenter - pitDepth * localUp`. In surface mode (`pitDepth = 0`),
+`targetPosition` and `pitCenter` must coincide. Inconsistent geometry is rejected
+as an argument error before optimization.
+
 Let `R_LB` map body-fixed vectors to local coordinates and let `r_ref,B` be the local origin in body-fixed coordinates:
 
 \[
@@ -343,6 +349,11 @@ Use a nonuniform event-aligned mesh containing every active event:
 
 State and mass are continuous across events. Control is **not** forced continuous across `t_c` or `t_e`; use independent left/right `(u,sigma)` variables at event nodes.
 
+`nodes` is the exact total number of major state nodes, including event nodes.
+Each event-separated segment receives at least one interval; remaining intervals
+are distributed in proportion to segment duration using deterministic largest-remainder
+allocation.
+
 Between events the dynamics are LTI. Use first-order-hold control. For interval duration `h`:
 
 \[
@@ -389,6 +400,13 @@ s=t_e/t_f,\qquad 0<s<1.
 
 Use a deterministic coarse-to-fine search with a default budget of **20 time candidates**. Each hard candidate requires P1 and P2.
 
+Rank candidates lexicographically: minimum horizontal landing error first, then
+minimum fuel for candidates tied within landing-error tolerance, then deterministic
+evaluation order. Surface cold searches use a seven-point grid followed by bracket
+refinement. Pit cold searches use a `4 x 3` `(t_f,s)` grid followed by half-spacing
+refinement. Updates first evaluate a local neighborhood around the previous remaining
+times and fall back to the cold search only if no local candidate succeeds.
+
 `Initialize` performs the cold search.
 
 `Update` centers a local search on the remaining times from the previous result:
@@ -404,6 +422,11 @@ t_{e,\mathrm{guess}}=(\text{previous epoch}+t_e^{\mathrm{previous}})-\text{curre
 If entry has already occurred, omit the `t_e` search and solve the entry phase only. If the local search fails, fall back to the bounded cold search within the configured evaluation budget.
 
 Search-only soft constraints may be used to rank otherwise infeasible time candidates, but every returned trajectory must come from the hard P1/P2 problems and pass physical validation.
+
+The two-second watchdog is soft because ALGLIB cannot interrupt an active GENIPM
+call. Check it only between complete P1/P2 candidate pairs. If the deadline is
+reached after a validated candidate exists, return that best candidate as `SOLVED`
+and record the early search termination in `message`.
 
 ---
 
@@ -426,6 +449,10 @@ src/kOS-GFOLD/
     AlglibSocpSolver.cs
     SolutionValidator.cs
 ```
+
+The implementation also includes `kOS-GFOLD.Cli`, which compiles the same plain
+`Core/*.cs` sources without referencing kOS, Unity, or KSP. This keeps command-line
+testing numerically identical to the addon without adding another runtime DLL.
 
 ### `GFOLDAddon`
 
@@ -688,6 +715,27 @@ Each `trajectory` element is a Lexicon:
 | `mass` | Scalar | t | Predicted mass. |
 
 A non-`SOLVED` result may omit `trajectory`, `tf`, and `te`.
+
+### 4.7 Command-line numerical API
+
+The standalone wrapper supports:
+
+```text
+kOS-GFOLD.Cli.exe solve --input scenario.json [--output result.json]
+kOS-GFOLD.Cli.exe sequence --input sequence.json [--output result.json]
+kOS-GFOLD.Cli.exe selftest
+```
+
+`solve` uses the `Initialize` field names, with vectors encoded as three-element JSON
+arrays. `sequence` contains an `initialize` object and an ordered `updates` array;
+the process retains the planner session and automatically uses each successful result
+as the next update seed. JSON is written to standard output when `--output` is omitted.
+Exit codes are `0` for success, `2` for a planner failure, `64` for invalid input, and
+`70` for an unexpected internal error.
+
+`tests/Test-Gfold.ps1` builds and exercises the CLI. `tools/analyze_gfold.py`
+independently checks constraint margins and exact rotating-frame propagation with
+NumPy/SciPy and produces trajectory and constraint plots with Matplotlib.
 
 ---
 
