@@ -14,6 +14,7 @@ The addon:
 - solves the fixed-time convex problems with **ALGLIB GENIPM only**;
 - searches externally for total flight time `t_f` and pit-entry time `t_e`;
 - returns time-tagged body-fixed position, velocity, thrust, and mass;
+- returns a session-constant normalized discrete-LQR gain and analytically sampled reference states;
 - provides synchronous APIs for testing and asynchronous APIs for flight use.
 
 Frontend usage:
@@ -428,6 +429,40 @@ call. Check it only between complete P1/P2 candidate pairs. If the deadline is
 reached after a validated candidate exists, return that best candidate as `SOLVED`
 and record the early search termination in `message`.
 
+### 2.9 Reference tracking and normalized discrete LQR
+
+The tracking input is specific thrust `u=T/m`, in `m/s^2`. The public state error is
+
+\[
+e=[r_{ref}-r;\ v_{ref}-v],\qquad u=u_{ref}+K e.
+\]
+
+At initialization, freeze a tracker normalizer using the same `L`, `a_*`, `T_*`, and
+`V_*` rules as the solver. Later replans may use different solver normalizers, but
+the tracker scale and gain never change during the session. In normalized local
+coordinates, exactly discretize the error dynamics at `lqrDt/T_*` with zero-order-held
+control correction and solve the infinite-horizon discrete Riccati equation with
+
+\[
+Q=\operatorname{diag}(I_3,\beta I_3),\qquad R=\lambda I_3.
+\]
+
+Convert the resulting normalized gain through the position, velocity, acceleration,
+and E-U-N/body transformations. The returned `K` therefore acts directly on physical
+body-fixed errors and produces a body-fixed acceleration correction. Raw LQR output
+is not projected into thrust or tilt limits; the flight frontend owns actuator limiting.
+
+Every interval retains its outgoing left control `u_i^+` and incoming right control
+`u_{i+1}^-`. For `tau=t-t_i` and `h=t_{i+1}-t_i`,
+
+\[
+u_{ref}(t)=u_i^+ + \frac{\tau}{h}(u_{i+1}^- - u_i^+).
+\]
+
+The reference state is evaluated analytically from node `i` with the same affine LTI
+FOH matrix exponential used by the optimizer. At an exact internal node the control
+is right-continuous; at the terminal node the incoming control is returned.
+
 ---
 
 ## 3. Project architecture
@@ -444,6 +479,7 @@ src/kOS-GFOLD/
     Normalizer.cs
     MeshBuilder.cs
     LtiDiscretizer.cs
+    LqrTracker.cs
     TimeSearch.cs
     GfoldProblemBuilder.cs
     AlglibSocpSolver.cs
@@ -486,13 +522,14 @@ Immutable configuration created by `Initialize`:
 - engine-mode parameters;
 - absolute engine-switch epoch;
 - path-constraint parameters;
-- node count and search settings.
+- node count and search settings;
+- frozen tracker normalization, LQR weights/sample period, and physical body-fixed gain.
 
 A session receives an integer `session` ID returned in every solution. `Update` uses this ID and does not require the caller to resend static configuration.
 
 ### `Planner`
 
-Owns `Initialize` and `Update` computation.
+Owns `Initialize`, `Update`, and reference-state sampling.
 
 `Initialize`:
 
@@ -529,6 +566,12 @@ Builds the event-aligned nonuniform mesh and left/right control variables at `t_
 ### `LtiDiscretizer`
 
 Computes FOH discrete matrices and affine midpoint maps.
+
+### `LqrTracker`
+
+Exactly discretizes the normalized error model, solves the steady-state discrete
+Riccati equation, converts the gain to physical body-fixed coordinates, and evaluates
+FOH reference state/control samples analytically.
 
 ### `TimeSearch`
 
@@ -618,6 +661,9 @@ Synchronous cold initialization. Intended mainly for tests/debugging; it blocks 
 | `maxSearchEvaluations` | Scalar integer | — | Optional cold outer-search candidate budget; default 20. |
 | `tfMin` | Scalar | s | Optional lower total-flight-time bound. If omitted, derive a conservative bound. |
 | `tfMax` | Scalar | s | Optional upper total-flight-time bound. If omitted, derive a fuel/thrust bound. |
+| `lqrDt` | Scalar | s | Required positive controller sample period used for exact LQR discretization. |
+| `lqrLambda` | Scalar | — | Optional positive normalized control weight `lambda`; default `0.5`. |
+| `lqrBeta` | Scalar | — | Optional nonnegative normalized velocity weight `beta`; default `1`. |
 
 Validation errors in the argument schema throw a `KOSException` before solving.
 
@@ -648,7 +694,7 @@ Synchronous receding-horizon update. It blocks the caller and is intended mainly
 | `previous` | Lexicon | — | Previous successful `Initialize`/`Update` result, including trajectory and `t_e/t_f`. |
 | `maxSearchEvaluations` | Scalar integer | — | Optional local-search budget. If omitted, use the session default. |
 
-`Update` does **not** accept new body, engine, target, pit, or guidance configuration. Those remain fixed in the session.
+`Update` does **not** accept new body, engine, target, pit, guidance, or LQR configuration. Those remain fixed in the session.
 
 Behavior:
 
@@ -685,7 +731,20 @@ Invalid handles throw `KOSException`.
 
 This intentionally matches the task-management style used by `kOS-AFS`.
 
-### 4.6 Result schema
+### 4.6 `GetRefState(args) -> Lexicon`
+
+Analytically samples a successful reference returned by this planner instance.
+
+| Field | Type | Unit | Description |
+|---|---|---:|---|
+| `reference` | Lexicon | — | Complete successful `Initialize`/`Update` result, including its session and trajectory. |
+| `time` | Scalar | s | Absolute sample epoch, inclusively bounded by the first and last trajectory nodes. |
+
+The result contains `time`, body-fixed `control` in `m/s^2`, body-fixed/body-centered
+`position` in metres, and body-fixed `velocity` in `m/s`. Invalid, out-of-range,
+malformed, failed, or unknown-session references throw `KOSException`.
+
+### 4.7 Result schema
 
 `Initialize`, `Update`, and `GetTaskResult` return the same top-level schema:
 
@@ -702,6 +761,7 @@ This intentionally matches the task-management style used by `kOS-AFS`.
 | `landingError` | Scalar | P1 horizontal landing error in metres. |
 | `fuelUsed` | Scalar | Fuel consumed by the returned trajectory in tonnes. |
 | `searchEvaluations` | Scalar integer | Number of outer time candidates tested. |
+| `K` | List of 3 Lists | Session-constant physical body-fixed 3 by 6 LQR gain; present only when `ok=true`. |
 | `trajectory` | List | Major-node trajectory described below. |
 
 Each `trajectory` element is a Lexicon:
@@ -713,10 +773,12 @@ Each `trajectory` element is a Lexicon:
 | `velocity` | Vector | m/s | Body-fixed velocity. |
 | `thrust` | Vector | kN | Body-fixed commanded physical thrust vector. |
 | `mass` | Scalar | t | Predicted mass. |
+| `controlBefore` | Vector | m/s² | Incoming body-fixed specific thrust for the interval ending at this node. |
+| `controlAfter` | Vector | m/s² | Outgoing body-fixed specific thrust for the interval starting at this node. |
 
-A non-`SOLVED` result may omit `trajectory`, `tf`, and `te`.
+A non-`SOLVED` result may omit `trajectory`, `K`, `tf`, and `te`.
 
-### 4.7 Command-line numerical API
+### 4.8 Command-line numerical API
 
 The standalone wrapper supports:
 
@@ -726,7 +788,7 @@ kOS-GFOLD.Cli.exe sequence --input sequence.json [--output result.json]
 kOS-GFOLD.Cli.exe selftest
 ```
 
-`solve` uses the `Initialize` field names, with vectors encoded as three-element JSON
+`solve` uses the `Initialize` field names, including `lqrDt`, with vectors encoded as three-element JSON
 arrays. `sequence` contains an `initialize` object and an ordered `updates` array;
 the process retains the planner session and automatically uses each successful result
 as the next update seed. JSON is written to standard output when `--output` is omitted.

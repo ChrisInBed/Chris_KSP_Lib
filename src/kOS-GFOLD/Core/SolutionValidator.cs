@@ -12,7 +12,10 @@ namespace KOSGFOLD.Core
             {
                 localP[k] = z.PositionOut(new Vec3(x[model.State(k, 0)], x[model.State(k, 1)], x[model.State(k, 2)])); localV[k] = z.VelocityOut(new Vec3(x[model.State(k, 3)], x[model.State(k, 4)], x[model.State(k, 5)])); mass[k] = s.Mass * Math.Exp(x[model.State(k, 6)]);
                 int interval = k < model.Intervals ? k : model.Intervals - 1, side = k < model.Intervals ? 0 : 1; localU[k] = z.AccelOut(new Vec3(x[model.Control(interval, side, 0)], x[model.Control(interval, side, 1)], x[model.Control(interval, side, 2)])); sigma[k] = x[model.Control(interval, side, 3)] * z.Acceleration;
-                trajectory.Add(new TrajectoryPoint { Time = s.Epoch + model.Mesh.Times[k], Position = s.Session.Frame.ToBodyPosition(localP[k]), Velocity = s.Session.Frame.ToBodyVector(localV[k]), Thrust = s.Session.Frame.ToBodyVector(localU[k] * mass[k]), Mass = mass[k] });
+                int beforeInterval = k == 0 ? 0 : k - 1, beforeSide = k == 0 ? 0 : 1, afterInterval = k == model.Nodes - 1 ? model.Intervals - 1 : k, afterSide = k == model.Nodes - 1 ? 1 : 0;
+                Vec3 before = z.AccelOut(new Vec3(x[model.Control(beforeInterval, beforeSide, 0)], x[model.Control(beforeInterval, beforeSide, 1)], x[model.Control(beforeInterval, beforeSide, 2)]));
+                Vec3 after = z.AccelOut(new Vec3(x[model.Control(afterInterval, afterSide, 0)], x[model.Control(afterInterval, afterSide, 1)], x[model.Control(afterInterval, afterSide, 2)]));
+                trajectory.Add(new TrajectoryPoint { Time = s.Epoch + model.Mesh.Times[k], Position = s.Session.Frame.ToBodyPosition(localP[k]), Velocity = s.Session.Frame.ToBodyVector(localV[k]), Thrust = s.Session.Frame.ToBodyVector(localU[k] * mass[k]), Mass = mass[k], ControlBefore = s.Session.Frame.ToBodyVector(before), ControlAfter = s.Session.Frame.ToBodyVector(after) });
             }
             string violation = CheckNodes(s, model, localP, localV, localU, sigma, mass); if (violation != null) return PlannerResult.Failure(PlannerStatus.ValidationFailed, violation, s.Epoch);
             violation = CheckExactPropagation(s, model, localP, localV, x); if (violation != null) return PlannerResult.Failure(PlannerStatus.ValidationFailed, violation, s.Epoch);

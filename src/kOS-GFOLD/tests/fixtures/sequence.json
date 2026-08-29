@@ -29,6 +29,7 @@
     "pitRadius": 50.0,
     "wallBuffer": 0.0,
     "pitDepth": 0.0,
+    "lqrDt": 0.1,
     "nodes": 12,
     "maxSearchEvaluations": 7,
     "tfMin": 15.0,

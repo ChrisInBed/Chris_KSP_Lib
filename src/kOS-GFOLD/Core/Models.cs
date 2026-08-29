@@ -13,6 +13,7 @@ namespace KOSGFOLD.Core
         public double DescentMaxSpeed; public double DescentTilt; public double DescentGlideSlope; public double EntryMaxSpeed; public double EntryTilt; public double EntryGlideSlope;
         public double TerminalTilt; public double TerminalTiltWindow; public double PitRadius; public double WallBuffer; public double PitDepth;
         public int Nodes = 20; public int MaxSearchEvaluations = 20; public double? TfMin; public double? TfMax;
+        public double LqrDt; public double LqrLambda = 0.5; public double LqrBeta = 1.0;
     }
 
     public sealed class UpdateRequest
@@ -23,12 +24,19 @@ namespace KOSGFOLD.Core
     public sealed class TrajectoryPoint
     {
         public double Time; public Vec3 Position; public Vec3 Velocity; public Vec3 Thrust; public double Mass;
+        public Vec3 ControlBefore; public Vec3 ControlAfter;
+    }
+
+    public sealed class ReferenceState
+    {
+        public double Time; public Vec3 Control; public Vec3 Position; public Vec3 Velocity;
     }
 
     public sealed class PlannerResult
     {
         public bool Ok; public PlannerStatus Status; public string Message; public int Session; public double Epoch; public double SolveTime;
         public double Tf; public double Te; public double LandingError; public double FuelUsed; public int SearchEvaluations; public List<TrajectoryPoint> Trajectory;
+        public double[,] K;
         internal double[] SolverVector;
         public string StatusText { get { switch (Status) { case PlannerStatus.Solved: return "SOLVED"; case PlannerStatus.Infeasible: return "INFEASIBLE"; case PlannerStatus.NumericalFailure: return "NUMERICAL_FAILURE"; case PlannerStatus.ValidationFailed: return "VALIDATION_FAILED"; case PlannerStatus.TimeBudgetExceeded: return "TIME_BUDGET_EXCEEDED"; default: return "CANCELLED"; } } }
         internal static PlannerResult Failure(PlannerStatus status, string message, double epoch, int evaluations = 0) { return new PlannerResult { Ok = false, Status = status, Message = message, Epoch = epoch, SearchEvaluations = evaluations, Trajectory = null }; }
@@ -43,9 +51,14 @@ namespace KOSGFOLD.Core
     internal sealed class PlannerSession
     {
         internal readonly int Id; internal readonly InitializeRequest Config; internal readonly FrameModel Frame; internal readonly double DryMass; internal readonly double SwitchEpoch;
-        internal readonly EngineMode Mode1, Mode2; internal readonly object Gate = new object(); internal bool Active; internal double LatestEpoch;
+        internal readonly EngineMode Mode1, Mode2; internal readonly Normalizer TrackerScale; internal readonly double[,] Gain; internal readonly object Gate = new object(); internal bool Active; internal double LatestEpoch;
         internal PlannerSession(int id, InitializeRequest c, FrameModel frame)
-        { Id = id; Config = c; Frame = frame; DryMass = c.Mass - c.FuelMass; SwitchEpoch = c.StateTime + c.EngineSwitchTime; Mode1 = new EngineMode(c.ThrustMin1, c.ThrustMax1, c.Isp1); Mode2 = new EngineMode(c.ThrustMin2, c.ThrustMax2, c.Isp2); LatestEpoch = c.StateTime; }
+        {
+            Id = id; Config = c; Frame = frame; DryMass = c.Mass - c.FuelMass; SwitchEpoch = c.StateTime + c.EngineSwitchTime; Mode1 = new EngineMode(c.ThrustMin1, c.ThrustMax1, c.Isp1); Mode2 = new EngineMode(c.ThrustMin2, c.ThrustMax2, c.Isp2); LatestEpoch = c.StateTime;
+            Vec3 p0 = frame.ToLocalPosition(c.Position), pf = new Vec3(0, -c.PitDepth, 0), v0 = frame.ToLocalVector(c.Velocity);
+            TrackerScale = new Normalizer(p0, pf, v0, c.PitRadius, c.PitDepth, frame.G0, Math.Max(Mode1.Max, Mode2.Max), c.Mass);
+            Gain = LqrTracker.ComputePhysicalBodyGain(frame, TrackerScale, c.LqrDt, c.LqrLambda, c.LqrBeta);
+        }
     }
 
     internal static class InputValidation
@@ -60,6 +73,7 @@ namespace KOSGFOLD.Core
             if (r.TerminalTiltWindow < 0) throw new ArgumentException("terminalTiltWindow must be non-negative"); if (r.PitRadius < 0 || r.WallBuffer < 0 || r.PitDepth < 0) throw new ArgumentException("pit geometry values must be non-negative");
             if (r.PitDepth > 0 && !(r.PitRadius > r.WallBuffer)) throw new ArgumentException("pitRadius must exceed wallBuffer for pit landing"); if (r.PitDepth == 0 && r.WallBuffer > r.PitRadius) throw new ArgumentException("wallBuffer cannot exceed pitRadius");
             if (r.Nodes < 4 || r.Nodes > 200) throw new ArgumentException("nodes must be in [4,200]"); if (r.MaxSearchEvaluations < 1 || r.MaxSearchEvaluations > 200) throw new ArgumentException("maxSearchEvaluations must be in [1,200]");
+            Positive(r.LqrDt, "lqrDt"); Positive(r.LqrLambda, "lqrLambda"); Finite(r.LqrBeta, "lqrBeta"); if (r.LqrBeta < 0) throw new ArgumentException("lqrBeta must be non-negative");
             if (r.TfMin.HasValue && !(r.TfMin.Value > 0)) throw new ArgumentException("tfMin must be positive"); if (r.TfMax.HasValue && !(r.TfMax.Value > 0)) throw new ArgumentException("tfMax must be positive"); if (r.TfMin.HasValue && r.TfMax.HasValue && r.TfMin.Value >= r.TfMax.Value) throw new ArgumentException("tfMin must be less than tfMax");
             FrameModel f = new FrameModel(r.PitCenter, r.BodySpin, r.Mu); Vec3 target = f.ToLocalPosition(r.TargetPosition); double tol = Math.Max(0.01, 1e-6 * Math.Max(1, Math.Max(r.PitDepth, r.PitRadius)));
             Vec3 expected = new Vec3(0, -r.PitDepth, 0); if ((target - expected).Norm > tol) throw new ArgumentException("targetPosition must be the center of the cylinder floor (local [0,-pitDepth,0])");

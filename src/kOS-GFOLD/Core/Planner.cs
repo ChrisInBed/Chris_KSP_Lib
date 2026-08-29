@@ -10,15 +10,19 @@ namespace KOSGFOLD.Core
         private readonly ConcurrentDictionary<int, PlannerSession> sessions = new ConcurrentDictionary<int, PlannerSession>(); private int nextSession;
         public PlannerResult Initialize(InitializeRequest request)
         {
-            Stopwatch watch = Stopwatch.StartNew(); try { InputValidation.Validate(request); FrameModel frame = new FrameModel(request.PitCenter, request.BodySpin, request.Mu); int id = Interlocked.Increment(ref nextSession); PlannerSession session = new PlannerSession(id, request, frame); PlannerResult result = Search(session, request.StateTime, request.Position, request.Velocity, request.Mass, request.MaxSearchEvaluations, watch, null); result.SolveTime = watch.Elapsed.TotalSeconds; result.SearchEvaluations = Math.Max(result.SearchEvaluations, 0); if (result.Ok) { result.Session = id; session.LatestEpoch = request.StateTime; sessions[id] = session; } else result.Session = 0; return result; }
+            Stopwatch watch = Stopwatch.StartNew(); try { InputValidation.Validate(request); FrameModel frame = new FrameModel(request.PitCenter, request.BodySpin, request.Mu); int id = Interlocked.Increment(ref nextSession); PlannerSession session = new PlannerSession(id, request, frame); PlannerResult result = Search(session, request.StateTime, request.Position, request.Velocity, request.Mass, request.MaxSearchEvaluations, watch, null); result.SolveTime = watch.Elapsed.TotalSeconds; result.SearchEvaluations = Math.Max(result.SearchEvaluations, 0); if (result.Ok) { result.Session = id; result.K = Dense.Copy(session.Gain); session.LatestEpoch = request.StateTime; sessions[id] = session; } else result.Session = 0; return result; }
             catch (ArgumentException) { throw; } catch (Exception ex) { PlannerResult r = PlannerResult.Failure(PlannerStatus.NumericalFailure, ex.Message, request == null ? 0 : request.StateTime); r.SolveTime = watch.Elapsed.TotalSeconds; return r; }
         }
         public PlannerResult Update(UpdateRequest request)
         {
             Stopwatch watch = Stopwatch.StartNew(); InputValidation.ValidateUpdate(request); PlannerSession session; if (!sessions.TryGetValue(request.Session, out session)) throw new ArgumentException("Unknown planner session " + request.Session); if (request.Previous.Session != request.Session) throw new ArgumentException("previous result belongs to another session");
             lock (session.Gate) { if (session.Active) throw new InvalidOperationException("A solve is already active for this session"); if (Math.Abs(request.Previous.Epoch - session.LatestEpoch) > 1e-6) throw new ArgumentException("previous result is stale"); if (request.StateTime <= session.LatestEpoch) throw new ArgumentException("stateTime must advance beyond the latest successful epoch"); session.Active = true; }
-            try { int budget = request.MaxSearchEvaluations ?? session.Config.MaxSearchEvaluations; PlannerResult r = Search(session, request.StateTime, request.Position, request.Velocity, request.Mass, budget, watch, request.Previous); r.SolveTime = watch.Elapsed.TotalSeconds; r.Session = session.Id; if (r.Ok) lock (session.Gate) session.LatestEpoch = request.StateTime; return r; }
+            try { int budget = request.MaxSearchEvaluations ?? session.Config.MaxSearchEvaluations; PlannerResult r = Search(session, request.StateTime, request.Position, request.Velocity, request.Mass, budget, watch, request.Previous); r.SolveTime = watch.Elapsed.TotalSeconds; r.Session = session.Id; if (r.Ok) { r.K = Dense.Copy(session.Gain); lock (session.Gate) session.LatestEpoch = request.StateTime; } return r; }
             finally { lock (session.Gate) session.Active = false; }
+        }
+        public ReferenceState GetRefState(PlannerResult reference, double time)
+        {
+            if (reference == null || !reference.Ok) throw new ArgumentException("reference must be a successful planner result"); PlannerSession session; if (!sessions.TryGetValue(reference.Session, out session)) throw new ArgumentException("reference belongs to an unknown planner session"); return LqrTracker.Sample(session.Frame, reference, time);
         }
         private PlannerResult Search(PlannerSession session, double epoch, Vec3 position, Vec3 velocity, double mass, int budget, Stopwatch watch, PlannerResult previous)
         {
