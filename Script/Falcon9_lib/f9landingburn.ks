@@ -385,6 +385,7 @@ FUNCTION f9_landing_burn {
             }
             if (shutdownFlag) {
                 deactivate_engines(shutDownEngines).
+                activate_engines(landingEngines).
                 SET TiS TO TiS2.
                 SET _maxThrust TO maxThrust2.
                 SET minThrottle TO minThrottle2.
