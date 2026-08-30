@@ -9,7 +9,7 @@ GLOBAL F9_GFOLD_DEFAULTS IS LEXICON(
     "gfold_nodes", 20,
     "gfold_maxSearchEvaluations", 20,
     "gfold_lqrDt", 0.1,
-    "gfold_lqrLambda", 0.5,
+    "gfold_lqrLambda", 0.1,
     "gfold_lqrBeta", 1,
     "gfold_descentMaxSpeed", 450,
     "gfold_descentTilt", 40,

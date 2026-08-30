@@ -426,6 +426,8 @@ FUNCTION f9_landing_burn {
     }
     LOCAL gfoldUpdateRunning IS FALSE.
     LOCAL gfoldUpdateHandle IS -1.
+    LOCAL gfoldUpdateStartEpoch IS 0.
+    LOCAL gfoldLastUpdateStatus IS "NONE".
     LOCAL nextGfoldUpdateEpoch IS TIME:SECONDS
         + params["gfold_updateInterval"].
 
@@ -524,11 +526,23 @@ FUNCTION f9_landing_burn {
         SET gravityMagnitude TO SHIP:BODY:MU / currentRadius^2.
 
         LOCAL displayedPositionError IS 0.
+        LOCAL gfoldTelemetryReady IS FALSE.
+        LOCAL referenceAltitudeValue IS 0.
+        LOCAL referenceDescentValue IS 0.
+        LOCAL referenceAccelerationValue IS 0.
+        LOCAL altitudeErrorValue IS 0.
+        LOCAL descentErrorValue IS 0.
         IF (guidanceMode = "terminal" AND gfoldUpdateRunning
             AND gfoldAddonRef:CheckTask(gfoldUpdateHandle)) {
             LOCAL discardedUpdateResult IS
                 gfoldAddonRef:GetTaskResult(gfoldUpdateHandle).
             SET gfoldUpdateRunning TO FALSE.
+            IF discardedUpdateResult["ok"] {
+                SET gfoldLastUpdateStatus TO "OK (TERMINAL)".
+            } ELSE {
+                SET gfoldLastUpdateStatus TO
+                    "FAIL " + discardedUpdateResult["status"].
+            }
         }
         IF guidanceMode = "gfold" {
             IF (gfoldUpdateRunning
@@ -543,7 +557,13 @@ FUNCTION f9_landing_burn {
                         AND TIME:SECONDS <= updateEndEpoch) {
                         SET gfoldReference TO updateResult.
                         SET gfoldReferenceEnd TO updateEndEpoch.
+                        SET gfoldLastUpdateStatus TO "OK".
+                    } ELSE {
+                        SET gfoldLastUpdateStatus TO "FAIL STALE".
                     }
+                } ELSE {
+                    SET gfoldLastUpdateStatus TO
+                        "FAIL " + updateResult["status"].
                 }
             }
 
@@ -597,6 +617,7 @@ FUNCTION f9_landing_burn {
                 SET gfoldUpdateHandle TO
                     gfoldAddonRef:AsyncUpdate(updateArguments).
                 SET gfoldUpdateRunning TO TRUE.
+                SET gfoldUpdateStartEpoch TO TIME:SECONDS.
                 SET nextGfoldUpdateEpoch TO TIME:SECONDS
                     + params["gfold_updateInterval"].
             }
@@ -622,6 +643,25 @@ FUNCTION f9_landing_burn {
                 trackedState["currentBasis"]
             ).
             SET displayedPositionError TO positionErrorVec:MAG.
+            SET referenceAltitudeValue TO VDOT(
+                referenceState["position"] - frozenTargetVec,
+                frozenBasis["up"]
+            ).
+            SET referenceDescentValue TO VDOT(
+                referenceState["velocity"],
+                frozenBasis["up"]
+            ).
+            SET referenceAccelerationValue TO
+                referenceState["control"]:MAG.
+            SET altitudeErrorValue TO VDOT(
+                positionErrorVec,
+                frozenBasis["up"]
+            ).
+            SET descentErrorValue TO VDOT(
+                velocityErrorVec,
+                frozenBasis["up"]
+            ).
+            SET gfoldTelemetryReady TO TRUE.
         } ELSE {
             IF NOT gfoldWasActive {
                 SET remainingDuration TO MAX(0.02, getQuadraticDuration()).
@@ -722,30 +762,67 @@ FUNCTION f9_landing_burn {
                 + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
         ).
         f9_print_at(12, "Time to go: " + ROUND(remainingDuration, 2) + " s").
-        f9_print_at(
-            13,
-            "Position error: " + ROUND(displayedPositionError, 2) + " m"
-        ).
-        f9_print_at(
-            14,
-            "Command acceleration: " + ROUND(accTarget:MAG, 2) + " m/s2"
-        ).
-        f9_print_at(
-            15,
-            "Throttle req/cmd: "
-                + ROUND(accTarget:MAG * SHIP:MASS / activeMaxThrust, 3)
-                + " / " + ROUND(throttleTarget, 3)
-        ).
-        f9_print_at(
-            16,
-            "Engines: active  Throttle: "
-                + ROUND(SHIP:CONTROL:MAINTHROTTLE, 2)
-        ).
-        f9_print_at(
-            17,
-            "Guidance: " + guidanceMode + "  Vz: "
-                + ROUND(SHIP:VERTICALSPEED, 2) + " m/s"
-        ).
+        LOCAL updateDisplayText IS "IDLE Last:" + gfoldLastUpdateStatus.
+        IF gfoldUpdateRunning {
+            SET updateDisplayText TO "RUN "
+                + ROUND(TIME:SECONDS - gfoldUpdateStartEpoch, 1)
+                + "s Last:" + gfoldLastUpdateStatus.
+        }
+        IF gfoldTelemetryReady {
+            f9_print_at(
+                13,
+                "Ref H/Vz: " + ROUND(referenceAltitudeValue, 2)
+                    + " / " + ROUND(referenceDescentValue, 2)
+            ).
+            f9_print_at(
+                14,
+                "A ref/cmd: " + ROUND(referenceAccelerationValue, 2)
+                    + " / " + ROUND(accTarget:MAG, 2) + " m/s2"
+            ).
+            f9_print_at(
+                15,
+                "Err R-A H/Vz: " + ROUND(altitudeErrorValue, 2)
+                    + " / " + ROUND(descentErrorValue, 2)
+            ).
+            f9_print_at(16, "GFOLD update: " + updateDisplayText).
+            f9_print_at(
+                17,
+                "Total position error: "
+                    + ROUND(displayedPositionError, 2) + " m"
+            ).
+            IF hasShutdown {
+                f9_print_at(18, "GFOLD engine set: final").
+            } ELSE {
+                f9_print_at(18, "GFOLD engine set: deceleration").
+            }
+        } ELSE {
+            f9_print_at(
+                13,
+                "Position error: " + ROUND(displayedPositionError, 2) + " m"
+            ).
+            f9_print_at(
+                14,
+                "Command acceleration: "
+                    + ROUND(accTarget:MAG, 2) + " m/s2"
+            ).
+            IF gfoldWasActive {
+                f9_print_at(15, "GFOLD update: STOP Last:"
+                    + gfoldLastUpdateStatus).
+            } ELSE {
+                f9_print_at(15, "GFOLD update: inactive").
+            }
+            IF hasShutdown {
+                f9_print_at(16, "Engine set: final").
+            } ELSE {
+                f9_print_at(16, "Engine set: deceleration").
+            }
+            f9_print_at(
+                17,
+                "Guidance: " + guidanceMode + "  Vz: "
+                    + ROUND(SHIP:VERTICALSPEED, 2) + " m/s"
+            ).
+            f9_print_at(18, "").
+        }
         WAIT 0.
     }
 
