@@ -9,4 +9,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyVersion("0.1.0.0")]
 [assembly: AssemblyFileVersion("0.1.0.0")]
 [assembly: KSPAssemblyDependency("kOS", 1, 1)]
-[assembly: KSPAssemblyDependency("alglib", 1, 0)]
+
+// MechJeb's alglib.dll is an ordinary CLR assembly (Version=1.0.0.0) and does
+// not declare KSPAssemblyAttribute. KSPAssemblyDependency only matches
+// assemblies registered through that attribute, so declaring "alglib" here
+// makes KSP reject this addon even when the correct DLL is installed. The
+// alglib reference in kOS-GFOLD.csproj retains the actual CLR dependency.

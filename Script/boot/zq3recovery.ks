@@ -18,6 +18,11 @@ GLOBAL F9_PARAMS IS LEXICON(
 
     // Vehicle-specific values. These must be set before flight.
     "boostBackMass", 150,  // After second stage seperation, the mass of first stage should be less than this, ton
+    "DryMass", 41,  // Estimated dry mass for GFOLD; tune for the actual vessel, ton
+    "gfold_engineSwitchTime", 8,
+    "gfold_pitRadius", 0,
+    "gfold_wallBuffer", 0,
+    "gfold_pitDepth", 0,
     "targetRoll", 0,  // Roll angle while whole process, deg
     "altitudeOffset", 0,  // Additional height added to the selected waypoint, or target COM, m
 
@@ -61,7 +66,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Landing burn
     "QuadraticAOABase", 30,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
     "QuadraticAOADot", 1,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
-    "landingBurnAltitude", 2200,  // Ignite decelerating engines (or landing fallback) below this, m
+    "landingBurnAltitude", 2600,  // Ignite decelerating engines (or landing fallback) below this, m
     "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
     "landingPhase2Time", 4,  // time of untargeted landing phase 2, s

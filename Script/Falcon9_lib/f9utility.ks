@@ -1,5 +1,6 @@
 RUNONCEPATH("0:/lib/orbit.ks").
 RUNONCEPATH("0:/lib/engine_utility.ks").
+RUNONCEPATH("0:/Falcon9_lib/GFOLD_defaults.ks").
 
 GLOBAL F9_DISPLAY_TERMINAL_WIDTH IS 50.
 GLOBAL F9_DISPLAY_FIELD_WIDTH IS 48.
@@ -613,6 +614,191 @@ FUNCTION f9_continuous_throttle {
     RETURN MAX(minCommand, MIN(1, simple_get_throttle(requestedFraction, minThrottle))).
 }
 
+// Apply vessel-independent GFOLD defaults without replacing boot values.
+FUNCTION f9_apply_gfold_defaults {
+    PARAMETER configLex.
+    FOR defaultName IN F9_GFOLD_DEFAULTS:KEYS {
+        IF NOT configLex:HASKEY(defaultName) {
+            SET configLex[defaultName] TO F9_GFOLD_DEFAULTS[defaultName].
+        }
+    }
+    RETURN configLex.
+}
+
+// Build the same E-U-N axes and polar fallback used by kOS-GFOLD.
+FUNCTION f9_gfold_make_basis {
+    PARAMETER referenceVec.
+    PARAMETER spinVec.
+
+    LOCAL upVec IS referenceVec:NORMALIZED.
+    LOCAL eastVec IS VCRS(spinVec, upVec).
+    IF eastVec:MAG < 0.0000000001 {
+        LOCAL seedVec IS V(0, 0, 1).
+        IF (ABS(upVec:X) <= ABS(upVec:Y)
+            AND ABS(upVec:X) <= ABS(upVec:Z)) {
+            SET seedVec TO V(1, 0, 0).
+        } ELSE IF ABS(upVec:Y) <= ABS(upVec:Z) {
+            SET seedVec TO V(0, 1, 0).
+        }
+        SET eastVec TO VCRS(seedVec, upVec).
+    }
+    SET eastVec TO eastVec:NORMALIZED.
+    LOCAL northVec IS VCRS(upVec, eastVec):NORMALIZED.
+    RETURN LEXICON(
+        "east", eastVec,
+        "up", upVec,
+        "north", northVec
+    ).
+}
+
+// Express a vector measured in source axes using destination axes. Supplying
+// current/frozen bases maps raw current coordinates into the frozen GFOLD frame;
+// swapping the bases performs the inverse map.
+FUNCTION f9_gfold_map_vector {
+    PARAMETER inputVec.
+    PARAMETER sourceBasis.
+    PARAMETER destinationBasis.
+    RETURN destinationBasis["east"] * VDOT(sourceBasis["east"], inputVec)
+        + destinationBasis["up"] * VDOT(sourceBasis["up"], inputVec)
+        + destinationBasis["north"] * VDOT(sourceBasis["north"], inputVec).
+}
+
+FUNCTION f9_gfold_target_body_position {
+    PARAMETER targetContext.
+    RETURN f9_get_target_position(targetContext) - SHIP:BODY:POSITION.
+}
+
+FUNCTION f9_gfold_bottom_body_position {
+    PARAMETER bottomHeight.
+    RETURN -SHIP:BODY:POSITION - bottomHeight * UP:FOREVECTOR.
+}
+
+// Return the virtual bottom-point state used with a target/basis frozen at
+// initialization. Moving-target velocity is deliberately not subtracted.
+FUNCTION f9_gfold_virtual_state {
+    PARAMETER targetContext.
+    PARAMETER bottomHeight.
+    PARAMETER frozenTargetVec.
+    PARAMETER frozenBasis.
+
+    f9_refresh_target(targetContext).
+    LOCAL currentTargetVec IS f9_gfold_target_body_position(targetContext).
+    LOCAL currentBasis IS f9_gfold_make_basis(
+        currentTargetVec,
+        SHIP:BODY:ANGULARVEL
+    ).
+    LOCAL currentBottomVec IS f9_gfold_bottom_body_position(bottomHeight).
+    LOCAL relativeBottomVec IS currentBottomVec - currentTargetVec.
+    RETURN LEXICON(
+        "position", frozenTargetVec + f9_gfold_map_vector(
+            relativeBottomVec,
+            currentBasis,
+            frozenBasis
+        ),
+        "velocity", f9_gfold_map_vector(
+            SHIP:VELOCITY:SURFACE,
+            currentBasis,
+            frozenBasis
+        ),
+        "currentBasis", currentBasis,
+        "targetPosition", currentTargetVec,
+        "bottomPosition", currentBottomVec
+    ).
+}
+
+// Earliest nonnegative intercept with desiredHeight under constant vertical
+// acceleration. A negative return value means no forward intercept exists.
+FUNCTION f9_gfold_altitude_intercept {
+    PARAMETER currentHeight.
+    PARAMETER verticalRate.
+    PARAMETER verticalAcceleration.
+    PARAMETER desiredHeight.
+
+    LOCAL heightOffset IS currentHeight - desiredHeight.
+    IF heightOffset <= 0 {
+        RETURN 0.
+    }
+    IF ABS(verticalAcceleration) < 0.000001 {
+        IF verticalRate < -0.000001 {
+            RETURN -heightOffset / verticalRate.
+        }
+        RETURN -1.
+    }
+    LOCAL discriminantValue IS verticalRate^2
+        - 2 * verticalAcceleration * heightOffset.
+    IF discriminantValue < 0 {
+        RETURN -1.
+    }
+    LOCAL rootScale IS SQRT(discriminantValue).
+    LOCAL firstRoot IS (-verticalRate - rootScale) / verticalAcceleration.
+    LOCAL secondRoot IS (-verticalRate + rootScale) / verticalAcceleration.
+    LOCAL interceptDuration IS 999999999.
+    IF firstRoot >= 0 {
+        SET interceptDuration TO firstRoot.
+    }
+    IF (secondRoot >= 0 AND secondRoot < interceptDuration) {
+        SET interceptDuration TO secondRoot.
+    }
+    IF interceptDuration = 999999999 {
+        RETURN -1.
+    }
+    RETURN interceptDuration.
+}
+
+FUNCTION f9_gfold_engine_limits {
+    PARAMETER engineInfo.
+    PARAMETER marginFraction.
+    LOCAL physicalMinimum IS engineInfo["minthrottle"].
+    LOCAL safeMinimum IS physicalMinimum
+        + (1 - physicalMinimum) * marginFraction.
+    LOCAL safeMaximum IS 1
+        - (1 - physicalMinimum) * marginFraction.
+    RETURN LEXICON(
+        "thrustMin", engineInfo["thrust"] * safeMinimum,
+        "thrustMax", engineInfo["thrust"] * safeMaximum,
+        "isp", engineInfo["ISP"],
+        "fractionMin", safeMinimum,
+        "fractionMax", safeMaximum
+    ).
+}
+
+FUNCTION f9_gfold_gain_control {
+    PARAMETER gainRows.
+    PARAMETER positionErrorVec.
+    PARAMETER velocityErrorVec.
+    LOCAL errorValues IS LIST(
+        positionErrorVec:X,
+        positionErrorVec:Y,
+        positionErrorVec:Z,
+        velocityErrorVec:X,
+        velocityErrorVec:Y,
+        velocityErrorVec:Z
+    ).
+    LOCAL correctionValues IS LIST(0, 0, 0).
+    FROM {
+        LOCAL gainRowIndex IS 0.
+    } UNTIL gainRowIndex >= 3 STEP {
+        SET gainRowIndex TO gainRowIndex + 1.
+    } DO {
+        LOCAL rowTotal IS 0.
+        FROM {
+            LOCAL gainColumnIndex IS 0.
+        } UNTIL gainColumnIndex >= 6 STEP {
+            SET gainColumnIndex TO gainColumnIndex + 1.
+        } DO {
+            SET rowTotal TO rowTotal
+                + gainRows[gainRowIndex][gainColumnIndex]
+                    * errorValues[gainColumnIndex].
+        }
+        SET correctionValues[gainRowIndex] TO rowTotal.
+    }
+    RETURN V(
+        correctionValues[0],
+        correctionValues[1],
+        correctionValues[2]
+    ).
+}
+
 FUNCTION f9_validate_required_keys {
     PARAMETER params.
     PARAMETER requiredKeys.
@@ -661,6 +847,8 @@ FUNCTION f9_validate_launch_params {
 FUNCTION f9_validate_recovery_params {
     PARAMETER params.
 
+    f9_apply_gfold_defaults(params).
+
     LOCAL requiredKeys IS LIST(
         "kOSIPU", "boostbackEngineTag", "entryEngineTag",
         "landingDecEngineTag", "landingEngineTag", "boostBackMass",
@@ -676,7 +864,16 @@ FUNCTION f9_validate_recovery_params {
         "QuadraticAOADot", "landingBurnAltitude",
         "legDeploySpeed", "touchDownSpeed", "landingPhase2Time",
         "landingCutoffHeight", "boundsUpdatePeriod",
-        "minLandingThrottleCommand"
+        "minLandingThrottleCommand", "DryMass", "gfold_engineSwitchTime",
+        "gfold_pitRadius", "gfold_wallBuffer", "gfold_pitDepth",
+        "gfold_planningTime", "gfold_updateInterval",
+        "gfold_thrustMargin", "gfold_accelerationSmoothing",
+        "gfold_nodes", "gfold_maxSearchEvaluations", "gfold_lqrDt",
+        "gfold_lqrLambda", "gfold_lqrBeta", "gfold_descentMaxSpeed",
+        "gfold_descentTilt", "gfold_descentGlideSlope",
+        "gfold_entryMaxSpeed", "gfold_entryTilt",
+        "gfold_entryGlideSlope", "gfold_terminalTilt",
+        "gfold_terminalTiltWindow", "landingPhase2Alt"
     ).
     IF NOT f9_validate_required_keys(params, requiredKeys, "recovery") {
         RETURN FALSE.
@@ -751,6 +948,93 @@ FUNCTION f9_validate_recovery_params {
     }
     IF (params["touchDownSpeed"] < 0) {
         PRINT "F9 config error: invalid landing speed".
+        SET ok TO FALSE.
+    }
+    IF params["DryMass"] <= 0 {
+        PRINT "F9 config error: DryMass must be positive".
+        SET ok TO FALSE.
+    }
+    IF (params["gfold_pitRadius"] < 0
+        OR params["gfold_wallBuffer"] < 0
+        OR params["gfold_pitDepth"] < 0
+        OR params["gfold_wallBuffer"] > params["gfold_pitRadius"]
+        OR (params["gfold_pitDepth"] > 0
+            AND params["gfold_wallBuffer"] >= params["gfold_pitRadius"])) {
+        PRINT "F9 config error: invalid GFOLD pit geometry".
+        SET ok TO FALSE.
+    }
+    IF (params["gfold_planningTime"] <= 0
+        OR params["gfold_updateInterval"] <= 0
+        OR params["gfold_engineSwitchTime"] < 0) {
+        PRINT "F9 config error: invalid GFOLD planning/update/switch timing".
+        SET ok TO FALSE.
+    }
+    IF (params["gfold_thrustMargin"] < 0
+        OR params["gfold_thrustMargin"] >= 0.5) {
+        PRINT "F9 config error: gfold_thrustMargin must be in [0, 0.5)".
+        SET ok TO FALSE.
+    }
+    IF (params["gfold_accelerationSmoothing"] < 0
+        OR params["gfold_accelerationSmoothing"] > 1) {
+        PRINT "F9 config error: gfold_accelerationSmoothing must be in [0, 1]".
+        SET ok TO FALSE.
+    }
+    IF (params["gfold_nodes"] < 4
+        OR params["gfold_nodes"] > 200
+        OR FLOOR(params["gfold_nodes"]) <> params["gfold_nodes"]
+        OR params["gfold_maxSearchEvaluations"] < 1
+        OR params["gfold_maxSearchEvaluations"] > 200
+        OR FLOOR(params["gfold_maxSearchEvaluations"])
+            <> params["gfold_maxSearchEvaluations"]) {
+        PRINT "F9 config error: invalid GFOLD node/search count".
+        SET ok TO FALSE.
+    }
+    IF (params["gfold_lqrDt"] <= 0
+        OR params["gfold_lqrLambda"] <= 0
+        OR params["gfold_lqrBeta"] < 0) {
+        PRINT "F9 config error: invalid GFOLD LQR settings".
+        SET ok TO FALSE.
+    }
+    IF (params["gfold_descentMaxSpeed"] <= 0
+        OR params["gfold_entryMaxSpeed"] <= 0
+        OR params["gfold_descentTilt"] < 0
+        OR params["gfold_descentTilt"] > 90
+        OR params["gfold_entryTilt"] < 0
+        OR params["gfold_entryTilt"] > 90
+        OR params["gfold_terminalTilt"] < 0
+        OR params["gfold_terminalTilt"] > 90
+        OR params["gfold_descentGlideSlope"] < 0
+        OR params["gfold_descentGlideSlope"] >= 90
+        OR params["gfold_entryGlideSlope"] < 0
+        OR params["gfold_entryGlideSlope"] >= 90
+        OR params["gfold_terminalTiltWindow"] < 0) {
+        PRINT "F9 config error: invalid GFOLD speed/angle constraint".
+        SET ok TO FALSE.
+    }
+    IF (params["landingBurnAltitude"] <= 0
+        OR params["legDeploySpeed"] < 0
+        OR params["landingCutoffHeight"] < 0
+        OR params["boundsUpdatePeriod"] <= 0
+        OR params["minLandingThrottleCommand"] < 0
+        OR params["minLandingThrottleCommand"] > 1
+        OR params["landingPhase2Time"] <= 0
+        OR params["landingPhase2Alt"] <= params["landingCutoffHeight"]
+        OR params["landingPhase2Alt"] >= params["landingBurnAltitude"]) {
+        PRINT "F9 config error: invalid landing phase-2 threshold".
+        SET ok TO FALSE.
+    }
+    IF (params:HASKEY("gfold_tfMin") AND params["gfold_tfMin"] <= 0) {
+        PRINT "F9 config error: gfold_tfMin must be positive".
+        SET ok TO FALSE.
+    }
+    IF (params:HASKEY("gfold_tfMax") AND params["gfold_tfMax"] <= 0) {
+        PRINT "F9 config error: gfold_tfMax must be positive".
+        SET ok TO FALSE.
+    }
+    IF (params:HASKEY("gfold_tfMin")
+        AND params:HASKEY("gfold_tfMax")
+        AND params["gfold_tfMin"] >= params["gfold_tfMax"]) {
+        PRINT "F9 config error: gfold_tfMin must be below gfold_tfMax".
         SET ok TO FALSE.
     }
     RETURN ok.

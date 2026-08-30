@@ -97,9 +97,9 @@ FUNCTION f9_landing_burn {
         SET decEngines TO landingEngines.
     }
     LOCAL shutDownEngines IS LIST().
-    for _eng in decEngines {
-        IF NOT _eng:tag:contains(params["landingEngineTag"]) {
-            shutDownEngines:add(_eng).
+    FOR decEngineRef IN decEngines {
+        IF NOT decEngineRef:TAG:CONTAINS(params["landingEngineTag"]) {
+            shutDownEngines:ADD(decEngineRef).
         }
     }
     LOCAL engineInfo1 IS get_engines_info(decEngines).
@@ -119,6 +119,22 @@ FUNCTION f9_landing_burn {
         RETURN FALSE.
     }
 
+    LOCAL gfoldAvailable IS ADDONS:HASADDON("GFOLD").
+    LOCAL gfoldAddonRef IS 0.
+    IF gfoldAvailable {
+        SET gfoldAddonRef TO ADDONS:GFOLD.
+    } ELSE {
+        f9_print_result("WARNING: kOS-GFOLD unavailable; quadratic fallback armed").
+    }
+    LOCAL engineLimits1 IS f9_gfold_engine_limits(
+        engineInfo1,
+        params["gfold_thrustMargin"]
+    ).
+    LOCAL engineLimits2 IS f9_gfold_engine_limits(
+        engineInfo2,
+        params["gfold_thrustMargin"]
+    ).
+
     LOCAL pitchPID IS PIDLOOP(
         params["aeroPitchKp"],
         params["aeroPitchKi"],
@@ -132,14 +148,24 @@ FUNCTION f9_landing_burn {
 
     f9_refresh_target(targetContext).
     LOCAL vecNormal IS f9_get_surface_normal().
-    LOCAL targetPosition IS f9_get_aero_target_position(
-        params,
-        targetContext,
-        vecNormal
-    ).
     LOCAL bottomHeight IS f9_get_bottom_height(TiS2).
     LOCAL nextBoundsUpdate IS TIME:SECONDS + params["boundsUpdatePeriod"].
-    LOCAL steeringTarget IS f9_get_aero_steering(srfPrograde).
+    LOCAL steeringTarget IS f9_get_aero_steering(SRFPROGRADE).
+    LOCAL currentRadius IS (-SHIP:BODY:POSITION):MAG.
+    LOCAL gravityMagnitude IS SHIP:BODY:MU / currentRadius^2.
+    LOCAL filteredAccelerationVec IS -gravityMagnitude * UP:FOREVECTOR.
+    LOCAL lastSurfaceVelocityVec IS SHIP:VELOCITY:SURFACE.
+    LOCAL lastAccelerationEpoch IS TIME:SECONDS.
+
+    LOCAL gfoldInitStarted IS FALSE.
+    LOCAL gfoldInitRunning IS FALSE.
+    LOCAL gfoldInitReady IS FALSE.
+    LOCAL gfoldInitHandle IS -1.
+    LOCAL gfoldReference IS 0.
+    LOCAL gfoldInitEpoch IS 0.
+    LOCAL frozenTargetVec IS V(0, 0, 0).
+    LOCAL frozenBasis IS 0.
+
     SAS OFF.
     LOCK STEERING TO steeringTarget.
     LOCK THROTTLE TO 0.
@@ -147,8 +173,9 @@ FUNCTION f9_landing_burn {
 
     f9_print_at(11, "Phase: landing - aerodynamic guidance").
     f9_print_at(16, "Ignition: armed  Engines: inactive").
-    LOCAL _engineLitFlag IS FALSE.
-    LOCAL _engineLitTime IS 0.
+    LOCAL engineLitFlag IS FALSE.
+    LOCAL engineLitEpoch IS 0.
+    LOCAL bottomAltitude IS 999999999.
     UNTIL FALSE {
         LOCAL prediction IS f9_ltr_predict(
             params,
@@ -158,23 +185,147 @@ FUNCTION f9_landing_burn {
             99999999999,
             params["landingBurnAltitude"]
         ).
-        SET targetPosition TO prediction["targetPosition"].
+        f9_refresh_target(targetContext).
+        LOCAL currentTargetRawVec IS f9_get_target_position(targetContext).
         IF TIME:SECONDS >= nextBoundsUpdate {
             SET bottomHeight TO f9_get_bottom_height(TiS2).
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
         }
-
-        LOCAL bottomAltitude IS f9_get_bottom_altitude(
-            targetPosition,
+        SET bottomAltitude TO f9_get_bottom_altitude(
+            currentTargetRawVec,
             bottomHeight
         ).
-        LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
-        LOCAL g IS SHIP:BODY:MU / radius^2.
 
-        LOCAL spoolTime IS engineInfo1["spooluptime"].
-        LOCAL futureHeight IS bottomAltitude
-            + SHIP:VERTICALSPEED * spoolTime
-            - 0.5 * g * spoolTime^2.
+        LOCAL accelerationEpoch IS TIME:SECONDS.
+        LOCAL accelerationDelta IS accelerationEpoch - lastAccelerationEpoch.
+        IF accelerationDelta > 0.0001 {
+            LOCAL measuredAccelerationVec IS
+                (SHIP:VELOCITY:SURFACE - lastSurfaceVelocityVec)
+                / accelerationDelta.
+            LOCAL smoothingFraction IS params["gfold_accelerationSmoothing"].
+            SET filteredAccelerationVec TO filteredAccelerationVec
+                    * (1 - smoothingFraction)
+                + measuredAccelerationVec * smoothingFraction.
+            SET lastSurfaceVelocityVec TO SHIP:VELOCITY:SURFACE.
+            SET lastAccelerationEpoch TO accelerationEpoch.
+        }
+
+        LOCAL currentTargetBodyVec IS currentTargetRawVec
+            - SHIP:BODY:POSITION.
+        LOCAL currentBasis IS f9_gfold_make_basis(
+            currentTargetBodyVec,
+            SHIP:BODY:ANGULARVEL
+        ).
+        LOCAL verticalRate IS VDOT(
+            SHIP:VELOCITY:SURFACE,
+            currentBasis["up"]
+        ).
+        LOCAL verticalAcceleration IS VDOT(
+            filteredAccelerationVec,
+            currentBasis["up"]
+        ).
+        LOCAL ignitionDuration IS f9_gfold_altitude_intercept(
+            bottomAltitude,
+            verticalRate,
+            verticalAcceleration,
+            params["landingBurnAltitude"]
+        ).
+
+        IF (gfoldAvailable AND NOT gfoldInitStarted
+            AND ignitionDuration >= 0
+            AND ignitionDuration <= params["gfold_planningTime"]
+            AND SHIP:MASS > params["DryMass"]) {
+            SET gfoldInitStarted TO TRUE.
+            SET gfoldInitRunning TO TRUE.
+            SET frozenTargetVec TO currentTargetBodyVec.
+            SET frozenBasis TO currentBasis.
+            SET gfoldInitEpoch TO TIME:SECONDS + ignitionDuration.
+            LOCAL virtualState IS f9_gfold_virtual_state(
+                targetContext,
+                bottomHeight,
+                frozenTargetVec,
+                frozenBasis
+            ).
+            LOCAL frozenAccelerationVec IS f9_gfold_map_vector(
+                filteredAccelerationVec,
+                virtualState["currentBasis"],
+                frozenBasis
+            ).
+            LOCAL predictedPositionVec IS virtualState["position"]
+                + virtualState["velocity"] * ignitionDuration
+                + 0.5 * frozenAccelerationVec * ignitionDuration^2.
+            LOCAL predictedVelocityVec IS virtualState["velocity"]
+                + frozenAccelerationVec * ignitionDuration.
+            LOCAL pitCenterVec IS frozenTargetVec
+                + params["gfold_pitDepth"] * frozenBasis["up"].
+            LOCAL initArguments IS LEXICON(
+                "stateTime", gfoldInitEpoch,
+                "position", predictedPositionVec,
+                "velocity", predictedVelocityVec,
+                "mass", SHIP:MASS,
+                "mu", SHIP:BODY:MU,
+                "bodyRadius", SHIP:BODY:RADIUS,
+                "bodySpin", SHIP:BODY:ANGULARVEL,
+                "targetPosition", frozenTargetVec,
+                "targetVelocity", -params["touchDownSpeed"]
+                    * frozenBasis["up"],
+                "pitCenter", pitCenterVec,
+                "fuelMass", SHIP:MASS - params["DryMass"],
+                "thrustMin1", engineLimits1["thrustMin"],
+                "thrustMax1", engineLimits1["thrustMax"],
+                "isp1", engineLimits1["isp"],
+                "thrustMin2", engineLimits2["thrustMin"],
+                "thrustMax2", engineLimits2["thrustMax"],
+                "isp2", engineLimits2["isp"],
+                "engineSwitchTime", params["gfold_engineSwitchTime"],
+                "descentMaxSpeed", params["gfold_descentMaxSpeed"],
+                "descentTilt", params["gfold_descentTilt"],
+                "descentGlideSlope", params["gfold_descentGlideSlope"],
+                "entryMaxSpeed", params["gfold_entryMaxSpeed"],
+                "entryTilt", params["gfold_entryTilt"],
+                "entryGlideSlope", params["gfold_entryGlideSlope"],
+                "terminalTilt", params["gfold_terminalTilt"],
+                "terminalTiltWindow", params["gfold_terminalTiltWindow"],
+                "pitRadius", params["gfold_pitRadius"],
+                "wallBuffer", params["gfold_wallBuffer"],
+                "pitDepth", params["gfold_pitDepth"],
+                "nodes", params["gfold_nodes"],
+                "maxSearchEvaluations", params["gfold_maxSearchEvaluations"],
+                "lqrDt", params["gfold_lqrDt"],
+                "lqrLambda", params["gfold_lqrLambda"],
+                "lqrBeta", params["gfold_lqrBeta"]
+            ).
+            IF params:HASKEY("gfold_tfMin") {
+                SET initArguments["tfMin"] TO params["gfold_tfMin"].
+            }
+            IF params:HASKEY("gfold_tfMax") {
+                SET initArguments["tfMax"] TO params["gfold_tfMax"].
+            }
+            SET gfoldInitHandle TO gfoldAddonRef:AsyncInitialize(initArguments).
+            f9_print_at(15, "GFOLD: initialization running").
+        }
+
+        IF (gfoldInitRunning
+            AND gfoldAddonRef:CheckTask(gfoldInitHandle)) {
+            SET gfoldReference TO gfoldAddonRef:GetTaskResult(gfoldInitHandle).
+            SET gfoldInitRunning TO FALSE.
+            IF gfoldReference["ok"] {
+                SET gfoldInitReady TO TRUE.
+                f9_print_at(15, "GFOLD: trajectory ready").
+            } ELSE {
+                f9_print_at(15, "GFOLD: " + gfoldReference["status"]).
+            }
+        }
+
+        LOCAL spoolDuration IS spoolUpTime1.
+        LOCAL currentBottomBodyVec IS f9_gfold_bottom_body_position(bottomHeight).
+        LOCAL futureBottomBodyVec IS currentBottomBodyVec
+            + SHIP:VELOCITY:SURFACE * spoolDuration
+            + 0.5 * filteredAccelerationVec * spoolDuration^2.
+        LOCAL futureHeight IS VDOT(
+            futureBottomBodyVec - currentTargetBodyVec,
+            currentBasis["up"]
+        ).
 
         f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
@@ -188,24 +339,28 @@ FUNCTION f9_landing_burn {
             "Height now/future: " + ROUND(bottomAltitude, 1)
                 + " / " + ROUND(futureHeight, 1) + " m"
         ).
-        IF (futureHeight <= params["landingBurnAltitude"] AND (NOT _engineLitFlag)) {
+        IF (futureHeight <= params["landingBurnAltitude"]
+            AND NOT engineLitFlag) {
             f9_print_at(16, "Ignition condition: met").
             activate_engines(decEngines).
-            SET _engineLitFlag TO TRUE.
-            SET _engineLitTime TO time:seconds.
+            SET engineLitFlag TO TRUE.
+            SET engineLitEpoch TO TIME:SECONDS.
         }
-        IF (_engineLitFlag AND time:seconds >= _engineLitTime + spoolUpTime1) {
+        IF (engineLitFlag
+            AND TIME:SECONDS >= engineLitEpoch + spoolUpTime1
+            AND bottomAltitude <= params["landingBurnAltitude"]) {
             BREAK.
         }
 
-        LOCAL desiredDirection IS srfPrograde.
+        LOCAL desiredDirection IS SRFPROGRADE.
         IF f9_ltr_prediction_is_valid(prediction) {
             LOCAL impactError IS prediction["finalVecR"]
                 - prediction["targetBodyPosition"].
             LOCAL normalizedError IS impactError
-                / MAX(1, (ship:body:position + prediction["targetBodyPosition"]):MAG)
-                * 180 / constant:pi
-                / (1 + ship:q * 101 / 40).  // TO deg, normalized by dynamic pressure
+                / MAX(1, (SHIP:BODY:POSITION
+                    + prediction["targetBodyPosition"]):MAG)
+                * 180 / CONSTANT:PI
+                / (1 + SHIP:Q * 101 / 40).
             LOCAL upAxis IS UP:FOREVECTOR.
             LOCAL downrangeAxis IS VXCL(
                 upAxis,
@@ -217,7 +372,6 @@ FUNCTION f9_landing_burn {
                 SET downrangeAxis TO downrangeAxis:NORMALIZED.
             }
             LOCAL crossrangeAxis IS VCRS(upAxis, downrangeAxis):NORMALIZED.
-
             LOCAL rangeError IS VDOT(normalizedError, downrangeAxis).
             LOCAL crossError IS VDOT(normalizedError, crossrangeAxis).
             LOCAL pitchCommand IS pitchPID:UPDATE(TIME:SECONDS, rangeError).
@@ -225,7 +379,7 @@ FUNCTION f9_landing_burn {
             SET pitchCommand TO MAX(
                 -params["aeroMaxPitch"],
                 MIN(params["aeroMaxPitch"], pitchCommand)
-            ) + addons:ltr:GetAOACmd(ship:airspeed)["AOA"].
+            ) + ADDONS:LTR:GetAOACmd(SHIP:AIRSPEED)["AOA"].
             SET yawCommand TO MAX(
                 -params["aeroMaxYaw"],
                 MIN(params["aeroMaxYaw"], yawCommand)
@@ -240,37 +394,63 @@ FUNCTION f9_landing_burn {
                 "Aero cmd P/Y: " + ROUND(pitchCommand, 2)
                     + " / " + ROUND(yawCommand, 2) + " deg"
             ).
-
-            SET desiredDirection TO srfPrograde * R(-pitchCommand, yawCommand, 0).
+            SET desiredDirection TO SRFPROGRADE
+                * R(-pitchCommand, yawCommand, 0).
         } ELSE {
             f9_print_at(13, "LTR prediction: " + prediction["status"]).
             f9_print_at(14, "Aero command: surface retrograde").
         }
-        f9_print_at(16, "Ignition: armed  Engines: inactive").
+        IF NOT engineLitFlag {
+            f9_print_at(16, "Ignition: armed  Engines: inactive").
+        }
         SET steeringTarget TO f9_get_aero_steering(desiredDirection).
         WAIT 0.
     }
 
+    LOCAL guidanceMode IS "quadratic".
+    IF gfoldInitReady {
+        SET guidanceMode TO "gfold".
+    } ELSE IF gfoldInitStarted {
+        f9_print_result("GFOLD late/failed; quadratic fallback selected").
+    } ELSE IF gfoldAvailable {
+        f9_print_result("GFOLD not started; quadratic fallback selected").
+    }
+    LOCAL gfoldWasActive IS guidanceMode = "gfold".
+    LOCAL gfoldReferenceEnd IS 0.
+    LOCAL gfoldSwitchEpoch IS 0.
+    IF gfoldWasActive {
+        SET gfoldReferenceEnd TO gfoldReference["epoch"]
+            + gfoldReference["tf"].
+        SET gfoldSwitchEpoch TO gfoldInitEpoch
+            + params["gfold_engineSwitchTime"].
+    }
+    LOCAL gfoldUpdateRunning IS FALSE.
+    LOCAL gfoldUpdateHandle IS -1.
+    LOCAL nextGfoldUpdateEpoch IS TIME:SECONDS
+        + params["gfold_updateInterval"].
+
     f9_clear_guidance_display().
-    f9_print_at(11, "Phase: landing - phase 1").
+    f9_print_at(11, "Phase: landing - phase 1 " + guidanceMode).
     f9_print_at(16, "Engines: active  Continuous ignition").
 
-    LOCAL landingPhase IS 1.
-    LOCAL bottomAltitude IS f9_get_bottom_altitude(
-        targetPosition,
-        bottomHeight
+    LOCK maxQuadraticAOA TO
+        (params["QuadraticAOABase"] / (1 + SHIP:Q * 101 / 20)).
+    SET currentRadius TO (-SHIP:BODY:POSITION):MAG.
+    SET gravityMagnitude TO SHIP:BODY:MU / currentRadius^2.
+    LOCK refAccStart TO maxThrust1 * (0.9 + 0.1 * minThrottle1)
+        / SHIP:MASS * (-SHIP:VERTICALSPEED / MAX(0.01, SHIP:AIRSPEED))
+        - gravityMagnitude.
+    LOCK refAccEnd TO MAX(
+        0.5,
+        maxThrust2 * (0.15 + 0.85 * minThrottle2)
+            / SHIP:MASS - gravityMagnitude
     ).
-    LOCK maxQuadraticAOA TO (params["QuadraticAOABase"]/(1+ship:q*101/20)).
-    LOCAL radius IS (-SHIP:BODY:POSITION):MAG.
-    LOCAL g IS SHIP:BODY:MU / radius^2.
-    LOCK refAccStart TO maxThrust1 * (0.9 + 0.1*minThrottle1) / SHIP:MASS * (-ship:verticalspeed / ship:airspeed) - g.
-    LOCK refAccEnd TO max(0.5, maxThrust2 * (0.15 + 0.85*minThrottle2) / SHIP:MASS - g).
     f9_print_at(
         19,
-        "AccStart = " + round(refAccStart, 1)
-        + " ; AccEnd = " + round(refAccEnd, 1) + " m/s2"
+        "AccStart = " + ROUND(refAccStart, 1)
+            + " ; AccEnd = " + ROUND(refAccEnd, 1) + " m/s2"
     ).
-    if (refAccStart <= 0) {
+    IF (guidanceMode = "quadratic" AND refAccStart <= 0) {
         f9_print_result("ERROR: invalid phase-1 acceleration").
         LOCK THROTTLE TO 0.
         deactivate_engines(decEngines).
@@ -278,31 +458,42 @@ FUNCTION f9_landing_burn {
         UNLOCK STEERING.
         RETURN FALSE.
     }
-    LOCAL _refAccStart TO refAccStart.
-    LOCAL _refAccEnd TO refAccEnd.
-    LOCAL _T to -(-ship:verticalspeed - params["touchDownSpeed"]) * 2 / (_refAccStart + _refAccEnd).
-    LOCAL _accDot to (_refAccStart - _refAccEnd) / _T.
-    LOCAL _getTimeToGo to {
-        SET _refAccStart TO refAccStart.
-        SET _refAccEnd TO refAccEnd.
-        return -(-_refAccEnd+sqrt(_refAccEnd*_refAccEnd-2*_accDot*(-ship:verticalSpeed-params["touchDownSpeed"])))/_accDot.
+    LOCAL refAccStartValue IS refAccStart.
+    LOCAL refAccEndValue IS refAccEnd.
+    LOCAL quadraticDuration IS -(
+        -SHIP:VERTICALSPEED - params["touchDownSpeed"]
+    ) * 2 / (refAccStartValue + refAccEndValue).
+    LOCAL accelerationSlope IS
+        (refAccStartValue - refAccEndValue) / quadraticDuration.
+    LOCAL getQuadraticDuration IS {
+        SET refAccStartValue TO refAccStart.
+        SET refAccEndValue TO refAccEnd.
+        RETURN -(
+            -refAccEndValue
+            + SQRT(
+                refAccEndValue^2
+                - 2 * accelerationSlope
+                    * (-SHIP:VERTICALSPEED - params["touchDownSpeed"])
+            )
+        ) / accelerationSlope.
     }.
-    LOCAL timeToGo IS -_T.
+    LOCAL remainingDuration IS MAX(0.02, -quadraticDuration).
 
-    // throttle, steering and engine routine
+    // Shared throttle, steering, and engine routine.
     LOCAL done IS FALSE.
     LOCAL TiS IS TiS1.
-    LOCAL _maxThrust IS maxThrust1.
-    LOCAL minThrottle IS minThrottle1.
-    LOCAL accTarget IS maxThrust1/SHIP:MASS * steeringTarget:forevector.
+    LOCAL activeMaxThrust IS maxThrust1.
+    LOCAL activeMinThrottle IS minThrottle1.
+    LOCAL accTarget IS maxThrust1 / SHIP:MASS * steeringTarget:FOREVECTOR.
     LOCAL throttleTarget IS 1.
     LOCAL hasShutdown IS FALSE.
     LOCK THROTTLE TO throttleTarget.
-    when (not done) then {
-        LOCAL requestedFraction IS accTarget:mag * ship:mass / _maxThrust.
+    WHEN (NOT done) THEN {
+        LOCAL requestedFraction IS accTarget:MAG
+            * SHIP:MASS / activeMaxThrust.
         SET throttleTarget TO f9_continuous_throttle(
             requestedFraction,
-            minThrottle,
+            activeMinThrottle,
             params["minLandingThrottleCommand"]
         ).
         SET steeringTarget TO f9_get_target_steering(
@@ -311,25 +502,218 @@ FUNCTION f9_landing_burn {
             params["targetRoll"],
             vecNormal
         ).
-        return true.
+        RETURN TRUE.
     }
 
     UNTIL SHIP:VERTICALSPEED >= 0
         OR bottomAltitude <= params["landingCutoffHeight"] {
         f9_refresh_target(targetContext).
-        SET targetPosition TO f9_get_target_position(targetContext).
-        if (ship:airspeed < params["legDeploySpeed"] and (not GEAR)) GEAR ON.
+        LOCAL landingTargetRawVec IS f9_get_target_position(targetContext).
+        IF (SHIP:AIRSPEED < params["legDeploySpeed"] AND NOT GEAR) {
+            GEAR ON.
+        }
         IF TIME:SECONDS >= nextBoundsUpdate {
             SET bottomHeight TO f9_get_bottom_height(TiS2).
             SET nextBoundsUpdate TO TIME:SECONDS + params["boundsUpdatePeriod"].
         }
-
         SET bottomAltitude TO f9_get_bottom_altitude(
-            targetPosition,
+            landingTargetRawVec,
             bottomHeight
         ).
+        SET currentRadius TO (-SHIP:BODY:POSITION):MAG.
+        SET gravityMagnitude TO SHIP:BODY:MU / currentRadius^2.
 
-        SET timeToGo TO MAX(0.02, _getTimeToGo()).
+        LOCAL displayedPositionError IS 0.
+        IF (guidanceMode = "terminal" AND gfoldUpdateRunning
+            AND gfoldAddonRef:CheckTask(gfoldUpdateHandle)) {
+            LOCAL discardedUpdateResult IS
+                gfoldAddonRef:GetTaskResult(gfoldUpdateHandle).
+            SET gfoldUpdateRunning TO FALSE.
+        }
+        IF guidanceMode = "gfold" {
+            IF (gfoldUpdateRunning
+                AND gfoldAddonRef:CheckTask(gfoldUpdateHandle)) {
+                LOCAL updateResult IS
+                    gfoldAddonRef:GetTaskResult(gfoldUpdateHandle).
+                SET gfoldUpdateRunning TO FALSE.
+                IF updateResult["ok"] {
+                    LOCAL updateEndEpoch IS updateResult["epoch"]
+                        + updateResult["tf"].
+                    IF (TIME:SECONDS >= updateResult["epoch"]
+                        AND TIME:SECONDS <= updateEndEpoch) {
+                        SET gfoldReference TO updateResult.
+                        SET gfoldReferenceEnd TO updateEndEpoch.
+                    }
+                }
+            }
+
+            SET remainingDuration TO gfoldReferenceEnd - TIME:SECONDS.
+            IF (remainingDuration <= params["landingPhase2Time"]
+                OR bottomAltitude <= params["landingPhase2Alt"]
+                OR TIME:SECONDS < gfoldReference["epoch"]
+                OR TIME:SECONDS > gfoldReferenceEnd) {
+                SET guidanceMode TO "terminal".
+                f9_print_at(11, "Phase: landing - phase 2 terminal").
+            }
+        }
+
+        IF (guidanceMode = "terminal" AND NOT hasShutdown) {
+            deactivate_engines(shutDownEngines).
+            activate_engines(landingEngines).
+            SET TiS TO TiS2.
+            SET activeMaxThrust TO maxThrust2.
+            SET activeMinThrottle TO minThrottle2.
+            SET hasShutdown TO TRUE.
+        }
+
+        IF guidanceMode = "gfold" {
+            IF (NOT hasShutdown AND TIME:SECONDS >= gfoldSwitchEpoch) {
+                deactivate_engines(shutDownEngines).
+                activate_engines(landingEngines).
+                SET TiS TO TiS2.
+                SET activeMaxThrust TO maxThrust2.
+                SET activeMinThrottle TO minThrottle2.
+                SET hasShutdown TO TRUE.
+            }
+
+            LOCAL trackedState IS f9_gfold_virtual_state(
+                targetContext,
+                bottomHeight,
+                frozenTargetVec,
+                frozenBasis
+            ).
+            IF (NOT gfoldUpdateRunning
+                AND TIME:SECONDS >= nextGfoldUpdateEpoch) {
+                LOCAL updateArguments IS LEXICON(
+                    "session", gfoldReference["session"],
+                    "stateTime", TIME:SECONDS,
+                    "position", trackedState["position"],
+                    "velocity", trackedState["velocity"],
+                    "mass", SHIP:MASS,
+                    "previous", gfoldReference,
+                    "maxSearchEvaluations",
+                        params["gfold_maxSearchEvaluations"]
+                ).
+                SET gfoldUpdateHandle TO
+                    gfoldAddonRef:AsyncUpdate(updateArguments).
+                SET gfoldUpdateRunning TO TRUE.
+                SET nextGfoldUpdateEpoch TO TIME:SECONDS
+                    + params["gfold_updateInterval"].
+            }
+
+            LOCAL referenceState IS gfoldAddonRef:GetRefState(LEXICON(
+                "reference", gfoldReference,
+                "time", TIME:SECONDS
+            )).
+            LOCAL positionErrorVec IS referenceState["position"]
+                - trackedState["position"].
+            LOCAL velocityErrorVec IS referenceState["velocity"]
+                - trackedState["velocity"].
+            LOCAL correctionVec IS f9_gfold_gain_control(
+                gfoldReference["K"],
+                positionErrorVec,
+                velocityErrorVec
+            ).
+            LOCAL frozenCommandVec IS referenceState["control"]
+                + correctionVec.
+            SET accTarget TO f9_gfold_map_vector(
+                frozenCommandVec,
+                frozenBasis,
+                trackedState["currentBasis"]
+            ).
+            SET displayedPositionError TO positionErrorVec:MAG.
+        } ELSE {
+            IF NOT gfoldWasActive {
+                SET remainingDuration TO MAX(0.02, getQuadraticDuration()).
+            } ELSE {
+                SET remainingDuration TO MAX(
+                    0.02,
+                    gfoldReferenceEnd - TIME:SECONDS
+                ).
+            }
+            IF (guidanceMode = "quadratic"
+                AND (remainingDuration <= params["landingPhase2Time"]
+                    OR bottomAltitude <= params["landingPhase2Alt"])) {
+                SET guidanceMode TO "terminal".
+                f9_print_at(11, "Phase: landing - phase 2 terminal").
+                IF NOT hasShutdown {
+                    deactivate_engines(shutDownEngines).
+                    activate_engines(landingEngines).
+                    SET TiS TO TiS2.
+                    SET activeMaxThrust TO maxThrust2.
+                    SET activeMinThrottle TO minThrottle2.
+                    SET hasShutdown TO TRUE.
+                }
+            }
+
+            LOCAL upAxis IS UP:FOREVECTOR.
+            LOCAL relativePosition IS -landingTargetRawVec
+                - bottomHeight * upAxis.
+            LOCAL relativeVelocity IS SHIP:VELOCITY:SURFACE.
+            LOCAL quadraticTargetPosition IS V(0, 0, 0).
+            LOCAL targetVelocityVec IS -params["touchDownSpeed"] * upAxis.
+            LOCAL targetAccelerationVec IS refAccEnd * upAxis.
+            LOCAL maxAoaValue IS 0.
+            IF guidanceMode = "quadratic" {
+                SET maxAoaValue TO MIN(
+                    maxQuadraticAOA,
+                    params["QuadraticAOADot"] * remainingDuration
+                ).
+            }
+            LOCAL quadraticControl IS f9_quadratic_fixed_time(
+                relativePosition,
+                relativeVelocity,
+                quadraticTargetPosition,
+                targetVelocityVec,
+                targetAccelerationVec,
+                remainingDuration,
+                maxAoaValue,
+                upAxis,
+                gravityMagnitude
+            ).
+            IF guidanceMode = "terminal" {
+                // Preserve the original upward-biased retrograde terminal command.
+                SET accTarget TO quadraticControl["cmdA"]:MAG
+                    * (-SHIP:VELOCITY:SURFACE
+                        + 10 * UP:FOREVECTOR):NORMALIZED.
+            } ELSE {
+                SET accTarget TO quadraticControl["cmdA"].
+            }
+            SET displayedPositionError TO
+                (quadraticControl["RT"] - quadraticTargetPosition):MAG.
+
+            // Preserve the original sampled-demand engine-switch logic when
+            // phase 1 is running on the quadratic fallback.
+            IF (guidanceMode = "quadratic" AND NOT hasShutdown) {
+                LOCAL thrustCutoff IS maxThrust2
+                    * (0.85 + 0.15 * minThrottle2).
+                LOCAL timeSamples IS LIST().
+                mlinspace(quadraticControl["qT"], 0, 5, timeSamples).
+                LOCAL shutdownFlag IS TRUE.
+                FOR sampleEpochOffset IN timeSamples {
+                    LOCAL commandThrust IS (
+                        targetAccelerationVec
+                        + quadraticControl["qJ"] * sampleEpochOffset
+                        + 0.5 * quadraticControl["qS"]
+                            * sampleEpochOffset^2
+                        + upAxis * gravityMagnitude
+                    ):MAG * SHIP:MASS.
+                    IF commandThrust > thrustCutoff {
+                        SET shutdownFlag TO FALSE.
+                        BREAK.
+                    }
+                }
+                IF shutdownFlag {
+                    deactivate_engines(shutDownEngines).
+                    activate_engines(landingEngines).
+                    SET TiS TO TiS2.
+                    SET activeMaxThrust TO maxThrust2.
+                    SET activeMinThrottle TO minThrottle2.
+                    SET hasShutdown TO TRUE.
+                }
+            }
+        }
+
         f9_print_target_position(targetContext).
         f9_print_recovery_vehicle().
         f9_print_at(
@@ -337,74 +721,19 @@ FUNCTION f9_landing_burn {
             "Altitude: " + ROUND(SHIP:ALTITUDE, 1)
                 + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
         ).
-        f9_print_at(12, "Time to go: " + ROUND(timeToGo, 2) + " s").
-        IF (timeToGo <= params["landingPhase2Time"]) {
-            f9_print_at(11, "Phase: landing - phase 2").
-            SET landingPhase TO 2.
-        }
-
-        LOCAL upAxis IS UP:FOREVECTOR.
-        LOCAL relativePosition IS -targetPosition - bottomHeight * upAxis.
-        LOCAL relativeVelocity IS SHIP:VELOCITY:SURFACE.
-        LOCAL quadraticTargetPosition IS V(0, 0, 0).
-        LOCAL targetVelocity IS -params["touchDownSpeed"] * upAxis.
-        LOCAL targetAcceleration IS refAccEnd * upAxis.
-        LOCAL _maxAOA TO 0.
-        IF (landingPhase = 1) SET _maxAOA TO min(maxQuadraticAOA, params["QuadraticAOADot"]*timeToGo).
-        ELSE SET _maxAOA TO 0.
-        LOCAL quadraticControl IS f9_quadratic_fixed_time(
-            relativePosition,
-            relativeVelocity,
-            quadraticTargetPosition,
-            targetVelocity,
-            targetAcceleration,
-            timeToGo,
-            _maxAOA,
-            upAxis,
-            g
-        ).
-        IF landingPhase = 2 {
-            // Need to add up additional vertical component to avoid divergence when approaching ground
-            SET accTarget TO quadraticControl["cmdA"]:mag * (-ship:velocity:surface + 10*up:forevector):normalized.
-        }
-        ELSE SET accTarget TO quadraticControl["cmdA"].
-        // set _drawAcc to vecDraw(V(0,0,0), accelerationShip * 5, RGB(0, 255, 0), "Acc", 1, true).
-
-        // Shutdown decelerate engines logic: Sample N points in the trajectory to test if they are all lower than thrust cutoff
-        if (NOT hasShutdown) {
-            LOCAL thrustCutoff IS maxThrust2 * (0.85 + 0.15*minThrottle2).
-            LOCAL timeSeq IS LIST().
-            mlinspace(quadraticControl["qT"], 0, 5, timeSeq).
-            LOCAL shutdownFlag TO TRUE.
-            for _qT in timeSeq {
-                LOCAL cmdThrust TO (targetAcceleration + quadraticControl["qJ"]*_qT + 0.5*quadraticControl["qS"]*_qT^2 + upAxis*g):mag * ship:mass.
-                if (cmdThrust > thrustCutoff) {
-                    SET shutdownFlag TO FALSE.
-                    BREAK.
-                }
-            }
-            if (shutdownFlag) {
-                deactivate_engines(shutDownEngines).
-                activate_engines(landingEngines).
-                SET TiS TO TiS2.
-                SET _maxThrust TO maxThrust2.
-                SET minThrottle TO minThrottle2.
-                SET hasShutdown TO TRUE.
-            }
-        }
-
+        f9_print_at(12, "Time to go: " + ROUND(remainingDuration, 2) + " s").
         f9_print_at(
             13,
-            "Position error: " + ROUND((quadraticControl["RT"]-quadraticTargetPosition):mag, 2) + " m"
+            "Position error: " + ROUND(displayedPositionError, 2) + " m"
         ).
         f9_print_at(
             14,
-            "Command acceleration: "
-                + ROUND(accTarget:MAG, 2) + " m/s2"
+            "Command acceleration: " + ROUND(accTarget:MAG, 2) + " m/s2"
         ).
         f9_print_at(
             15,
-            "Throttle req/cmd: " + ROUND(accTarget:MAG*ship:mass/_maxThrust, 3)
+            "Throttle req/cmd: "
+                + ROUND(accTarget:MAG * SHIP:MASS / activeMaxThrust, 3)
                 + " / " + ROUND(throttleTarget, 3)
         ).
         f9_print_at(
@@ -414,8 +743,8 @@ FUNCTION f9_landing_burn {
         ).
         f9_print_at(
             17,
-            "Local vertical speed: "
-                + ROUND(ship:verticalspeed, 2) + " m/s"
+            "Guidance: " + guidanceMode + "  Vz: "
+                + ROUND(SHIP:VERTICALSPEED, 2) + " m/s"
         ).
         WAIT 0.
     }
@@ -426,8 +755,11 @@ FUNCTION f9_landing_burn {
     deactivate_engines(landingEngines).
     SET done TO TRUE.
     LOCK THROTTLE TO 0.
-    LOCK steering TO lookDirUp(up:forevector, (ship:facing*TiS:inverse):topvector) * TiS.
-    WAIT 5.  // 5 seconds to hold rocket upward
+    LOCK STEERING TO LOOKDIRUP(
+        UP:FOREVECTOR,
+        (SHIP:FACING * TiS:INVERSE):TOPVECTOR
+    ) * TiS.
+    WAIT 5.
     UNLOCK THROTTLE.
     UNLOCK STEERING.
     RETURN TRUE.
