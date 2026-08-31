@@ -20,7 +20,7 @@ The addon:
 Frontend usage:
 
 1. Before powered descent, predict the vehicle state about `gfoldInitTime = 2 s` into the future and call `Initialize` with that future state/time.
-2. During powered descent, normally every `gfoldUpdateTime = 1 s`, call `Update` with the current state and the previous GFOLD result. `Update` uses the previous solution to seed the new time search.
+2. During powered descent, normally every `gfoldUpdateTime = 1 s`, call `Update` with the current state and the previous GFOLD result. `Update` keeps the initialization solution's absolute entry and landing epochs frozen and solves one fixed-time inner problem; it performs no time search.
 3. When the previous solution has less than about `gfoldFinalTime = 3 s` remaining, stop replanning and track the latest trajectory to touchdown.
 
 Only one solve should be active per planner session. The flight front end should not queue updates faster than they complete.
@@ -399,28 +399,38 @@ Scale position by `L`, velocity by `V_*`, acceleration / `u` / `sigma` by `a_*`,
 s=t_e/t_f,\qquad 0<s<1.
 \]
 
-Use a deterministic coarse-to-fine search with a default budget of **20 time candidates**. Each hard candidate requires P1 and P2.
+During `Initialize`, use a deterministic coarse-to-fine search with a default budget of **20 time candidates**. Each hard candidate requires P1 and P2.
 
 Rank candidates lexicographically: minimum horizontal landing error first, then
 minimum fuel for candidates tied within landing-error tolerance, then deterministic
 evaluation order. Surface cold searches use a seven-point grid followed by bracket
 refinement. Pit cold searches use a `4 x 3` `(t_f,s)` grid followed by half-spacing
-refinement. Updates first evaluate a local neighborhood around the previous remaining
-times and fall back to the cold search only if no local candidate succeeds.
+refinement.
 
 `Initialize` performs the cold search.
 
-`Update` centers a local search on the remaining times from the previous result:
+After a successful initialization, freeze the absolute landing and entry epochs:
 
 \[
-t_{f,\mathrm{guess}}=(\text{previous epoch}+t_f^{\mathrm{previous}})-\text{current stateTime},
+T_f=\text{initial epoch}+t_f^{\mathrm{initial}},
 \]
 
 \[
-t_{e,\mathrm{guess}}=(\text{previous epoch}+t_e^{\mathrm{previous}})-\text{current stateTime}.
+T_e=\text{initial epoch}+t_e^{\mathrm{initial}}.
 \]
 
-If entry has already occurred, omit the `t_e` search and solve the entry phase only. If the local search fails, fall back to the bounded cold search within the configured evaluation budget.
+Every `Update` uses exactly
+
+\[
+t_f=T_f-\text{current stateTime},\qquad
+t_e=T_e-\text{current stateTime},
+\]
+
+and runs one hard P1/P2 pair followed by validation. It performs no local or cold
+outer search and never changes `T_f` or `T_e`. If pit entry has already occurred,
+return `t_e=0` and solve only the entry phase. A failed fixed-time inner solve is
+returned directly; it is not converted to `TIME_BUDGET_EXCEEDED` by the outer-search
+watchdog.
 
 Search-only soft constraints may be used to rank otherwise infeasible time candidates, but every returned trajectory must come from the hard P1/P2 problems and pass physical validation.
 
@@ -545,8 +555,8 @@ Owns `Initialize`, `Update`, and reference-state sampling.
 1. load immutable session;
 2. transform current state into the same local frame;
 3. compute remaining engine-switch time from the stored switch epoch;
-4. use the previous trajectory/times to seed the local outer search;
-5. solve P1/P2;
+4. derive remaining entry and landing durations from the session-frozen absolute epochs;
+5. solve exactly one fixed-time P1/P2 pair, without an outer search;
 6. validate and return a replacement trajectory.
 
 ### `FrameModel`
@@ -577,8 +587,10 @@ FOH reference state/control samples analytically.
 
 - 1D search for surface landing;
 - 2D `(t_f,s)` search for pit landing;
-- default 20 candidate evaluations for cold initialization;
-- local search around previous `t_f,t_e` for updates.
+- default 20 candidate evaluations for cold initialization only.
+
+`Update` bypasses `TimeSearch` and sends one session-frozen time candidate directly
+to the inner P1/P2 solver.
 
 ### `GfoldProblemBuilder`
 
@@ -692,16 +704,16 @@ Synchronous receding-horizon update. It blocks the caller and is intended mainly
 | `velocity` | Vector | m/s | Current body-fixed velocity. |
 | `mass` | Scalar | t | Current mass. |
 | `previous` | Lexicon | — | Previous successful `Initialize`/`Update` result, including trajectory and `t_e/t_f`. |
-| `maxSearchEvaluations` | Scalar integer | — | Optional local-search budget. If omitted, use the session default. |
 
 `Update` does **not** accept new body, engine, target, pit, guidance, or LQR configuration. Those remain fixed in the session.
 
 Behavior:
 
-- derive remaining `t_f`, `t_e`, and engine-switch timing from `previous`, `stateTime`, and the session;
-- use the previous trajectory/times as the search seed;
+- derive remaining `t_f`, `t_e`, and engine-switch timing from the absolute event epochs frozen by `Initialize`;
+- verify that `previous` belongs to the latest successful update chain and preserves those event epochs;
+- solve exactly one hard fixed-time P1/P2 pair and validate it;
 - if the pit has already been entered, solve only the entry phase;
-- if the local search fails, fall back to a bounded cold search;
+- return an inner-solver failure directly without attempting another time candidate;
 - return a complete replacement trajectory from the new `stateTime`.
 
 The frontend should normally stop calling `Update` when the previous trajectory has less than about 3 s remaining.
@@ -760,7 +772,7 @@ malformed, failed, or unknown-session references throw `KOSException`.
 | `te` | Scalar | Remaining pit-entry time from `epoch`; for surface mode `te=tf`. |
 | `landingError` | Scalar | P1 horizontal landing error in metres. |
 | `fuelUsed` | Scalar | Fuel consumed by the returned trajectory in tonnes. |
-| `searchEvaluations` | Scalar integer | Number of outer time candidates tested. |
+| `searchEvaluations` | Scalar integer | Number of time candidates tested; exactly 1 for an `Update` that reaches the inner solver. |
 | `K` | List of 3 Lists | Session-constant physical body-fixed 3 by 6 LQR gain; present only when `ok=true`. |
 | `trajectory` | List | Major-node trajectory described below. |
 
@@ -791,7 +803,7 @@ kOS-GFOLD.Cli.exe selftest
 `solve` uses the `Initialize` field names, including `lqrDt`, with vectors encoded as three-element JSON
 arrays. `sequence` contains an `initialize` object and an ordered `updates` array;
 the process retains the planner session and automatically uses each successful result
-as the next update seed. JSON is written to standard output when `--output` is omitted.
+as the next accepted-chain reference. JSON is written to standard output when `--output` is omitted.
 Exit codes are `0` for success, `2` for a planner failure, `64` for invalid input, and
 `70` for an unexpected internal error.
 
@@ -806,10 +818,10 @@ NumPy/SciPy and produces trajectory and constraint plots with Matplotlib.
 1. Use **ALGLIB GENIPM only**. Do not implement or maintain another SOCP backend.
 2. Use sparse problem assembly and mandatory normalization.
 3. `nodes = 20` is the nominal performance case.
-4. Performance target: a complete 20-node cold initialization with about 20 outer time candidates (P1 + P2 per hard candidate) should finish in about **1 s** on a normal desktop KSP installation; **2 s** is the watchdog/failure ceiling. Periodic `Update` should normally be faster because it starts from the previous time solution.
+4. Performance target: a complete 20-node cold initialization with about 20 outer time candidates (P1 + P2 per hard candidate) should finish in about **1 s** on a normal desktop KSP installation; **2 s** is the initialization-search watchdog/failure ceiling. Periodic `Update` should be faster because it runs one fixed-time P1/P2 pair.
 5. Background solving is mandatory for flight use.
 6. The addon must contain no direct vessel/body KSP state acquisition.
-7. The previous trajectory is a seed, never a correctness requirement; every update must independently satisfy and validate the current hard problem.
+7. The previous trajectory identifies the accepted update chain and must preserve the session-frozen event epochs; every update independently satisfies and validates the current fixed-time hard problem.
 8. The final few seconds are tracking-only by frontend policy, not a special solver mode.
 9. Do not add aerodynamic drag, rigid-body attitude dynamics, thrust-direction slew constraints, or integer engine decisions to this version.
 

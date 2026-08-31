@@ -64,7 +64,7 @@ namespace kOS.AddOns.GFOLDAddon
         private static UpdateRequest ParseUpdate(Lexicon a)
         {
             Structure raw = Required(a, "previous"); Lexicon previousLex = raw as Lexicon; if (previousLex == null) throw new KOSException("Argument 'previous' must be a Lexicon"); PlannerResult previous = new PlannerResult { Ok = B(previousLex, "ok"), Session = I(previousLex, "session"), Epoch = D(previousLex, "epoch"), Tf = D(previousLex, "tf"), Te = D(previousLex, "te"), Status = PlannerStatus.Solved };
-            return new UpdateRequest { Session = I(a, "session"), StateTime = D(a, "stateTime"), Position = V(a, "position"), Velocity = V(a, "velocity"), Mass = D(a, "mass"), Previous = previous, MaxSearchEvaluations = OIValue(a, "maxSearchEvaluations") };
+            return new UpdateRequest { Session = I(a, "session"), StateTime = D(a, "stateTime"), Position = V(a, "position"), Velocity = V(a, "velocity"), Mass = D(a, "mass"), Previous = previous };
         }
         private static PlannerResult ParseReference(Structure raw)
         {
@@ -76,7 +76,6 @@ namespace kOS.AddOns.GFOLDAddon
         private static double D(Lexicon a, string name) { ScalarValue s = Required(a, name) as ScalarValue; if (s == null) throw new KOSException("Argument '" + name + "' must be a Scalar"); double d = s.GetDoubleValue(); if (!Vec3.Finite(d)) throw new KOSException("Argument '" + name + "' must be finite"); return d; }
         private static int I(Lexicon a, string name) { double d = D(a, name); if (Math.Abs(d - Math.Round(d)) > 1e-9) throw new KOSException("Argument '" + name + "' must be an integer"); return Convert.ToInt32(d); }
         private static int OI(Lexicon a, string name, int fallback) { Structure ignored; return a.TryGetValue(new StringValue(name), out ignored) ? I(a, name) : fallback; }
-        private static int? OIValue(Lexicon a, string name) { Structure ignored; return a.TryGetValue(new StringValue(name), out ignored) ? (int?)I(a, name) : null; }
         private static double? OD(Lexicon a, string name) { Structure ignored; return a.TryGetValue(new StringValue(name), out ignored) ? (double?)D(a, name) : null; }
         private static double ODValue(Lexicon a, string name, double fallback) { Structure ignored; return a.TryGetValue(new StringValue(name), out ignored) ? D(a, name) : fallback; }
         private static Vec3 V(Lexicon a, string name) { Vector v = Required(a, name) as Vector; if (v == null) throw new KOSException("Argument '" + name + "' must be a Vector"); return new Vec3(v.X, v.Y, v.Z); }

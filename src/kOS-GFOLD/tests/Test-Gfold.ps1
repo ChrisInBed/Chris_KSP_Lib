@@ -10,6 +10,12 @@ $fixtures = Join-Path $PSScriptRoot 'fixtures'
 $results = Join-Path $PSScriptRoot 'results'
 $analyzer = Join-Path $projectRoot 'tools\analyze_gfold.py'
 
+function Assert-Near([double]$Actual, [double]$Expected, [double]$Tolerance, [string]$Label) {
+    if ([Math]::Abs($Actual - $Expected) -gt $Tolerance) {
+        throw "${Label}: expected $Expected, got $Actual"
+    }
+}
+
 New-Item -ItemType Directory -Path $results -Force | Out-Null
 dotnet msbuild $cliProject -p:Configuration=$Configuration -v:minimal
 if ($LASTEXITCODE -ne 0) { throw 'CLI build failed' }
@@ -38,6 +44,40 @@ if (-not $sequence.ok -or $sequence.updates.Count -lt 1 -or -not $sequence.updat
 $initialK = $sequence.initialize.K | ConvertTo-Json -Compress
 $updatedK = $sequence.updates[0].K | ConvertTo-Json -Compress
 if ($initialK -cne $updatedK) { throw 'LQR gain changed across Update' }
+$initialLandingEpoch = $sequence.initialize.epoch + $sequence.initialize.tf
+$updatedLandingEpoch = $sequence.updates[0].epoch + $sequence.updates[0].tf
+if ([Math]::Abs($initialLandingEpoch - $updatedLandingEpoch) -gt 1e-8) { throw 'Update changed the frozen landing epoch' }
+if ($sequence.updates[0].searchEvaluations -ne 1) { throw 'Update did not run exactly one fixed-time inner candidate' }
+
+# Exercise a pit update on both sides of the frozen entry epoch. States are
+# taken from the independently solved cold trajectory so the fixed-time inner
+# problems are known to be feasible.
+$pitScenario = Get-Content -Raw -LiteralPath (Join-Path $fixtures 'pit.json') | ConvertFrom-Json
+$pitResult = Get-Content -Raw -LiteralPath (Join-Path $results 'pit-result.json') | ConvertFrom-Json
+$pitEntryEpoch = $pitResult.epoch + $pitResult.te
+$pitLandingEpoch = $pitResult.epoch + $pitResult.tf
+$beforeEntry = $pitResult.trajectory | Where-Object { $_.time -gt $pitResult.epoch -and $_.time -lt $pitEntryEpoch } | Select-Object -Last 1
+$afterEntry = $pitResult.trajectory | Where-Object { $_.time -gt $pitEntryEpoch -and $_.time -lt $pitLandingEpoch } | Select-Object -First 1
+$pitSequenceInput = [ordered]@{
+    initialize = $pitScenario
+    updates = @(
+        [ordered]@{ stateTime = $beforeEntry.time; position = $beforeEntry.position; velocity = $beforeEntry.velocity; mass = $beforeEntry.mass },
+        [ordered]@{ stateTime = $afterEntry.time; position = $afterEntry.position; velocity = $afterEntry.velocity; mass = $afterEntry.mass }
+    )
+}
+$pitSequencePath = Join-Path $results 'pit-fixed-sequence.json'
+$pitSequenceResult = Join-Path $results 'pit-fixed-sequence-result.json'
+$pitSequenceInput | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $pitSequencePath -Encoding UTF8
+& $cli sequence --input $pitSequencePath --output $pitSequenceResult
+if ($LASTEXITCODE -ne 0) { throw 'Pit fixed-time sequence failed' }
+$pitSequence = Get-Content -Raw -LiteralPath $pitSequenceResult | ConvertFrom-Json
+if (-not $pitSequence.ok -or $pitSequence.updates.Count -ne 2) { throw 'Pit fixed-time sequence is incomplete' }
+foreach ($pitUpdate in $pitSequence.updates) {
+    if (-not $pitUpdate.ok -or $pitUpdate.searchEvaluations -ne 1) { throw 'Pit Update did not run one fixed-time candidate' }
+    Assert-Near ($pitUpdate.epoch + $pitUpdate.tf) $pitLandingEpoch 1e-8 'pit frozen landing epoch'
+}
+Assert-Near ($pitSequence.updates[0].epoch + $pitSequence.updates[0].te) $pitEntryEpoch 1e-8 'pit frozen entry epoch before entry'
+Assert-Near $pitSequence.updates[1].te 0 0 'pit entry-only update semantics'
 
 $benchmarkResult = Join-Path $results 'benchmark-20x20-result.json'
 & $cli solve --input (Join-Path $fixtures 'benchmark-20x20.json') --output $benchmarkResult

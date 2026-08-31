@@ -218,8 +218,10 @@ The landing burn uses one continuous loop containing three guidance regimes:
 1. **GFOLD phase 1:** BORG analytically samples the reference state and control,
    computes the six-component position/velocity error, applies the returned
    3x6 LQR gain, and commands `u_ref + K e`. At most one asynchronous update is
-   started per `gfold_updateInterval`. A failed update is discarded while the
-   last accepted reference remains active. Engines switch at the cold-solve
+   started per `gfold_updateInterval`. Each update freezes the cold solution's
+   absolute entry and landing epochs and solves one fixed-time P1/P2 pair without
+   an outer time search. A failed update is discarded while the last accepted
+   reference remains active. Engines switch at the cold-solve
    epoch plus `gfold_engineSwitchTime`.
 2. **Quadratic fallback:** if GFOLD is missing, late, infeasible, or fails its
    cold solve, the original AOA-constrained fixed-time controller flies phase
@@ -384,7 +386,7 @@ omits them:
 | `gfold_thrustMargin` | `0.1` | Fraction of usable throttle span reserved at each end. |
 | `gfold_accelerationSmoothing` | `0.2` | New-sample weight in the acceleration filter. |
 | `gfold_nodes` | `20` | Exact number of GFOLD state nodes. |
-| `gfold_maxSearchEvaluations` | `20` | Cold/update outer-search budget. |
+| `gfold_maxSearchEvaluations` | `20` | Cold initialization outer-search budget; updates do not search event times. |
 | `gfold_lqrDt` | `0.1` | Discrete LQR controller period. |
 | `gfold_lqrLambda` | `0.5` | LQR control-deviation weight. |
 | `gfold_lqrBeta` | `1` | LQR velocity-error weight relative to position. |

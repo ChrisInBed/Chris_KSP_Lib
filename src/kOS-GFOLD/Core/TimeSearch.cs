@@ -11,12 +11,6 @@ namespace KOSGFOLD.Core
         {
             SearchOutcome o = new SearchOutcome(); if (!pit) SearchSurface(o, tfMin, tfMax, budget, watch, solve, null); else SearchPit(o, tfMin, tfMax, budget, watch, solve, null, 0); return o;
         }
-        internal static SearchOutcome Local(double tfMin, double tfMax, bool pit, int budget, Stopwatch watch, Func<double, double, PlannerResult> solve, double tfGuess, double teGuess)
-        {
-            SearchOutcome o = new SearchOutcome(); HashSet<string> seen = new HashSet<string>(); if (!pit) { foreach (double f in new[] { 0.8, 0.9, 1.0, 1.1, 1.2 }) Evaluate(o, Clamp(tfGuess * f, tfMin, tfMax), 1, budget, watch, solve, seen); if (o.Best == null) SearchSurface(o, tfMin, tfMax, budget, watch, solve, seen); }
-            else { double sg = Clamp(teGuess / Math.Max(tfGuess, 1e-6), 0.02, 0.98); foreach (double f in new[] { 0.85, 1.0, 1.15 }) foreach (double ds in new[] { -0.1, 0.0, 0.1 }) Evaluate(o, Clamp(tfGuess * f, tfMin, tfMax), Clamp(sg + ds, 0.02, 0.98), budget, watch, solve, seen); if (o.Best == null) SearchPit(o, tfMin, tfMax, budget, watch, solve, seen, o.Evaluations); }
-            return o;
-        }
         private static void SearchSurface(SearchOutcome o, double lo, double hi, int budget, Stopwatch watch, Func<double, double, PlannerResult> solve, HashSet<string> seen)
         {
             if (seen == null) seen = new HashSet<string>(); List<double> sampled = new List<double>(); for (int i = 0; i < 7; ++i) { double tf = lo + (hi - lo) * i / 6; sampled.Add(tf); Evaluate(o, tf, 1, budget, watch, solve, seen); }

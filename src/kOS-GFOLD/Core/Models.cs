@@ -18,7 +18,7 @@ namespace KOSGFOLD.Core
 
     public sealed class UpdateRequest
     {
-        public int Session; public double StateTime; public Vec3 Position; public Vec3 Velocity; public double Mass; public PlannerResult Previous; public int? MaxSearchEvaluations;
+        public int Session; public double StateTime; public Vec3 Position; public Vec3 Velocity; public double Mass; public PlannerResult Previous;
     }
 
     public sealed class TrajectoryPoint
@@ -51,7 +51,7 @@ namespace KOSGFOLD.Core
     internal sealed class PlannerSession
     {
         internal readonly int Id; internal readonly InitializeRequest Config; internal readonly FrameModel Frame; internal readonly double DryMass; internal readonly double SwitchEpoch;
-        internal readonly EngineMode Mode1, Mode2; internal readonly Normalizer TrackerScale; internal readonly double[,] Gain; internal readonly object Gate = new object(); internal bool Active; internal double LatestEpoch;
+        internal readonly EngineMode Mode1, Mode2; internal readonly Normalizer TrackerScale; internal readonly double[,] Gain; internal readonly object Gate = new object(); internal bool Active; internal double LatestEpoch, LandingEpoch, EntryEpoch; internal bool EventsFrozen;
         internal PlannerSession(int id, InitializeRequest c, FrameModel frame)
         {
             Id = id; Config = c; Frame = frame; DryMass = c.Mass - c.FuelMass; SwitchEpoch = c.StateTime + c.EngineSwitchTime; Mode1 = new EngineMode(c.ThrustMin1, c.ThrustMax1, c.Isp1); Mode2 = new EngineMode(c.ThrustMin2, c.ThrustMax2, c.Isp2); LatestEpoch = c.StateTime;
@@ -78,7 +78,7 @@ namespace KOSGFOLD.Core
             FrameModel f = new FrameModel(r.PitCenter, r.BodySpin, r.Mu); Vec3 target = f.ToLocalPosition(r.TargetPosition); double tol = Math.Max(0.01, 1e-6 * Math.Max(1, Math.Max(r.PitDepth, r.PitRadius)));
             Vec3 expected = new Vec3(0, -r.PitDepth, 0); if ((target - expected).Norm > tol) throw new ArgumentException("targetPosition must be the center of the cylinder floor (local [0,-pitDepth,0])");
         }
-        internal static void ValidateUpdate(UpdateRequest r) { if (r == null) throw new ArgumentNullException("request"); if (r.Session <= 0) throw new ArgumentException("session must be positive"); Finite(r.StateTime, "stateTime"); Vector(r.Position, "position"); Vector(r.Velocity, "velocity"); Positive(r.Mass, "mass"); if (r.Previous == null || !r.Previous.Ok) throw new ArgumentException("previous must be a successful planner result"); if (r.MaxSearchEvaluations.HasValue && (r.MaxSearchEvaluations < 1 || r.MaxSearchEvaluations > 200)) throw new ArgumentException("maxSearchEvaluations must be in [1,200]"); }
+        internal static void ValidateUpdate(UpdateRequest r) { if (r == null) throw new ArgumentNullException("request"); if (r.Session <= 0) throw new ArgumentException("session must be positive"); Finite(r.StateTime, "stateTime"); Vector(r.Position, "position"); Vector(r.Velocity, "velocity"); Positive(r.Mass, "mass"); if (r.Previous == null || !r.Previous.Ok) throw new ArgumentException("previous must be a successful planner result"); Finite(r.Previous.Epoch, "previous.epoch"); Positive(r.Previous.Tf, "previous.tf"); Finite(r.Previous.Te, "previous.te"); if (r.Previous.Te < 0) throw new ArgumentException("previous.te must be non-negative"); }
         private static void Engine(double lo, double hi, double isp, string suffix) { Positive(lo, "thrustMin" + suffix); Positive(hi, "thrustMax" + suffix); if (lo > hi) throw new ArgumentException("minimum thrust cannot exceed maximum thrust"); Positive(isp, "isp" + suffix); }
         private static void Angle(double x, string name, bool allow90) { Finite(x, name); if (x < 0 || (allow90 ? x > 90 : x >= 90)) throw new ArgumentException(name + (allow90 ? " must be in [0,90]" : " must be in [0,90)")); }
         private static void Vector(Vec3 x, string name) { if (!x.IsFinite) throw new ArgumentException(name + " must be finite"); }

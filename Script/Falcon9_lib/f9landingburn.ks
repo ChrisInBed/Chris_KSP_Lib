@@ -610,9 +610,7 @@ FUNCTION f9_landing_burn {
                     "position", trackedState["position"],
                     "velocity", trackedState["velocity"],
                     "mass", SHIP:MASS,
-                    "previous", gfoldReference,
-                    "maxSearchEvaluations",
-                        params["gfold_maxSearchEvaluations"]
+                    "previous", gfoldReference
                 ).
                 SET gfoldUpdateHandle TO
                     gfoldAddonRef:AsyncUpdate(updateArguments).
