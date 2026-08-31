@@ -864,9 +864,9 @@ FUNCTION f9_validate_recovery_params {
         "QuadraticAOADot", "landingBurnAltitude",
         "legDeploySpeed", "touchDownSpeed", "landingPhase2Time",
         "landingCutoffHeight", "boundsUpdatePeriod",
-        "minLandingThrottleCommand", "DryMass", "gfold_engineSwitchTime",
+        "minLandingThrottleCommand", "DryMass",
         "gfold_pitRadius", "gfold_wallBuffer", "gfold_pitDepth",
-        "gfold_planningTime",
+        "gfold_planningTime", "gfold_epsilon",
         "gfold_thrustMargin", "gfold_accelerationSmoothing",
         "gfold_nodes", "gfold_maxSearchEvaluations", "gfold_lqrDt",
         "gfold_lqrLambda", "gfold_lqrBeta", "gfold_descentMaxSpeed",
@@ -963,9 +963,13 @@ FUNCTION f9_validate_recovery_params {
         PRINT "F9 config error: invalid GFOLD pit geometry".
         SET ok TO FALSE.
     }
-    IF (params["gfold_planningTime"] <= 0
-        OR params["gfold_engineSwitchTime"] < 0) {
-        PRINT "F9 config error: invalid GFOLD planning/switch timing".
+    IF params["gfold_planningTime"] <= 0 {
+        PRINT "F9 config error: gfold_planningTime must be positive".
+        SET ok TO FALSE.
+    }
+    IF (params["gfold_epsilon"] <= 0
+        OR params["gfold_epsilon"] > 1) {
+        PRINT "F9 config error: gfold_epsilon must be in (0, 1]".
         SET ok TO FALSE.
     }
     IF (params["gfold_thrustMargin"] < 0

@@ -69,22 +69,46 @@ for ($row = 0; $row -lt 3; $row++) {
     Assert-Near $sum $expectedControl[$row] 1e-12 "gain row $row"
 }
 
-$defaults = @{ gfold_lqrLambda = 0.5; gfold_nodes = 20 }
+$defaults = @{ gfold_lqrLambda = 0.5; gfold_nodes = 20; gfold_epsilon = 0.15 }
 $configured = @{ gfold_lqrLambda = 2.0 }
 foreach ($entry in $defaults.GetEnumerator()) {
     if (-not $configured.ContainsKey($entry.Key)) { $configured[$entry.Key] = $entry.Value }
 }
 Assert-Near $configured.gfold_lqrLambda 2.0 0 'explicit configuration precedence'
 Assert-Near $configured.gfold_nodes 20 0 'missing default insertion'
+Assert-Near $configured.gfold_epsilon 0.15 0 'aerodynamic gate default'
+
+# Independent scalar check of the analytical quadratic lookahead used for the
+# future GFOLD initialization state.
+$lookahead = 3.0
+$predictedPosition = 100 + (-10) * $lookahead + 0.5 * 2 * $lookahead * $lookahead + (0.5 / 6) * [Math]::Pow($lookahead, 3) + (0.2 / 24) * [Math]::Pow($lookahead, 4)
+$predictedVelocity = -10 + 2 * $lookahead + 0.5 * 0.5 * $lookahead * $lookahead + (0.2 / 6) * [Math]::Pow($lookahead, 3)
+Assert-Near $predictedPosition 81.925 1e-12 'quadratic future position'
+Assert-Near $predictedVelocity -0.85 1e-12 'quadratic future velocity'
+
+# Measured acceleration 5 minus gravity -10 and achieved thrust 14 leaves
+# aerodynamic acceleration 1; relative to 20 available this is a 0.05 gate.
+$aerodynamicRatio = [Math]::Abs(5 - (-10) - 14) / 20
+Assert-Near $aerodynamicRatio 0.05 1e-12 'aerodynamic disturbance ratio'
 
 # Powered descent must retain the initialization trajectory. The addon still
 # exposes Update for other callers, but BORG must not invoke it in flight.
 $landingSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\f9landingburn.ks')
+$defaultsSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\GFOLD_defaults.ks')
+if ($defaultsSource -notmatch '(?i)"gfold_epsilon"\s*,\s*0\.15') {
+    throw 'GFOLD defaults do not define gfold_epsilon = 0.15'
+}
 if ($landingSource -match '(?i)gfoldAddonRef\s*:\s*(AsyncUpdate|Update)\s*\(') {
     throw 'BORG landing guidance still invokes a GFOLD update API'
 }
 if ($landingSource -notmatch '(?i)GetRefState\s*\(') {
     throw 'BORG landing guidance no longer samples the fixed GFOLD reference'
+}
+if ($landingSource -notmatch '(?i)aerodynamicDisturbanceRatio\s*<=\s*params\["gfold_epsilon"\]') {
+    throw 'BORG landing guidance does not gate GFOLD initialization on aerodynamic disturbance'
+}
+if ($landingSource -notmatch '(?i)gfoldAddonRef\s*:\s*AsyncInitialize\s*\(') {
+    throw 'BORG landing guidance no longer starts the hybrid GFOLD initialization'
 }
 
 Write-Host 'BORG GFOLD helper checks passed.'

@@ -190,7 +190,7 @@ calls the entry hook and then:
   ignition, and powered burn. The following aerodynamic gliding phase is still
   executed by `f9_landing_burn`.
 
-### 4. Aerodynamic descent, GFOLD planning, and landing ignition
+### 4. Aerodynamic descent and landing ignition
 
 `f9_landing_burn` begins with an unpowered aerodynamic-guidance loop. LTR
 predicts the impact point using the configured AOA profile and FAR-derived
@@ -200,30 +200,32 @@ attenuation, and `aeroTargetOffset` limiting the correction.
 
 During the glide, BORG estimates the surface-velocity derivative and applies
 exponential smoothing. A constant-vector-acceleration intercept predicts when
-the vehicle bottom will reach `landingBurnAltitude`. Once that intercept is
-within `gfold_planningTime`, BORG starts exactly one asynchronous GFOLD cold
-solve using the predicted position and velocity at the burn-altitude crossing.
+the vehicle bottom will reach `landingBurnAltitude`.
 
 Landing ignition remains spool-compensated, but the same measured vector
-acceleration now predicts the bottom point over the deceleration engines'
-spool-up time. Powered guidance starts only after the actual bottom point has
-reached the burn altitude and spool-up has elapsed. GFOLD is accepted only if
-the cold solve is already successful at that crossing; otherwise the landing
-permanently uses the quadratic fallback.
+acceleration predicts the bottom point over the deceleration engines' spool-up
+time. Powered guidance starts only after the actual bottom point has reached
+the burn altitude and spool-up has elapsed. The AOA-constrained quadratic
+controller always begins the powered descent.
 
 ### 5. GFOLD tracking, fallback, and terminal guidance
 
 The landing burn uses one continuous loop containing three guidance regimes:
 
-1. **GFOLD phase 1:** BORG analytically samples the initialization trajectory's
-   reference state and control, computes the six-component position/velocity
-   error, applies the returned 3x6 LQR gain, and commands `u_ref + K e`. The
-   initialization trajectory remains fixed for the entire powered descent;
-   BORG does not call `Update` or `AsyncUpdate`. Engines switch at the cold-solve
-   epoch plus `gfold_engineSwitchTime`.
-2. **Quadratic fallback:** if GFOLD is missing, late, infeasible, or fails its
-   cold solve, the original AOA-constrained fixed-time controller flies phase
-   1. Its sampled-demand engine-switch rule is preserved.
+1. **Quadratic aerodynamic phase:** the original AOA-constrained fixed-time
+   controller begins the landing burn and remains authoritative while measured
+   aerodynamic acceleration is significant. BORG estimates aerodynamic
+   disturbance as measured acceleration minus gravity and achieved thrust, then
+   divides its magnitude by the landing engine set's available specific thrust.
+2. **GFOLD phase:** when that ratio is no greater than `gfold_epsilon`, BORG
+   analytically propagates the current quadratic trajectory by
+   `gfold_planningTime`, predicts mass, and starts one asynchronous GFOLD solve
+   at that future epoch. Quadratic guidance remains active while planning. Once
+   the result is ready and its epoch is reached, BORG switches to the landing
+   engine set and tracks `u_ref + K e`. Both GFOLD engine modes represent that
+   same landing-engine set, so no later GFOLD engine discontinuity exists. If
+   GFOLD is absent, infeasible, late, or fails, quadratic guidance simply
+   continues. BORG never calls `Update` or `AsyncUpdate`.
 3. **Terminal quadratic phase:** either GFOLD time-to-go reaching
    `landingPhase2Time` or bottom altitude reaching `landingPhase2Alt` causes a
    one-way transition. The final engine set is selected,
@@ -258,7 +260,7 @@ seconds before releasing steering and throttle locks.
 | `f9launch.ks` | Included open-loop ascent: liftoff, vertical hold, programmed turn, MECO, staging, upper-stage ignition, and Action Group 10 handoff. |
 | `f9boostback.ks` | Optional post-separation boostback alignment, latency-aware impact-error guidance, throttle control, and cutoff. |
 | `f9entryburn.ks` | Optional powered entry burn and VGO iteration. It keeps the entry phase callable when the powered burn is disabled. |
-| `f9landingburn.ks` | Aerodynamic impact correction, one asynchronous GFOLD initialization, fixed-reference LQR tracking, quadratic fallback/terminal guidance, spool-aware ignition, engine transition, gear deployment, and cutoff. |
+| `f9landingburn.ks` | Aerodynamic impact correction, quadratic-first powered descent, disturbance-gated asynchronous GFOLD handoff, fixed-reference LQR tracking, terminal guidance, spool-aware ignition, engine transition, gear deployment, and cutoff. |
 | `gof9u.ks` | Upper-stage executive; loads launch modules and runs `f9_launch`. |
 | `gof9d.ks` | Booster executive; validates, waits for separation, resolves targets, and runs the recovery phases. |
 
@@ -362,14 +364,12 @@ surface retrograde for an individual invalid glide prediction.
 | `minLandingThrottleCommand` | `0.01` | Minimum positive landing throttle command. |
 
 The following vessel-specific keys are required in every recovery boot. The
-included values are estimates: Falcon/Falcon-RP1 profiles use `DryMass=25` and
-`gfold_engineSwitchTime=10`; ZhuQue-3 profiles use `DryMass=45` and switch time
-`8`. All examples select surface mode with zero pit radius, buffer, and depth.
+included dry-mass values are estimates. All examples select surface mode with
+zero pit radius, buffer, and depth.
 
 | Key | Meaning |
 |---|---|
 | `DryMass` | Vessel dry mass in tonnes. BORG never derives this from resources. |
-| `gfold_engineSwitchTime` | Seconds after the predicted initialization epoch to change engine modes. |
 | `gfold_pitRadius` | Physical landing-cylinder radius in metres; zero for surface mode. |
 | `gfold_wallBuffer` | Radial clearance inside the cylinder wall. |
 | `gfold_pitDepth` | Rim-to-floor depth; the target is always the floor center. |
@@ -379,11 +379,12 @@ omits them:
 
 | Key | Default | Meaning |
 |---|---:|---|
-| `gfold_planningTime` | `6` | Cold-solve lead time before predicted ignition altitude. |
+| `gfold_planningTime` | `3` | Quadratic-trajectory lookahead to the planned GFOLD handoff epoch. |
+| `gfold_epsilon` | `0.15` | Maximum aerodynamic-disturbance/available-acceleration ratio for starting GFOLD initialization. |
 | `gfold_thrustMargin` | `0.1` | Fraction of usable throttle span reserved at each end. |
 | `gfold_accelerationSmoothing` | `0.2` | New-sample weight in the acceleration filter. |
 | `gfold_nodes` | `20` | Exact number of GFOLD state nodes. |
-| `gfold_maxSearchEvaluations` | `20` | Cold initialization outer-search budget; updates do not search event times. |
+| `gfold_maxSearchEvaluations` | `20` | Hybrid handoff initialization outer-search budget. |
 | `gfold_lqrDt` | `0.1` | Discrete LQR controller period. |
 | `gfold_lqrLambda` | `0.5` | LQR control-deviation weight. |
 | `gfold_lqrBeta` | `1` | LQR velocity-error weight relative to position. |
@@ -433,7 +434,7 @@ failure.
    rerun the flight with the intended burn switches.
 4. Verify the first-stage fuel reserve, engine restart count, minimum throttle,
    spool time, and touchdown clearance before a full mission.
-5. Test GFOLD-unavailable, cold-solve failure/latency, fixed-reference tracking, both
+5. Test GFOLD-unavailable, handoff-solve failure/latency, fixed-reference tracking, both
    terminal triggers, both engine-set overlap cases, and moving-target behavior
    in a disposable simulation before operational use.
 
