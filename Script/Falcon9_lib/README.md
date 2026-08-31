@@ -215,20 +215,18 @@ permanently uses the quadratic fallback.
 
 The landing burn uses one continuous loop containing three guidance regimes:
 
-1. **GFOLD phase 1:** BORG analytically samples the reference state and control,
-   computes the six-component position/velocity error, applies the returned
-   3x6 LQR gain, and commands `u_ref + K e`. At most one asynchronous update is
-   started per `gfold_updateInterval`. Each update freezes the cold solution's
-   absolute entry and landing epochs and solves one fixed-time P1/P2 pair without
-   an outer time search. A failed update is discarded while the last accepted
-   reference remains active. Engines switch at the cold-solve
+1. **GFOLD phase 1:** BORG analytically samples the initialization trajectory's
+   reference state and control, computes the six-component position/velocity
+   error, applies the returned 3x6 LQR gain, and commands `u_ref + K e`. The
+   initialization trajectory remains fixed for the entire powered descent;
+   BORG does not call `Update` or `AsyncUpdate`. Engines switch at the cold-solve
    epoch plus `gfold_engineSwitchTime`.
 2. **Quadratic fallback:** if GFOLD is missing, late, infeasible, or fails its
    cold solve, the original AOA-constrained fixed-time controller flies phase
    1. Its sampled-demand engine-switch rule is preserved.
 3. **Terminal quadratic phase:** either GFOLD time-to-go reaching
    `landingPhase2Time` or bottom altitude reaching `landingPhase2Alt` causes a
-   one-way transition. GFOLD updates stop, the final engine set is selected,
+   one-way transition. The final engine set is selected,
    AOA is exactly zero, and the original upward-biased retrograde command is
    preserved. An out-of-range GFOLD reference also enters this phase without
    attempting an invalid addon sample.
@@ -241,7 +239,7 @@ refreshed, but its velocity is deliberately not subtracted. This implements
 the selected position-only target-tracking policy.
 
 The requested acceleration is converted through a minimum-throttle-aware
-throttle mapper. During every update, BORG samples several points of the
+throttle mapper. During quadratic phase 1, BORG samples several points of the
 remaining quadratic trajectory. Deceleration engines are shut down only when
 all sampled thrust demands are below the final landing-engine cutoff
 capability. Engines that are also final landing engines remain active.
@@ -260,7 +258,7 @@ seconds before releasing steering and throttle locks.
 | `f9launch.ks` | Included open-loop ascent: liftoff, vertical hold, programmed turn, MECO, staging, upper-stage ignition, and Action Group 10 handoff. |
 | `f9boostback.ks` | Optional post-separation boostback alignment, latency-aware impact-error guidance, throttle control, and cutoff. |
 | `f9entryburn.ks` | Optional powered entry burn and VGO iteration. It keeps the entry phase callable when the powered burn is disabled. |
-| `f9landingburn.ks` | Aerodynamic impact correction, asynchronous GFOLD planning/replanning, LQR tracking, quadratic fallback/terminal guidance, spool-aware ignition, engine transition, gear deployment, and cutoff. |
+| `f9landingburn.ks` | Aerodynamic impact correction, one asynchronous GFOLD initialization, fixed-reference LQR tracking, quadratic fallback/terminal guidance, spool-aware ignition, engine transition, gear deployment, and cutoff. |
 | `gof9u.ks` | Upper-stage executive; loads launch modules and runs `f9_launch`. |
 | `gof9d.ks` | Booster executive; validates, waits for separation, resolves targets, and runs the recovery phases. |
 
@@ -382,7 +380,6 @@ omits them:
 | Key | Default | Meaning |
 |---|---:|---|
 | `gfold_planningTime` | `6` | Cold-solve lead time before predicted ignition altitude. |
-| `gfold_updateInterval` | `1` | Minimum interval between asynchronous replans. |
 | `gfold_thrustMargin` | `0.1` | Fraction of usable throttle span reserved at each end. |
 | `gfold_accelerationSmoothing` | `0.2` | New-sample weight in the acceleration filter. |
 | `gfold_nodes` | `20` | Exact number of GFOLD state nodes. |
@@ -436,7 +433,7 @@ failure.
    rerun the flight with the intended burn switches.
 4. Verify the first-stage fuel reserve, engine restart count, minimum throttle,
    spool time, and touchdown clearance before a full mission.
-5. Test GFOLD-unavailable, cold-solve failure/latency, update failure, both
+5. Test GFOLD-unavailable, cold-solve failure/latency, fixed-reference tracking, both
    terminal triggers, both engine-set overlap cases, and moving-target behavior
    in a disposable simulation before operational use.
 

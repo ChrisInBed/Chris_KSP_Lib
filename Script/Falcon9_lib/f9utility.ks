@@ -866,7 +866,7 @@ FUNCTION f9_validate_recovery_params {
         "landingCutoffHeight", "boundsUpdatePeriod",
         "minLandingThrottleCommand", "DryMass", "gfold_engineSwitchTime",
         "gfold_pitRadius", "gfold_wallBuffer", "gfold_pitDepth",
-        "gfold_planningTime", "gfold_updateInterval",
+        "gfold_planningTime",
         "gfold_thrustMargin", "gfold_accelerationSmoothing",
         "gfold_nodes", "gfold_maxSearchEvaluations", "gfold_lqrDt",
         "gfold_lqrLambda", "gfold_lqrBeta", "gfold_descentMaxSpeed",
@@ -964,9 +964,8 @@ FUNCTION f9_validate_recovery_params {
         SET ok TO FALSE.
     }
     IF (params["gfold_planningTime"] <= 0
-        OR params["gfold_updateInterval"] <= 0
         OR params["gfold_engineSwitchTime"] < 0) {
-        PRINT "F9 config error: invalid GFOLD planning/update/switch timing".
+        PRINT "F9 config error: invalid GFOLD planning/switch timing".
         SET ok TO FALSE.
     }
     IF (params["gfold_thrustMargin"] < 0

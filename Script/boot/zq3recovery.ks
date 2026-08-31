@@ -66,7 +66,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Landing burn
     "QuadraticAOABase", 30,  // AOA limit base during quadratic guidance phase, increase this value will allow larger AOA, deg
     "QuadraticAOADot", 1,  // AOA limit related to Time-to-go during quadratic guidance phase, increase this value will allow larger AOA when approaching ground, deg/s
-    "landingBurnAltitude", 2600,  // Ignite decelerating engines (or landing fallback) below this, m
+    "landingBurnAltitude", 2100,  // Ignite decelerating engines (or landing fallback) below this, m
     "legDeploySpeed", 90,  // Deploy landing legs when speed is below this, m/s
     "touchDownSpeed", 0.1,  // touch down speed, m/s
     "landingPhase2Time", 4,  // time of untargeted landing phase 2, s

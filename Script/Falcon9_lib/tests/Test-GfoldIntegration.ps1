@@ -77,4 +77,14 @@ foreach ($entry in $defaults.GetEnumerator()) {
 Assert-Near $configured.gfold_lqrLambda 2.0 0 'explicit configuration precedence'
 Assert-Near $configured.gfold_nodes 20 0 'missing default insertion'
 
+# Powered descent must retain the initialization trajectory. The addon still
+# exposes Update for other callers, but BORG must not invoke it in flight.
+$landingSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\f9landingburn.ks')
+if ($landingSource -match '(?i)gfoldAddonRef\s*:\s*(AsyncUpdate|Update)\s*\(') {
+    throw 'BORG landing guidance still invokes a GFOLD update API'
+}
+if ($landingSource -notmatch '(?i)GetRefState\s*\(') {
+    throw 'BORG landing guidance no longer samples the fixed GFOLD reference'
+}
+
 Write-Host 'BORG GFOLD helper checks passed.'

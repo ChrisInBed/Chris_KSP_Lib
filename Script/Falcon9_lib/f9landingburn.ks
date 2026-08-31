@@ -424,13 +424,6 @@ FUNCTION f9_landing_burn {
         SET gfoldSwitchEpoch TO gfoldInitEpoch
             + params["gfold_engineSwitchTime"].
     }
-    LOCAL gfoldUpdateRunning IS FALSE.
-    LOCAL gfoldUpdateHandle IS -1.
-    LOCAL gfoldUpdateStartEpoch IS 0.
-    LOCAL gfoldLastUpdateStatus IS "NONE".
-    LOCAL nextGfoldUpdateEpoch IS TIME:SECONDS
-        + params["gfold_updateInterval"].
-
     f9_clear_guidance_display().
     f9_print_at(11, "Phase: landing - phase 1 " + guidanceMode).
     f9_print_at(16, "Engines: active  Continuous ignition").
@@ -532,41 +525,7 @@ FUNCTION f9_landing_burn {
         LOCAL referenceAccelerationValue IS 0.
         LOCAL altitudeErrorValue IS 0.
         LOCAL descentErrorValue IS 0.
-        IF (guidanceMode = "terminal" AND gfoldUpdateRunning
-            AND gfoldAddonRef:CheckTask(gfoldUpdateHandle)) {
-            LOCAL discardedUpdateResult IS
-                gfoldAddonRef:GetTaskResult(gfoldUpdateHandle).
-            SET gfoldUpdateRunning TO FALSE.
-            IF discardedUpdateResult["ok"] {
-                SET gfoldLastUpdateStatus TO "OK (TERMINAL)".
-            } ELSE {
-                SET gfoldLastUpdateStatus TO
-                    "FAIL " + discardedUpdateResult["status"].
-            }
-        }
         IF guidanceMode = "gfold" {
-            IF (gfoldUpdateRunning
-                AND gfoldAddonRef:CheckTask(gfoldUpdateHandle)) {
-                LOCAL updateResult IS
-                    gfoldAddonRef:GetTaskResult(gfoldUpdateHandle).
-                SET gfoldUpdateRunning TO FALSE.
-                IF updateResult["ok"] {
-                    LOCAL updateEndEpoch IS updateResult["epoch"]
-                        + updateResult["tf"].
-                    IF (TIME:SECONDS >= updateResult["epoch"]
-                        AND TIME:SECONDS <= updateEndEpoch) {
-                        SET gfoldReference TO updateResult.
-                        SET gfoldReferenceEnd TO updateEndEpoch.
-                        SET gfoldLastUpdateStatus TO "OK".
-                    } ELSE {
-                        SET gfoldLastUpdateStatus TO "FAIL STALE".
-                    }
-                } ELSE {
-                    SET gfoldLastUpdateStatus TO
-                        "FAIL " + updateResult["status"].
-                }
-            }
-
             SET remainingDuration TO gfoldReferenceEnd - TIME:SECONDS.
             IF (remainingDuration <= params["landingPhase2Time"]
                 OR bottomAltitude <= params["landingPhase2Alt"]
@@ -602,24 +561,6 @@ FUNCTION f9_landing_burn {
                 frozenTargetVec,
                 frozenBasis
             ).
-            IF (NOT gfoldUpdateRunning
-                AND TIME:SECONDS >= nextGfoldUpdateEpoch) {
-                LOCAL updateArguments IS LEXICON(
-                    "session", gfoldReference["session"],
-                    "stateTime", TIME:SECONDS,
-                    "position", trackedState["position"],
-                    "velocity", trackedState["velocity"],
-                    "mass", SHIP:MASS,
-                    "previous", gfoldReference
-                ).
-                SET gfoldUpdateHandle TO
-                    gfoldAddonRef:AsyncUpdate(updateArguments).
-                SET gfoldUpdateRunning TO TRUE.
-                SET gfoldUpdateStartEpoch TO TIME:SECONDS.
-                SET nextGfoldUpdateEpoch TO TIME:SECONDS
-                    + params["gfold_updateInterval"].
-            }
-
             LOCAL referenceState IS gfoldAddonRef:GetRefState(LEXICON(
                 "reference", gfoldReference,
                 "time", TIME:SECONDS
@@ -760,12 +701,6 @@ FUNCTION f9_landing_burn {
                 + " m  Bottom: " + ROUND(bottomAltitude, 1) + " m"
         ).
         f9_print_at(12, "Time to go: " + ROUND(remainingDuration, 2) + " s").
-        LOCAL updateDisplayText IS "IDLE Last:" + gfoldLastUpdateStatus.
-        IF gfoldUpdateRunning {
-            SET updateDisplayText TO "RUN "
-                + ROUND(TIME:SECONDS - gfoldUpdateStartEpoch, 1)
-                + "s Last:" + gfoldLastUpdateStatus.
-        }
         IF gfoldTelemetryReady {
             f9_print_at(
                 13,
@@ -782,7 +717,7 @@ FUNCTION f9_landing_burn {
                 "Err R-A H/Vz: " + ROUND(altitudeErrorValue, 2)
                     + " / " + ROUND(descentErrorValue, 2)
             ).
-            f9_print_at(16, "GFOLD update: " + updateDisplayText).
+            f9_print_at(16, "GFOLD ref: initialization (fixed)").
             f9_print_at(
                 17,
                 "Total position error: "
@@ -804,10 +739,9 @@ FUNCTION f9_landing_burn {
                     + ROUND(accTarget:MAG, 2) + " m/s2"
             ).
             IF gfoldWasActive {
-                f9_print_at(15, "GFOLD update: STOP Last:"
-                    + gfoldLastUpdateStatus).
+                f9_print_at(15, "GFOLD ref: initialization (fixed)").
             } ELSE {
-                f9_print_at(15, "GFOLD update: inactive").
+                f9_print_at(15, "GFOLD ref: inactive").
             }
             IF hasShutdown {
                 f9_print_at(16, "Engine set: final").
