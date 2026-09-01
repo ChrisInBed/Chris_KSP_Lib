@@ -152,6 +152,53 @@ FUNCTION f9_quadratic_predict_mass {
     ).
 }
 
+// Preserve the original quadratic engine-switch rule: every sampled future
+// thrust demand must fit below the landing-engine cutoff capability.
+FUNCTION f9_quadratic_engine_switch_ready {
+    PARAMETER quadraticPlan.
+    PARAMETER targetAccelerationVec.
+    PARAMETER upAxisVec.
+    PARAMETER gravityValue.
+    PARAMETER currentMassValue.
+    PARAMETER landingMaxThrustValue.
+    PARAMETER landingMinThrottleValue.
+
+    LOCAL thrustCutoffValue IS landingMaxThrustValue
+        * (0.85 + 0.15 * landingMinThrottleValue).
+    LOCAL switchSamples IS LIST().
+    mlinspace(quadraticPlan["qT"], 0, 5, switchSamples).
+    FOR switchSampleEpoch IN switchSamples {
+        LOCAL sampledThrustValue IS (
+            targetAccelerationVec
+            + quadraticPlan["qJ"] * switchSampleEpoch
+            + 0.5 * quadraticPlan["qS"] * switchSampleEpoch^2
+            + upAxisVec * gravityValue
+        ):MAG * currentMassValue.
+        IF sampledThrustValue > thrustCutoffValue {
+            RETURN FALSE.
+        }
+    }
+    RETURN TRUE.
+}
+
+// Convert the vessel-specific switch time, measured from powered-guidance
+// entry, into the relative event time expected by kOS-GFOLD.
+FUNCTION f9_gfold_engine_switch_delay {
+    PARAMETER enginesAlreadySwitched.
+    PARAMETER configuredSwitchDuration.
+    PARAMETER futureGfoldEpoch.
+    PARAMETER landingBurnStartEpoch.
+
+    IF enginesAlreadySwitched {
+        RETURN 0.
+    }
+    RETURN MAX(
+        0,
+        configuredSwitchDuration
+            - (futureGfoldEpoch - landingBurnStartEpoch)
+    ).
+}
+
 FUNCTION f9_gfold_build_initialize_args {
     PARAMETER params.
     PARAMETER stateEpoch.
@@ -160,7 +207,9 @@ FUNCTION f9_gfold_build_initialize_args {
     PARAMETER predictedMassValue.
     PARAMETER targetBodyVec.
     PARAMETER targetBasis.
-    PARAMETER landingEngineLimits.
+    PARAMETER mode1EngineLimits.
+    PARAMETER mode2EngineLimits.
+    PARAMETER engineSwitchDelay.
 
     LOCAL pitCenterVec IS targetBodyVec
         + params["gfold_pitDepth"] * targetBasis["up"].
@@ -176,13 +225,13 @@ FUNCTION f9_gfold_build_initialize_args {
         "targetVelocity", -params["touchDownSpeed"] * targetBasis["up"],
         "pitCenter", pitCenterVec,
         "fuelMass", predictedMassValue - params["DryMass"],
-        "thrustMin1", landingEngineLimits["thrustMin"],
-        "thrustMax1", landingEngineLimits["thrustMax"],
-        "isp1", landingEngineLimits["isp"],
-        "thrustMin2", landingEngineLimits["thrustMin"],
-        "thrustMax2", landingEngineLimits["thrustMax"],
-        "isp2", landingEngineLimits["isp"],
-        "engineSwitchTime", 0,
+        "thrustMin1", mode1EngineLimits["thrustMin"],
+        "thrustMax1", mode1EngineLimits["thrustMax"],
+        "isp1", mode1EngineLimits["isp"],
+        "thrustMin2", mode2EngineLimits["thrustMin"],
+        "thrustMax2", mode2EngineLimits["thrustMax"],
+        "isp2", mode2EngineLimits["isp"],
+        "engineSwitchTime", engineSwitchDelay,
         "descentMaxSpeed", params["gfold_descentMaxSpeed"],
         "descentTilt", params["gfold_descentTilt"],
         "descentGlideSlope", params["gfold_descentGlideSlope"],
@@ -291,6 +340,9 @@ FUNCTION f9_landing_burn {
     LOCAL gfoldInitHandle IS -1.
     LOCAL gfoldReference IS 0.
     LOCAL gfoldInitEpoch IS 0.
+    LOCAL gfoldSwitchEpoch IS 0.
+    LOCAL gfoldSwitchScheduleActive IS FALSE.
+    LOCAL gfoldInitAbandoned IS FALSE.
     LOCAL gfoldInitStatus IS "WAIT AERO".
     IF NOT gfoldAvailable {
         SET gfoldInitStatus TO "UNAVAILABLE".
@@ -300,6 +352,10 @@ FUNCTION f9_landing_burn {
     LOCAL gfoldLandingMaxThrust IS maxThrust2.
     LOCAL gfoldLandingMinThrottle IS minThrottle2.
     LOCAL gfoldLandingTiS IS TiS2.
+    LOCAL gfoldHandoffGraceDuration IS MAX(
+        0.25,
+        2 * params["gfold_lqrDt"]
+    ).
 
     SAS OFF.
     LOCK STEERING TO steeringTarget.
@@ -456,6 +512,7 @@ FUNCTION f9_landing_burn {
         WAIT 0.
     }
 
+    LOCAL landingBurnStartEpoch IS TIME:SECONDS.
     LOCAL guidanceMode IS "quadratic".
     LOCAL gfoldWasActive IS FALSE.
     LOCAL gfoldReferenceEnd IS 0.
@@ -586,41 +643,59 @@ FUNCTION f9_landing_burn {
             AND gfoldAddonRef:CheckTask(gfoldInitHandle)) {
             SET gfoldReference TO gfoldAddonRef:GetTaskResult(gfoldInitHandle).
             SET gfoldInitRunning TO FALSE.
-            IF gfoldReference["ok"] {
+            IF gfoldInitAbandoned {
+                // Consume the completed task, but never revive an abandoned
+                // trajectory after its handoff deadline or terminal entry.
+                SET gfoldInitReady TO FALSE.
+            } ELSE IF gfoldReference["ok"] {
                 SET gfoldInitReady TO TRUE.
                 SET gfoldInitStatus TO "READY".
             } ELSE {
                 SET gfoldInitStatus TO "FAIL " + gfoldReference["status"].
+                SET gfoldSwitchScheduleActive TO FALSE.
             }
+        }
+
+        IF (guidanceMode = "quadratic"
+            AND gfoldSwitchScheduleActive
+            AND TIME:SECONDS > gfoldInitEpoch
+                + gfoldHandoffGraceDuration) {
+            SET gfoldInitAbandoned TO TRUE.
+            SET gfoldInitReady TO FALSE.
+            SET gfoldSwitchScheduleActive TO FALSE.
+            SET gfoldInitStatus TO "FAIL LATE".
         }
 
         IF (guidanceMode = "quadratic" AND gfoldInitReady
             AND TIME:SECONDS >= gfoldInitEpoch) {
             LOCAL preparedReferenceEnd IS gfoldReference["epoch"]
                 + gfoldReference["tf"].
-            LOCAL handoffGraceDuration IS MAX(
-                0.25,
-                2 * params["gfold_lqrDt"]
-            ).
             IF (TIME:SECONDS <= preparedReferenceEnd
-                AND TIME:SECONDS <= gfoldInitEpoch + handoffGraceDuration) {
+                AND TIME:SECONDS <= gfoldInitEpoch
+                    + gfoldHandoffGraceDuration) {
                 SET gfoldReferenceEnd TO preparedReferenceEnd.
                 SET guidanceMode TO "gfold".
                 SET gfoldWasActive TO TRUE.
                 SET gfoldInitStatus TO "TRACK".
-                IF NOT hasShutdown {
-                    deactivate_engines(shutDownEngines).
-                    activate_engines(landingEngines).
-                    SET hasShutdown TO TRUE.
-                }
-                SET TiS TO gfoldLandingTiS.
-                SET activeMaxThrust TO gfoldLandingMaxThrust.
-                SET activeMinThrottle TO gfoldLandingMinThrottle.
                 f9_print_at(11, "Phase: landing - phase 1 gfold").
             } ELSE {
                 SET gfoldInitReady TO FALSE.
+                SET gfoldInitAbandoned TO TRUE.
+                SET gfoldSwitchScheduleActive TO FALSE.
                 SET gfoldInitStatus TO "FAIL LATE".
             }
+        }
+
+        // Switch before sampling GetRefState at the event epoch, whose control
+        // convention is right-continuous at an engine discontinuity.
+        IF (guidanceMode = "gfold" AND NOT hasShutdown
+            AND TIME:SECONDS >= gfoldSwitchEpoch) {
+            deactivate_engines(shutDownEngines).
+            activate_engines(landingEngines).
+            SET TiS TO gfoldLandingTiS.
+            SET activeMaxThrust TO gfoldLandingMaxThrust.
+            SET activeMinThrottle TO gfoldLandingMinThrottle.
+            SET hasShutdown TO TRUE.
         }
 
         LOCAL displayedPositionError IS 0.
@@ -641,6 +716,12 @@ FUNCTION f9_landing_burn {
             }
         }
 
+        IF (guidanceMode = "terminal" AND gfoldSwitchScheduleActive) {
+            SET gfoldInitAbandoned TO TRUE.
+            SET gfoldInitReady TO FALSE.
+            SET gfoldSwitchScheduleActive TO FALSE.
+            SET gfoldInitStatus TO "FAIL TERMINAL".
+        }
         IF (guidanceMode = "terminal" AND NOT hasShutdown) {
             deactivate_engines(shutDownEngines).
             activate_engines(landingEngines).
@@ -710,6 +791,12 @@ FUNCTION f9_landing_burn {
                 AND (remainingDuration <= params["landingPhase2Time"]
                     OR bottomAltitude <= params["landingPhase2Alt"])) {
                 SET guidanceMode TO "terminal".
+                IF gfoldSwitchScheduleActive {
+                    SET gfoldInitAbandoned TO TRUE.
+                    SET gfoldInitReady TO FALSE.
+                    SET gfoldSwitchScheduleActive TO FALSE.
+                    SET gfoldInitStatus TO "FAIL TERMINAL".
+                }
                 f9_print_at(11, "Phase: landing - phase 2 terminal").
                 IF NOT hasShutdown {
                     deactivate_engines(shutDownEngines).
@@ -757,6 +844,28 @@ FUNCTION f9_landing_burn {
             SET displayedPositionError TO
                 (quadraticControl["RT"] - quadraticTargetPosition):MAG.
 
+            // Quadratic guidance owns engine switching unless a viable GFOLD
+            // handoff is pending. Evaluate this before building the request so
+            // its engine modes match the physical vehicle state.
+            IF (guidanceMode = "quadratic" AND NOT hasShutdown
+                AND NOT gfoldSwitchScheduleActive
+                AND f9_quadratic_engine_switch_ready(
+                    quadraticControl,
+                    targetAccelerationVec,
+                    upAxis,
+                    gravityMagnitude,
+                    SHIP:MASS,
+                    maxThrust2,
+                    minThrottle2
+                )) {
+                deactivate_engines(shutDownEngines).
+                activate_engines(landingEngines).
+                SET TiS TO TiS2.
+                SET activeMaxThrust TO maxThrust2.
+                SET activeMinThrottle TO minThrottle2.
+                SET hasShutdown TO TRUE.
+            }
+
             IF (guidanceMode = "quadratic"
                 AND gfoldAvailable
                 AND NOT gfoldInitStarted
@@ -781,14 +890,16 @@ FUNCTION f9_landing_burn {
                         gravityMagnitude,
                         handoffDuration
                     ).
-                LOCAL predictionEngineInfo IS get_engines_info(decEngines).
-                IF hasShutdown {
-                    SET predictionEngineInfo TO
-                        get_engines_info(landingEngines).
-                }
+                LOCAL decelerationEngineInfoNow IS
+                    get_engines_info(decEngines).
                 LOCAL landingEngineInfoNow IS
                     get_engines_info(landingEngines).
+                LOCAL predictionEngineInfo IS decelerationEngineInfoNow.
+                IF hasShutdown {
+                    SET predictionEngineInfo TO landingEngineInfoNow.
+                }
                 IF (predictionEngineInfo["ISP"] > 0
+                    AND predictionEngineInfo["thrust"] > 0
                     AND landingEngineInfoNow["thrust"] > 0) {
                     LOCAL predictedMassValue IS
                         f9_quadratic_predict_mass(
@@ -805,9 +916,20 @@ FUNCTION f9_landing_burn {
                     IF predictedMassValue > params["DryMass"] {
                         SET gfoldInitStarted TO TRUE.
                         SET gfoldInitRunning TO TRUE.
+                        SET gfoldInitReady TO FALSE.
+                        SET gfoldInitAbandoned TO FALSE.
                         SET gfoldInitStatus TO "RUN".
                         SET gfoldInitEpoch TO TIME:SECONDS
                             + handoffDuration.
+                        LOCAL engineSwitchDelay IS
+                            f9_gfold_engine_switch_delay(
+                                hasShutdown,
+                                params["gfold_engineSwitchTime"],
+                                gfoldInitEpoch,
+                                landingBurnStartEpoch
+                            ).
+                        SET gfoldSwitchEpoch TO gfoldInitEpoch
+                            + engineSwitchDelay.
                         SET frozenTargetVec TO handoffTargetBodyVec.
                         SET frozenBasis TO handoffBasis.
                         LOCAL predictedPositionVec IS frozenTargetVec
@@ -821,11 +943,19 @@ FUNCTION f9_landing_burn {
                             handoffBasis,
                             frozenBasis
                         ).
-                        LOCAL landingEngineLimitsNow IS
+                        LOCAL mode1EngineLimitsNow IS
+                            f9_gfold_engine_limits(
+                                predictionEngineInfo,
+                                params["gfold_thrustMargin"]
+                            ).
+                        LOCAL mode2EngineLimitsNow IS
                             f9_gfold_engine_limits(
                                 landingEngineInfoNow,
                                 params["gfold_thrustMargin"]
                             ).
+                        IF hasShutdown {
+                            SET mode1EngineLimitsNow TO mode2EngineLimitsNow.
+                        }
                         SET gfoldLandingMaxThrust TO
                             landingEngineInfoNow["thrust"].
                         SET gfoldLandingMinThrottle TO
@@ -840,42 +970,14 @@ FUNCTION f9_landing_burn {
                                 predictedMassValue,
                                 frozenTargetVec,
                                 frozenBasis,
-                                landingEngineLimitsNow
+                                mode1EngineLimitsNow,
+                                mode2EngineLimitsNow,
+                                engineSwitchDelay
                             ).
+                        SET gfoldSwitchScheduleActive TO TRUE.
                         SET gfoldInitHandle TO
                             gfoldAddonRef:AsyncInitialize(initArguments).
                     }
-                }
-            }
-
-            // Preserve the original sampled-demand engine-switch logic when
-            // phase 1 is running on the quadratic fallback.
-            IF (guidanceMode = "quadratic" AND NOT hasShutdown) {
-                LOCAL thrustCutoff IS maxThrust2
-                    * (0.85 + 0.15 * minThrottle2).
-                LOCAL timeSamples IS LIST().
-                mlinspace(quadraticControl["qT"], 0, 5, timeSamples).
-                LOCAL shutdownFlag IS TRUE.
-                FOR sampleEpochOffset IN timeSamples {
-                    LOCAL commandThrust IS (
-                        targetAccelerationVec
-                        + quadraticControl["qJ"] * sampleEpochOffset
-                        + 0.5 * quadraticControl["qS"]
-                            * sampleEpochOffset^2
-                        + upAxis * gravityMagnitude
-                    ):MAG * SHIP:MASS.
-                    IF commandThrust > thrustCutoff {
-                        SET shutdownFlag TO FALSE.
-                        BREAK.
-                    }
-                }
-                IF shutdownFlag {
-                    deactivate_engines(shutDownEngines).
-                    activate_engines(landingEngines).
-                    SET TiS TO TiS2.
-                    SET activeMaxThrust TO maxThrust2.
-                    SET activeMinThrottle TO minThrottle2.
-                    SET hasShutdown TO TRUE.
                 }
             }
         }

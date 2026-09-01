@@ -864,7 +864,7 @@ FUNCTION f9_validate_recovery_params {
         "QuadraticAOADot", "landingBurnAltitude",
         "legDeploySpeed", "touchDownSpeed", "landingPhase2Time",
         "landingCutoffHeight", "boundsUpdatePeriod",
-        "minLandingThrottleCommand", "DryMass",
+        "minLandingThrottleCommand", "DryMass", "gfold_engineSwitchTime",
         "gfold_pitRadius", "gfold_wallBuffer", "gfold_pitDepth",
         "gfold_planningTime", "gfold_epsilon",
         "gfold_thrustMargin", "gfold_accelerationSmoothing",
@@ -965,6 +965,10 @@ FUNCTION f9_validate_recovery_params {
     }
     IF params["gfold_planningTime"] <= 0 {
         PRINT "F9 config error: gfold_planningTime must be positive".
+        SET ok TO FALSE.
+    }
+    IF params["gfold_engineSwitchTime"] < 0 {
+        PRINT "F9 config error: gfold_engineSwitchTime must be nonnegative".
         SET ok TO FALSE.
     }
     IF (params["gfold_epsilon"] <= 0

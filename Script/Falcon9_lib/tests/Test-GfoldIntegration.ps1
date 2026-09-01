@@ -91,6 +91,21 @@ Assert-Near $predictedVelocity -0.85 1e-12 'quadratic future velocity'
 $aerodynamicRatio = [Math]::Abs(5 - (-10) - 14) / 20
 Assert-Near $aerodynamicRatio 0.05 1e-12 'aerodynamic disturbance ratio'
 
+# The boot value is measured from powered-guidance entry while GFOLD expects
+# an event time relative to its future initialization state.
+function Get-GfoldSwitchDelay(
+    [bool]$AlreadySwitched,
+    [double]$ConfiguredDuration,
+    [double]$FutureEpoch,
+    [double]$BurnStartEpoch
+) {
+    if ($AlreadySwitched) { return 0.0 }
+    return [Math]::Max(0.0, $ConfiguredDuration - ($FutureEpoch - $BurnStartEpoch))
+}
+Assert-Near (Get-GfoldSwitchDelay $false 10 106 100) 4 0 'future engine switch delay'
+Assert-Near (Get-GfoldSwitchDelay $false 5 106 100) 0 0 'elapsed engine switch delay'
+Assert-Near (Get-GfoldSwitchDelay $true 10 102 100) 0 0 'already switched delay'
+
 # Powered descent must retain the initialization trajectory. The addon still
 # exposes Update for other callers, but BORG must not invoke it in flight.
 $landingSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\f9landingburn.ks')
@@ -109,6 +124,49 @@ if ($landingSource -notmatch '(?i)aerodynamicDisturbanceRatio\s*<=\s*params\["gf
 }
 if ($landingSource -notmatch '(?i)gfoldAddonRef\s*:\s*AsyncInitialize\s*\(') {
     throw 'BORG landing guidance no longer starts the hybrid GFOLD initialization'
+}
+if ($landingSource -notmatch '(?is)"thrustMin1"\s*,\s*mode1EngineLimits\["thrustMin"\].*"thrustMin2"\s*,\s*mode2EngineLimits\["thrustMin"\].*"engineSwitchTime"\s*,\s*engineSwitchDelay') {
+    throw 'GFOLD initialization no longer preserves distinct engine modes and switch delay'
+}
+if ($landingSource -notmatch '(?is)IF hasShutdown\s*\{\s*SET mode1EngineLimitsNow TO mode2EngineLimitsNow') {
+    throw 'Already-switched initialization does not use landing limits for both modes'
+}
+$sampleSwitchIndex = $landingSource.IndexOf('f9_quadratic_engine_switch_ready(')
+$initializationGateIndex = $landingSource.IndexOf('aerodynamicDisturbanceRatio <= params["gfold_epsilon"]')
+if ($sampleSwitchIndex -lt 0 -or $initializationGateIndex -lt 0 -or $sampleSwitchIndex -gt $initializationGateIndex) {
+    throw 'Quadratic sampled switching is not evaluated before GFOLD initialization'
+}
+if ($landingSource -notmatch '(?is)NOT gfoldSwitchScheduleActive\s+AND f9_quadratic_engine_switch_ready') {
+    throw 'Pending GFOLD scheduling does not inhibit the quadratic switch rule'
+}
+if ($landingSource -notmatch '(?is)FAIL " \+ gfoldReference\["status"\].*SET gfoldSwitchScheduleActive TO FALSE') {
+    throw 'A failed GFOLD initialization does not release engine-switch ownership'
+}
+if ($landingSource -notmatch '(?is)TIME:SECONDS > gfoldInitEpoch\s*\+ gfoldHandoffGraceDuration.*SET gfoldSwitchScheduleActive TO FALSE.*FAIL LATE') {
+    throw 'A late GFOLD task does not release engine-switch ownership'
+}
+if ($landingSource -notmatch '(?is)guidanceMode = "gfold" AND NOT hasShutdown\s+AND TIME:SECONDS >= gfoldSwitchEpoch') {
+    throw 'GFOLD tracking does not switch the physical engines at its event epoch'
+}
+if ($landingSource -notmatch '(?is)guidanceMode = "terminal" AND gfoldSwitchScheduleActive.*SET gfoldSwitchScheduleActive TO FALSE.*guidanceMode = "terminal" AND NOT hasShutdown.*deactivate_engines\(shutDownEngines\).*activate_engines\(landingEngines\)') {
+    throw 'Terminal quadratic guidance does not reclaim switch ownership and select landing engines'
+}
+if ($landingSource -notmatch '(?is)IF NOT decEngineRef:TAG:CONTAINS\(params\["landingEngineTag"\]\).*shutDownEngines:ADD\(decEngineRef\)') {
+    throw 'Overlapping deceleration and landing engines are not preserved during switching'
+}
+
+$expectedBootSwitches = @{
+    'f9recovery.ks' = 10
+    'f9recovery_rp1.ks' = 10
+    'f9recovery_rp1_asds.ks' = 10
+    'zq3recovery.ks' = 8
+    'zq3recovery_asds.ks' = 8
+}
+foreach ($bootEntry in $expectedBootSwitches.GetEnumerator()) {
+    $bootSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot "..\..\boot\$($bootEntry.Key)")
+    if ($bootSource -notmatch "(?i)`"gfold_engineSwitchTime`"\s*,\s*$($bootEntry.Value)(?:\D|$)") {
+        throw "$($bootEntry.Key) does not define the expected GFOLD engine-switch time"
+    }
 }
 
 Write-Host 'BORG GFOLD helper checks passed.'

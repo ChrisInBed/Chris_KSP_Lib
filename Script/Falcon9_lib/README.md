@@ -220,12 +220,17 @@ The landing burn uses one continuous loop containing three guidance regimes:
 2. **GFOLD phase:** when that ratio is no greater than `gfold_epsilon`, BORG
    analytically propagates the current quadratic trajectory by
    `gfold_planningTime`, predicts mass, and starts one asynchronous GFOLD solve
-   at that future epoch. Quadratic guidance remains active while planning. Once
-   the result is ready and its epoch is reached, BORG switches to the landing
-   engine set and tracks `u_ref + K e`. Both GFOLD engine modes represent that
-   same landing-engine set, so no later GFOLD engine discontinuity exists. If
-   GFOLD is absent, infeasible, late, or fails, quadratic guidance simply
-   continues. BORG never calls `Update` or `AsyncUpdate`.
+   at that future epoch. Quadratic guidance remains active while planning, but
+   the current engine set is frozen so the predicted state and pending GFOLD
+   trajectory stay consistent. If the engines have not switched, GFOLD mode 1
+   uses the deceleration engines, mode 2 uses the landing engines, and its
+   switch event is the configured vessel switch epoch minus the future handoff
+   epoch, clamped to zero. If they have switched, both modes use the landing
+   engines and the event time is zero. Once the result is ready and its epoch is
+   reached, BORG tracks `u_ref + K e` and performs the physical switch at the
+   GFOLD event. If GFOLD is absent, infeasible, late, or fails, the freeze is
+   released and quadratic guidance continues. BORG never calls `Update` or
+   `AsyncUpdate`.
 3. **Terminal quadratic phase:** either GFOLD time-to-go reaching
    `landingPhase2Time` or bottom altitude reaching `landingPhase2Alt` causes a
    one-way transition. The final engine set is selected,
@@ -244,7 +249,11 @@ The requested acceleration is converted through a minimum-throttle-aware
 throttle mapper. During quadratic phase 1, BORG samples several points of the
 remaining quadratic trajectory. Deceleration engines are shut down only when
 all sampled thrust demands are below the final landing-engine cutoff
-capability. Engines that are also final landing engines remain active.
+capability. This sampled rule owns the switch before GFOLD planning and again
+after a failed or abandoned initialization. A viable pending GFOLD handoff and
+active GFOLD tracking own the switch schedule instead. Terminal quadratic
+guidance always selects the final landing engines immediately. Engines that are
+also final landing engines remain active throughout a switch.
 
 Landing legs deploy below `legDeploySpeed`. Engines are cut off when vertical
 speed becomes non-negative or the bottom of the vehicle reaches
@@ -370,6 +379,7 @@ zero pit radius, buffer, and depth.
 | Key | Meaning |
 |---|---|
 | `DryMass` | Vessel dry mass in tonnes. BORG never derives this from resources. |
+| `gfold_engineSwitchTime` | Nominal engine-switch time in seconds after powered quadratic guidance starts. BORG converts it to GFOLD's time relative to the future initialization epoch. |
 | `gfold_pitRadius` | Physical landing-cylinder radius in metres; zero for surface mode. |
 | `gfold_wallBuffer` | Radial clearance inside the cylinder wall. |
 | `gfold_pitDepth` | Rim-to-floor depth; the target is always the floor center. |
@@ -379,24 +389,24 @@ omits them:
 
 | Key | Default | Meaning |
 |---|---:|---|
-| `gfold_planningTime` | `3` | Quadratic-trajectory lookahead to the planned GFOLD handoff epoch. |
+| `gfold_planningTime` | `4` | Quadratic-trajectory lookahead to the planned GFOLD handoff epoch. |
 | `gfold_epsilon` | `0.15` | Maximum aerodynamic-disturbance/available-acceleration ratio for starting GFOLD initialization. |
 | `gfold_thrustMargin` | `0.1` | Fraction of usable throttle span reserved at each end. |
 | `gfold_accelerationSmoothing` | `0.2` | New-sample weight in the acceleration filter. |
 | `gfold_nodes` | `20` | Exact number of GFOLD state nodes. |
 | `gfold_maxSearchEvaluations` | `20` | Hybrid handoff initialization outer-search budget. |
 | `gfold_lqrDt` | `0.1` | Discrete LQR controller period. |
-| `gfold_lqrLambda` | `0.5` | LQR control-deviation weight. |
+| `gfold_lqrLambda` | `0.1` | LQR control-deviation weight. |
 | `gfold_lqrBeta` | `1` | LQR velocity-error weight relative to position. |
-| `gfold_descentMaxSpeed` | `600` | Descent-phase speed limit. |
-| `gfold_descentTilt` | `45` | Descent-phase thrust tilt limit in degrees. |
-| `gfold_descentGlideSlope` | `20` | Outside-pit glide-slope angle. |
+| `gfold_descentMaxSpeed` | `450` | Descent-phase speed limit. |
+| `gfold_descentTilt` | `40` | Descent-phase thrust tilt limit in degrees. |
+| `gfold_descentGlideSlope` | `80` | Outside-pit glide-slope angle. |
 | `gfold_entryMaxSpeed` | `100` | Pit-entry speed limit. |
 | `gfold_entryTilt` | `30` | Pit-entry thrust tilt limit. |
 | `gfold_entryGlideSlope` | `0` | Inner glide-slope angle; zero disables it. |
-| `gfold_terminalTilt` | `10` | GFOLD terminal-window thrust tilt limit. |
+| `gfold_terminalTilt` | `5` | GFOLD terminal-window thrust tilt limit. |
 | `gfold_terminalTiltWindow` | `3` | Duration of GFOLD's terminal tilt window. |
-| `landingPhase2Alt` | `50` | Bottom-altitude trigger for terminal quadratic guidance. |
+| `landingPhase2Alt` | `20` | Bottom-altitude trigger for terminal quadratic guidance. |
 
 Optional positive `gfold_tfMin` and `gfold_tfMax` values constrain GFOLD's
 flight-time search; when absent, the fields are omitted and the addon derives

@@ -19,6 +19,7 @@ GLOBAL F9_PARAMS IS LEXICON(
     // Vehicle-specific values. These must be set before flight.
     "boostBackMass", 150,  // After second stage seperation, the mass of first stage should be less than this, ton
     "DryMass", 41,  // Estimated dry mass for GFOLD; tune for the actual vessel, ton
+    "gfold_engineSwitchTime", 8,  // Seconds after powered guidance starts
     "gfold_pitRadius", 0,
     "gfold_wallBuffer", 0,
     "gfold_pitDepth", 0,

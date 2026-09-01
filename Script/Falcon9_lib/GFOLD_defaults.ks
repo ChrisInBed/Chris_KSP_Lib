@@ -2,8 +2,8 @@
 // f9_apply_gfold_defaults copies only missing keys into F9_PARAMS, so values
 // explicitly supplied by a boot profile always take precedence.
 GLOBAL F9_GFOLD_DEFAULTS IS LEXICON(
-    "gfold_planningTime", 3,
-    "gfold_epsilon", 0.15,
+    "gfold_planningTime", 4,
+    "gfold_epsilon", 0.25,
     "gfold_thrustMargin", 0.1,
     "gfold_accelerationSmoothing", 0.2,
     "gfold_nodes", 20,
