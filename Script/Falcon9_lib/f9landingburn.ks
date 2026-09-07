@@ -365,7 +365,7 @@ FUNCTION f9_landing_burn {
         ).
         IF landingPhase = 2 {
             // Need to add up additional vertical component to avoid divergence when approaching ground
-            SET accTarget TO quadraticControl["cmdA"]:mag * (-ship:velocity:surface + 10*up:forevector):normalized.
+            SET accTarget TO quadraticControl["cmdA"]:mag * (-ship:velocity:surface + g*up:forevector):normalized.
         }
         ELSE SET accTarget TO quadraticControl["cmdA"].
         // set _drawAcc to vecDraw(V(0,0,0), accelerationShip * 5, RGB(0, 255, 0), "Acc", 1, true).

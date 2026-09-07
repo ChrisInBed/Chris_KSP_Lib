@@ -49,13 +49,19 @@ function __terminal_get_deltar {
 }
 
 function terminal_get_fvec {
-    // keep pitch > 45 deg
-    local __tanalpha to 1.0.
-    if (ship:verticalspeed < 0) {
-        set __tanalpha to min(1.0, 1.0 * ship:groundspeed / (abs(ship:verticalspeed) + 0.001)).
+    local vmin to __TERMINAL_g0.
+    local vecV to ship:velocity:surface.
+    local upAxis to up:forevector.
+    local vh to vDot(vecV, upAxis).
+    local vmag to vecV:mag.
+    if (vmag < vmin) {
+        set vecV to vecV + upAxis*(-vh-sqrt(vh^2+vmin^2-vmag^2)).
     }
-    local __horizontalvec to vxcl(up:forevector, srfRetrograde:forevector):normalized.
-    return __horizontalvec * __tanalpha + up:forevector.
+    local fvec to -vecV:normalized.
+    if (vang(fvec, upAxis) > 45) {
+        set fvec to angleAxis(45, vCrs(upAxis, fvec):normalized) * upAxis.
+    }
+    return fvec.
 }
 
 function terminal_time_to_fire {
@@ -87,17 +93,10 @@ function terminal_step_control {
     if _res[0] = 1 {set _throttle_target to std_throttle.}
     local deltar to _res[1].
     print "H2 = " + round(height + deltar, 1) + "     " AT(0, 16).
-    if (__TERMINAL_uplock or (ship:groundspeed < 0.1 and height < 3)) {
-        set __TERMINAL_uplock to true.
-        set thro_plan to _throttle_target * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
-        print "T1 = " + round(_throttle_target, 2) + ", T2 = " + round(thro_plan, 2) + "    " AT(0, 17).
-        set fvec_plan to up:forevector.
-    }
-    else {
-        set thro_plan to _throttle_target * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
-        print "T1 = " + round(_throttle_target, 2) + ", T2 = " + round(thro_plan, 2) + "    " AT(0, 17).
-        set fvec_plan to terminal_get_fvec().
-    }
+
+    set thro_plan to _throttle_target * (1 + __TERMINAL_thro_PID:update(time:seconds, 1+deltar/max(height, 0.01))).
+    print "T1 = " + round(_throttle_target, 2) + ", T2 = " + round(thro_plan, 2) + "    " AT(0, 17).
+    set fvec_plan to terminal_get_fvec().
     // set thro_plan to max(thro_min, min(thro_max, thro_plan)).
     return list(fvec_plan, thro_plan).
 }
