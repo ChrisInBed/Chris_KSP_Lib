@@ -36,7 +36,7 @@ function __peg_get_dv {
     parameter a0.
     parameter ve.
     parameter burntime.
-    return -ve * ln(1 - burntime * a0 / ve).
+    return -ve * ln(max(1e-6, 1 - burntime * a0 / ve)).
 }
 
 function peg_get_initial_params {
