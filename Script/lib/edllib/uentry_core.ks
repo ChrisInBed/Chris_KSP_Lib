@@ -22,7 +22,7 @@ function entry_async_set_aeroprofile {
     set entry_aeroprofile_process["altSamples"] to altSamples.
     set entry_aeroprofile_process["Cdfactor"] to Cdfactor.
     set entry_aeroprofile_process["Clfactor"] to Clfactor.
-    set entry_aeroprofile_process["batchsize"] to batchsize.
+    set entry_aeroprofile_process["batchsize"] to max(1, round(batchsize, 0)).
     set entry_aeroprofile_process["Cdlist"] to list().
     set entry_aeroprofile_process["Cllist"] to list().
     set entry_aeroprofile_process["curIndex"] to 0.
@@ -249,7 +249,12 @@ function entry_initialize_guidance {
             local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
             local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
             set thetaErr to thetaf1 - theta_target.
-            local thetaErrDBank to (thetaf2 - thetaf1) / 0.1.
+            if (thetaErr > 180) set thetaErr to thetaErr - 360.
+            else if (thetaErr < -180) set thetaErr to thetaErr + 360.
+            local thetaDelta to thetaf2 - thetaf1.
+            if (thetaDelta > 180) set thetaDelta to thetaDelta - 360.
+            else if (thetaDelta < -180) set thetaDelta to thetaDelta + 360.
+            local thetaErrDBank to thetaDelta / 0.1.
             local bank_i_old to bank_i.
             set bank_i to bank_i - max(-5, min(5, thetaErr / msafedivision(thetaErrDBank))).
             set bank_i to max(0, min(AFS:bank_max, bank_i)).
@@ -322,10 +327,13 @@ function entry_step_guidance {
     }
     local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
     local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
-    set thetaErr to thetaf1 - theta_target.
+    local thetaErr to thetaf1 - theta_target.
     if (thetaErr > 180) set thetaErr to thetaErr - 360.
     else if (thetaErr < -180) set thetaErr to thetaErr + 360.
-    local thetaErrDBank to (thetaf2 - thetaf1) / 0.1.
+    local thetaDelta to thetaf2 - thetaf1.
+    if (thetaDelta > 180) set thetaDelta to thetaDelta - 360.
+    else if (thetaDelta < -180) set thetaDelta to thetaDelta + 360.
+    local thetaErrDBank to thetaDelta / 0.1.
     // update gst
     set bank_now to bank_now - max(-1, min(1, thetaErr / msafedivision(thetaErrDBank))).
     set bank_now to max(0, min(AFS:bank_max, bank_now)).

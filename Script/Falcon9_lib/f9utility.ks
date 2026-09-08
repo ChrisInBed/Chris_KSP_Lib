@@ -307,7 +307,7 @@ FUNCTION f9_get_surface_normal {
     LOCAL unitR IS -SHIP:BODY:POSITION:NORMALIZED.
     LOCAL orbitNormal IS VCRS(unitR, SHIP:VELOCITY:SURFACE):NORMALIZED.
     IF orbitNormal:MAG < 1e-4 {
-        RETURN NORTH:FORVECTOR.
+        RETURN NORTH:FOREVECTOR.
     }
     RETURN orbitNormal.
 }
@@ -478,6 +478,7 @@ FUNCTION f9_ltr_predict {
         targetContext,
         vecNormal
     ).
+    SET targetBodyPosition TO targetPosition - SHIP:BODY:POSITION.
     SET result["targetPosition"] TO targetPosition.
     SET result["targetBodyPosition"] TO targetBodyPosition.
     RETURN result.

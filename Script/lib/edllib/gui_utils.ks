@@ -555,7 +555,7 @@ function edl_MakeAeroGUI {
         mlinspace(
             gui_aero_speedgrid_vmin_input:text:tonumber * 1e3,  // convert to m/s
             gui_aero_speedgrid_vmax_input:text:tonumber * 1e3,  // convert to m/s
-            gui_aero_speedgrid_npoints_input:text:tonumber,
+            max(2, round(gui_aero_speedgrid_npoints_input:text:tonumber, 0)),
             AeroSpeedSamples
         ).
         local altSamples to list().
@@ -563,12 +563,12 @@ function edl_MakeAeroGUI {
         mlinspace(
             gui_aero_altgrid_hmax_input:text:tonumber * 1e3,  // convert to m
             gui_aero_altgrid_hmin_input:text:tonumber * 1e3,  // convert to m
-            round(gui_aero_altgrid_npoints_input:text:tonumber, 0),
+            max(2, round(gui_aero_altgrid_npoints_input:text:tonumber, 0)),
             altSamples
         ).
         local CdCorrection to gui_aero_cd_input:text:tonumber.
         local ClCorrection to gui_aero_cl_input:text:tonumber.
-        local batchsize to round(gui_aero_batchsize_input:text:tonumber(20), 0).
+        local batchsize to max(1, round(gui_aero_batchsize_input:text:tonumber(20), 0)).
         entry_async_set_aeroprofile(AeroSpeedSamples, altSamples, CdCorrection, ClCorrection, batchsize).
         when (true) then {
             local nV to AeroSpeedSamples:length().

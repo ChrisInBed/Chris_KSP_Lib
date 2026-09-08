@@ -185,7 +185,8 @@ function update_target_geo {
     }
     set target_geo to _target_geo.
     local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
-    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
+    local longitudeScale to max(0.000001, cos(target_geo:lat)).
+    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor/longitudeScale).
     set target_height to P_ADJUST:z.
     print UI_LANG["pegmain.lbl_target_pos"] + target_geo AT(0,7).
 }
@@ -419,7 +420,7 @@ function phase_approach {
     print UI_LANG["pegmain.msg_approach"] AT(0,12).
     set guidance_status to "approach".
     local lock appRT to V(0, 0, bottom_height + target_height).
-    local appVT to V(0, 0, -0.5). // 0.5 m/s downward
+    local appVT to V(0, 0, -1). // 1 m/s downward
     local appAT to V(0, 0, 0). // no acceleration
     local appJx to 0.  // no Jerk
     local raxis to V(0, 0, 1).
