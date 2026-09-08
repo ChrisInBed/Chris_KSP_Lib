@@ -20,9 +20,15 @@ function mlinspace {
     parameter n.
     parameter xseq.
     
+    set n to round(n, 0).
     xseq:clear().
+    if n <= 0 return xseq.
+    if n = 1 {
+        xseq:add(start).
+        return xseq.
+    }
     local interval to (end - start) / (n - 1).
-    from {local i to 0.} until i = n step {set i to i+1.} do {
+    from {local i to 0.} until i >= n step {set i to i+1.} do {
         xseq:add(start + i * interval).
     }
     return xseq.
@@ -148,13 +154,4 @@ function mlinearInterpolation {
         if (xx < xseq[i]) return yseq[i-1] + (yseq[i] - yseq[i-1]) * (xx - xseq[i-1]) / (xseq[i] - xseq[i-1]).
     }
     return yseq[n-1].
-}
-
-function msafedivision {
-    parameter xx.
-    parameter dzsize is 1e-7.
-
-    if (abs(xx) > dzsize) {return xx.}
-    if (xx < 0) {return -dzsize.}
-    else {return dzsize.}
 }

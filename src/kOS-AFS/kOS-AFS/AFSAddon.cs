@@ -164,7 +164,7 @@ namespace kOS.AddOns.AFSAddon
                 axis = -axis;
             }
             Vector resVec = new Vector(axis * (angle * Mathf.Deg2Rad));
-            if (Double.IsFinite(resVec.X) && Double.IsFinite(resVec.Y) && Double.IsFinite(resVec.Z))
+            if (AFSCore.IsFinite(resVec.X) && AFSCore.IsFinite(resVec.Y) && AFSCore.IsFinite(resVec.Z))
                 return resVec;
             else
                 return Vector.Zero;
@@ -177,7 +177,7 @@ namespace kOS.AddOns.AFSAddon
             double3 vecRtgt = RequiredVectorArg(args, "vecRtgt");
             double headingErr = AFSCore.GetHeadingErr(vecR, vecV, vecRtgt);
             headingErr = math.degrees(headingErr);
-            if (!Double.IsFinite(headingErr)) return ScalarValue.Create(0d);
+            if (!AFSCore.IsFinite(headingErr)) return ScalarValue.Create(0d);
             return ScalarValue.Create(headingErr);
         }
 
@@ -682,9 +682,9 @@ namespace kOS.AddOns.AFSAddon
         private static Vector Double3ToVector(double3 d3)
         {
             Vector v = new Vector(
-                Double.IsFinite(d3.x) ? d3.x : 0.0,
-                Double.IsFinite(d3.y) ? d3.y : 0.0,
-                Double.IsFinite(d3.z) ? d3.z : 0.0
+                AFSCore.IsFinite(d3.x) ? d3.x : 0.0,
+                AFSCore.IsFinite(d3.y) ? d3.y : 0.0,
+                AFSCore.IsFinite(d3.z) ? d3.z : 0.0
             );
             return v;
         }

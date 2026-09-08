@@ -185,7 +185,8 @@ function update_target_geo {
     }
     set target_geo to _target_geo.
     local adjfactor to 180/constant:pi/(ship:body:radius+target_geo:terrainheight).
-    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor*cos(target_geo:lat)).
+    local longitudeScale to max(0.000001, cos(target_geo:lat)).
+    set target_geo to ship:body:geopositionlatlng(target_geo:lat+P_ADJUST:x*adjfactor, target_geo:lng+P_ADJUST:y*adjfactor/longitudeScale).
     set target_height to P_ADJUST:z.
     print UI_LANG["pegmain.lbl_target_pos"] + target_geo AT(0,7).
 }
@@ -227,6 +228,7 @@ on ("0"+ag8+stage:number) {
 when (RCS_ullage_watchdog and ullage) then {
     if (ship:thrust < 1e-4) set ship:control:translation to TiS:inverse * V(0, 0, 1).
     else set ship:control:translation to V(0,0,0).
+    return true.
 }
 
 function phase_descent {
@@ -335,13 +337,14 @@ function phase_descent {
     lock lo_tt to time:seconds - _time_begin.
 
     // inner loop: update axis and steering
+    local _inTerminal to false.
     when (guidance_status = "descent") then {
         update_steering_target(lo_tt).
         set throttle_control["maxthrust"] to f0.
         set throttle_control["minthrottle"] to thro_min.
         set throttle_control["throttle"] to throttle.
         set throttle_control["thrust"] to get_curthrust()*0.25 + throttle_control["thrust"]*0.75.  // moving average
-        set throttle_control["allow_restart"] to allow_restart.
+        set throttle_control["allow_restart"] to allow_restart AND (not _inTerminal).
         set throttle_control["throttle_shutdown"] to max(0, thro_min - restart_tol).
         set throttle_control["throttle_restart"] to min(0.98, thro_min + restart_tol).
         // set throttle_control["thrust_target"] to gst["throttle"]*f0.
@@ -365,6 +368,7 @@ function phase_descent {
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
+        if (gst["stopIter"]) set _inTerminal to false.
         if (_statuscode = 0) {
             print UI_LANG["pegmain.err_peg_diverged"] AT(0, 16).
             hudtext(UI_LANG["pegmain.err_peg_diverged"], 4, 2, 12, hudtextcolor, false).
@@ -416,7 +420,7 @@ function phase_approach {
     print UI_LANG["pegmain.msg_approach"] AT(0,12).
     set guidance_status to "approach".
     local lock appRT to V(0, 0, bottom_height + target_height).
-    local appVT to V(0, 0, -0.5). // 0.5 m/s downward
+    local appVT to V(0, 0, -1). // 1 m/s downward
     local appAT to V(0, 0, 0). // no acceleration
     local appJx to 0.  // no Jerk
     local raxis to V(0, 0, 1).
@@ -467,7 +471,8 @@ function phase_approach {
         set throttle_control["allow_restart"] to allow_restart.
         set throttle_control["throttle_shutdown"] to max(0, thro_min - restart_tol).
         set throttle_control["throttle_restart"] to min(0.98, thro_min + restart_tol).
-        set throttle_control["thrust_target"] to ship:mass*_af:mag/f0.
+        // update_throttle_control expects thrust (N), not a throttle fraction.
+        set throttle_control["thrust_target"] to ship:mass*_af:mag.
         set throttle_target to update_throttle_control(throttle_control).
         // set throttle_target to simple_get_throttle(ship:mass*_af:mag/f0, thro_min).
         return true.

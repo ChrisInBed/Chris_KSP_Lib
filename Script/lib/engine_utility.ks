@@ -170,7 +170,7 @@ function initialize_throttle_control {
 		"throttle", 0,
 		"thrust", 0,
 		"thrust_target", thrust_target,
-		"allo_restart", true,
+		"allow_restart", true,
 		"throttle_shutdown", thro_min - 0.2,
 		"throttle_restart", thro_min + 0.2,
 		"pid", pidLoop(1, 0.01, 0)
@@ -185,7 +185,7 @@ function update_throttle_control {
 		+ ", minthrottle = " + round(control_state["minthrottle"], 2)
 		+ ", restart = " + round(control_state["throttle_restart"], 2)
 		+ ", shutdown = " + round(control_state["throttle_shutdown"], 2) AT(0, 18).
-	if (control_state["allo_restart"]) {
+	if (control_state["allow_restart"]) {
 		local engine_shutdown to false.
 		if (throttle = 0) set engine_shutdown to (throttle_target <= control_state["throttle_restart"]).
 		else set engine_shutdown to (throttle_target < control_state["throttle_shutdown"]).

@@ -555,18 +555,21 @@ namespace AFS
         {
             if (context == null) context = new Context();
             PhyStateDerivative k0 = ComputeDerivatives(t, state, args, bargs, context);
-            PhyStateDerivative k1 = ComputeDerivatives(t + S1 * tstep, state + Beta10 * k0, args, bargs, null);
-            PhyStateDerivative k2 = ComputeDerivatives(t + S2 * tstep, state + Beta20 * k0 + Beta21 * k1, args, bargs, null);
-            PhyStateDerivative k3 = ComputeDerivatives(t + S3 * tstep, state + Beta30 * k0 + Beta31 * k1 + Beta32 * k2, args, bargs, null);
-            PhyStateDerivative k4 = ComputeDerivatives(t + S4 * tstep, state + Beta40 * k0 + Beta41 * k1 + Beta42 * k2 + Beta43 * k3, args, bargs, null);
-            PhyStateDerivative k5 = ComputeDerivatives(t + S5 * tstep, state + Beta50 * k0 + Beta51 * k1 + Beta52 * k2 + Beta53 * k3 + Beta54 * k4, args, bargs, null);
+            PhyStateDerivative k1 = ComputeDerivatives(t + S1 * tstep, state + tstep * Beta10 * k0, args, bargs, null);
+            PhyStateDerivative k2 = ComputeDerivatives(t + S2 * tstep, state + tstep * (Beta20 * k0 + Beta21 * k1), args, bargs, null);
+            PhyStateDerivative k3 = ComputeDerivatives(t + S3 * tstep, state + tstep * (Beta30 * k0 + Beta31 * k1 + Beta32 * k2), args, bargs, null);
+            PhyStateDerivative k4 = ComputeDerivatives(t + S4 * tstep, state + tstep * (Beta40 * k0 + Beta41 * k1 + Beta42 * k2 + Beta43 * k3), args, bargs, null);
+            PhyStateDerivative k5 = ComputeDerivatives(t + S5 * tstep, state + tstep * (Beta50 * k0 + Beta51 * k1 + Beta52 * k2 + Beta53 * k3 + Beta54 * k4), args, bargs, null);
 
             PhyState y4 = state + tstep * (C04 * k0 + C14 * k1 + C24 * k2 + C34 * k3 + C44 * k4 + C54 * k5);
             PhyState y5 = state + tstep * (C05 * k0 + C15 * k1 + C25 * k2 + C35 * k3 + C45 * k4 + C55 * k5);
-            double errorV = Math.Abs((y4.v - y5.v) / (AbsVTol + RelVTol * Math.Abs(y5.v)));
-            double newStep = Clamp(StepSafety * Math.Pow(errorV, -0.2), MinScale, MaxScale) * tstep;
-            bool isValid = (errorV <= 1.0) || (newStep <= args.predict_min_step);  // If new step size is too small, we just accept the result.
-            newStep = Clamp(newStep, args.predict_min_step, args.predict_max_step);
+            double errorV = math.length(y5.vecV - y4.vecV)
+                / (AbsVTol + RelVTol * Math.Max(1.0, math.length(y5.vecV)));
+            double scale = errorV > 0 ? StepSafety * Math.Pow(errorV, -0.2) : MaxScale;
+            double minStep = Math.Max(1e-6, args.predict_min_step);
+            double newStep = Clamp(scale, MinScale, MaxScale) * tstep;
+            bool isValid = (errorV <= 1.0) || (tstep <= minStep);  // If the current step is already minimal, accept the result.
+            newStep = Clamp(newStep, minStep, args.predict_max_step);
             return new Rk45StepResult { t = t + tstep, newStep = newStep, nextState = y5, errorV = errorV, isValid = isValid, Qdot = context.Qdot, acc = context.acc, dynp = context.dynp };
         }
 
@@ -782,7 +785,7 @@ namespace AFS
 
         public static double GetHeightEst(SimAtmTrajArgs args, double density)
         {
-            if ((!Double.IsFinite(density)) || (density <= 0)) return args.atmHeight;
+            if ((!IsFinite(density)) || (density <= 0)) return args.atmHeight;
             // Find the altitude that corresponds to the given density via interpolation
             double logD = Math.Log(density);
             int idx = FindUpperBound(args.AtmLogDensitySamples, logD, Comparer<double>.Create((a, b) => b.CompareTo(a)));
@@ -813,7 +816,12 @@ namespace AFS
 
         public static double GetSafeDouble(double value)
         {
-            return Double.IsFinite(value) ? value : 0.0;
+            return IsFinite(value) ? value : 0.0;
+        }
+
+        public static bool IsFinite(double value)
+        {
+            return !Double.IsNaN(value) && !Double.IsInfinity(value);
         }
 
         public static Vector3d Double3ToVector3d(double3 v)
