@@ -49,7 +49,7 @@ function __terminal_get_deltar {
 }
 
 function terminal_get_fvec {
-    local vmin to __TERMINAL_g0.
+    local vmin to 10.
     local vecV to ship:velocity:surface.
     local upAxis to up:forevector.
     local vh to vDot(vecV, upAxis).

@@ -227,6 +227,7 @@ on ("0"+ag8+stage:number) {
 when (RCS_ullage_watchdog and ullage) then {
     if (ship:thrust < 1e-4) set ship:control:translation to TiS:inverse * V(0, 0, 1).
     else set ship:control:translation to V(0,0,0).
+    return true.
 }
 
 function phase_descent {
@@ -469,7 +470,8 @@ function phase_approach {
         set throttle_control["allow_restart"] to allow_restart.
         set throttle_control["throttle_shutdown"] to max(0, thro_min - restart_tol).
         set throttle_control["throttle_restart"] to min(0.98, thro_min + restart_tol).
-        set throttle_control["thrust_target"] to ship:mass*_af:mag/f0.
+        // update_throttle_control expects thrust (N), not a throttle fraction.
+        set throttle_control["thrust_target"] to ship:mass*_af:mag.
         set throttle_target to update_throttle_control(throttle_control).
         // set throttle_target to simple_get_throttle(ship:mass*_af:mag/f0, thro_min).
         return true.
