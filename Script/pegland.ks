@@ -335,13 +335,14 @@ function phase_descent {
     lock lo_tt to time:seconds - _time_begin.
 
     // inner loop: update axis and steering
+    local _inTerminal to false.
     when (guidance_status = "descent") then {
         update_steering_target(lo_tt).
         set throttle_control["maxthrust"] to f0.
         set throttle_control["minthrottle"] to thro_min.
         set throttle_control["throttle"] to throttle.
         set throttle_control["thrust"] to get_curthrust()*0.25 + throttle_control["thrust"]*0.75.  // moving average
-        set throttle_control["allow_restart"] to allow_restart.
+        set throttle_control["allow_restart"] to allow_restart AND (not _inTerminal).
         set throttle_control["throttle_shutdown"] to max(0, thro_min - restart_tol).
         set throttle_control["throttle_restart"] to min(0.98, thro_min + restart_tol).
         // set throttle_control["thrust_target"] to gst["throttle"]*f0.
@@ -365,6 +366,7 @@ function phase_descent {
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
+        if (gst["stopIter"]) set _inTerminal to false.
         if (_statuscode = 0) {
             print UI_LANG["pegmain.err_peg_diverged"] AT(0, 16).
             hudtext(UI_LANG["pegmain.err_peg_diverged"], 4, 2, 12, hudtextcolor, false).

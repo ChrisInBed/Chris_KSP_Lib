@@ -179,7 +179,8 @@ function peg_get_initial_params {
         "eta0", eta0, "T", T, "K", _integrals["K"], "unituK", unituK, "deruK", deruK, "throttle", shp["throttle"],
         "vecV0", vecV0, "vecR0", vecR0, "vecVF", vecVF, "vecRF", vecRF, "Av", _integrals["Av"],
         "vecGAV1", vecGAV1, "vecGAV2", vecGAV2,
-        "unitHref", -obts["unitUy"], "vecErr", vecRF - vecRL, "numiter", numiter
+        "unitHref", -obts["unitUy"], "vecErr", vecRF - vecRL, "numiter", numiter,
+        "stopIter", false
     ).
     // // log column names
     // log "ve%m0%f0%throttle%a0%vecVL_rht%vecbodyomega%sma%ecc%unitUy%unitRref%etaref
@@ -202,6 +203,7 @@ function peg_step_control {
 
     if gst["T"] < 5 {
         // stop update control
+        set gst["stopIter"] to true.
         return gst.
     }
     // build VL, RL
