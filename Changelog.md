@@ -174,3 +174,10 @@ Major version update
   - Added `landingSiteUse = "none"` to record the LTR-predicted natural impact point after stage separation and `boostBackDelay`, making it possible to survey a drone-ship or downrange-pad location
   - Added independent `enableBoostBack` and `enableEntryBurn` switches; disabling the powered entry burn does not disable aerodynamic gliding
   - Added ASDS boot configurations and documented the two-flight site-survey workflow in the English and Chinese tutorials
+
+## 2026/09/09 v1.0.3
+
+- PEGLand: fixed approach-phase throttle control, landing-target adjustment, and several quadratic-guidance edge cases
+- BORG: fixed landing-engine transitions, moving-target prediction, and surface-normal fallback
+- kOS-AFS: corrected RKF45 integration
+- UEntry and shared utilities: fixed angle wrapping, aerodynamic-grid input validation, and several stability issues
