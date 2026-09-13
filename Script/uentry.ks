@@ -12,6 +12,8 @@ declare global guidance_active to false.
 declare global guidance_stage to "inactive".
 declare global entry_bank_i to 20.
 declare global entry_bank_f to 10.
+declare global uentry_interface_ut to 0.
+declare global uentry_kac_alarm_created to false.
 
 function init_print {
     // line 1~10: target position
@@ -25,6 +27,7 @@ function init_print {
 
 function entry_phase {
     set guidance_stage to "preparation".
+    set uentry_interface_ut to 0.
     // initialize guidance
     print UI_LANG["uentryMain.msg_prep_guide"] AT(0, 12).
     local startTime to time:seconds.
@@ -37,17 +40,18 @@ function entry_phase {
         return.
     }
     local gst to initInfo["gst"].
+    set uentry_interface_ut to startTime + initInfo["time_entry"].
     // glide to entry interface
     set guidance_stage to "gliding".
     when ((not done) and guidance_active) then {
-        local _cd to startTime+initInfo["time_entry"]-time:seconds.
+        local _cd to uentry_interface_ut-time:seconds.
         if (defined gui_edlmain) {
             local msg to UI_LANG["uentryMain.msg_time_entry"] + round(_cd) + " s.".
             set gui_edl_state_msg:text to msg.
         }
         return _cd >= 0.
     }
-    wait until time:seconds - startTime > initInfo["time_entry"] - 60 or ship:altitude < body:atm:height or done or (not guidance_active).
+    wait until time:seconds > uentry_interface_ut - 60 or ship:altitude < body:atm:height or done or (not guidance_active).
     if (done or (not guidance_active)) return.
     set guidance_stage to "entry".
     RCS ON.

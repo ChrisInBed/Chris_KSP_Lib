@@ -20,6 +20,8 @@ declare global done to false.
 declare global guidance_active to true.
 global lock break_guidance_cycle to (done or (not guidance_active)).
 declare global ignite_now to P_NOWAIT.
+declare global pegland_ignition_ut to 0.
+declare global pegland_kac_alarm_created to false.
 declare global start_phase to "descent".
 declare global add_approach_phase to false.
 declare global target_rotation to 0.
@@ -73,6 +75,7 @@ function initialize_guidance {
     // then update the GUI
     set guidance_active to true.
     set ignite_now to P_NOWAIT.
+    set pegland_ignition_ut to 0.
     set start_phase to "descent".
     set guidance_status to "inactive".
 
@@ -293,21 +296,21 @@ function phase_descent {
         )).
     }
 
-    local ignition_time to time:seconds.
+    set pegland_ignition_ut to time:seconds.
     local lock __lo_thetanow to etaref + __peg_get_angle(unitRref, -ship:body:position, unitUy).
-    if not ignite_now {set ignition_time to get_time_to_theta(sma, ecc, mu, time:seconds, __lo_thetanow, theta0).}
+    if not ignite_now {set pegland_ignition_ut to get_time_to_theta(sma, ecc, mu, time:seconds, __lo_thetanow, theta0).}
 
     print UI_LANG["pegmain.msg_converged"] AT(0,12).
     set guidance_status to "Waiting for ignition".
     when (true) then {
-        local msg to UI_LANG["pegmain.lbl_time_to_ign"] + round(ignition_time - time:seconds) + " s, eta = " + round(__lo_thetanow) + "->" + round(theta0).
+        local msg to UI_LANG["pegmain.lbl_time_to_ign"] + round(pegland_ignition_ut - time:seconds) + " s, eta = " + round(__lo_thetanow) + "->" + round(theta0).
         print msg + "  " AT(0,13).
         if P_GUI {gui_update_msg_display(msg).}
-        if (time:seconds >= ignition_time or done) {return false.}  // end trigger
+        if (time:seconds >= pegland_ignition_ut or done) {return false.}  // end trigger
         return true.
     }
 
-    wait until time:seconds >= ignition_time - 60 or (break_guidance_cycle).
+    wait until time:seconds >= pegland_ignition_ut - 60 or (break_guidance_cycle).
     if (break_guidance_cycle) return.
     print UI_LANG["pegmain.msg_aligning"] AT(0,12).
     set guidance_status to "Aligning to target".
@@ -322,7 +325,7 @@ function phase_descent {
     RCS ON.
     update_steering_target(0).
     lock steering to steering_target.
-    until time:seconds >= ignition_time - ullage_time - spooluptime. {
+    until time:seconds >= pegland_ignition_ut - ullage_time - spooluptime. {
         update_steering_target(0).  // response to roll change by user input
         wait 0.  // wait until next physical tick
     }

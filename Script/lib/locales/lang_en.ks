@@ -102,6 +102,8 @@ GLOBAL UI_LANG IS LEXICON(
     "peggui.lbl_ullage_time", "Ullage time (s) ",
     "peggui.err_ullage_neg", "Ullage time must be non-negative",
     "peggui.lbl_slope", "Slope = ",
+    "peggui.btn_create_kac_alarm", "Create ignition alarm",
+    "peggui.kac_notes_prefix", "PEGLand ignition at UT ",
 
     // UEntry Main Executive
     "uentryMain.terminal_title", "Entry guidance",
@@ -142,6 +144,8 @@ GLOBAL UI_LANG IS LEXICON(
     "uentryGui.gui_activate", "ACTIVATE GUIDANCE",
     "uentryGui.gui_emergency", "EMERGENCY SUPPRESS",
     "uentryGui.gui_open_kcl", "Open KCL Controller GUI",
+    "uentryGui.btn_create_kac_alarm", "Create entry alarm",
+    "uentryGui.kac_notes_prefix", "UEntry entry interface at UT ",
     "uentryGui.err_preset_not_found", "Preset file not found!",
     "uentryGui.lbl_load_preset", "Load Preset:",
     "uentryGui.btn_load", "Load",
@@ -178,6 +182,16 @@ GLOBAL UI_LANG IS LEXICON(
     "uentryGui.gui_show_prediction", "Show Prediction",
     "uentryGui.vec_final", "Final",
     "uentryGui.vec_target", "Target",
+
+    // Kerbal Alarm Clock
+    "kac.status.ready", "KAC ready",
+    "kac.status.unavailable", "KAC is unavailable",
+    "kac.status.not_ready", "Guidance time is not ready",
+    "kac.status.too_late", "Too late for the 60 s preparation alarm",
+    "kac.status.create_failed", "Failed to create KAC alarm",
+    "kac.status.created", "KAC alarm created",
+    "kac.status.already_created", "KAC alarm already created",
+    "kac.notes_suffix", ". Alarm set 60 seconds early for attitude alignment.",
     "uentryGui.btn_update_pred", "Update Prediction",
     "uentryGui.err_prop_fail", "Propagation Error: ",
     "uentryGui.err_pred_fail", "Prediction Error: ",

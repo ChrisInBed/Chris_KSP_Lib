@@ -2,6 +2,30 @@ runOncePath("0:/lib/locales/utils.ks").
 runOncePath("0:/lib/orbit.ks").
 runOncePath("0:/lib/engine_utility.ks").
 
+function gui_create_pegland_kac_alarm {
+    if pegland_kac_alarm_created {
+        set gui_pegland_kac_status:text to UI_LANG["kac.status.already_created"].
+        set gui_pegland_kac_button:enabled to false.
+        return.
+    }
+
+    local alarm_notes to UI_LANG["peggui.kac_notes_prefix"] + round(pegland_ignition_ut, 1)
+        + UI_LANG["kac.notes_suffix"].
+    local alarm_result to create_kac_pause_alarm(
+        pegland_ignition_ut,
+        60,
+        "PEGLand ignition",
+        alarm_notes
+    ).
+    local alarm_message to UI_LANG["kac.status." + alarm_result["status"]].
+    set gui_pegland_kac_status:text to alarm_message.
+    hudtext(alarm_message, 4, 2, hudtextsize, hudtextcolor, false).
+    if alarm_result["ok"] {
+        set pegland_kac_alarm_created to true.
+        set gui_pegland_kac_button:enabled to false.
+    }
+}
+
 function gui_make_peglandgui {
     declare global gui_maingui is GUI(500, 700).
     set gui_maingui:style:hstretch to true.
@@ -87,6 +111,22 @@ function gui_make_peglandgui {
         parameter newstate.
         set config:suppressautopilot to newstate.
     }.
+
+    declare global gui_pegland_kac_box to gui_mainbox:addhlayout().
+    declare global gui_pegland_kac_button to gui_pegland_kac_box:addbutton(UI_LANG["peggui.btn_create_kac_alarm"]).
+    declare global gui_pegland_kac_status to gui_pegland_kac_box:addlabel("").
+    set gui_pegland_kac_button:onclick to {gui_create_pegland_kac_alarm().}.
+    if (not kac_is_available()) {
+        set gui_pegland_kac_button:enabled to false.
+        set gui_pegland_kac_status:text to UI_LANG["kac.status.unavailable"].
+    }
+    else if pegland_kac_alarm_created {
+        set gui_pegland_kac_button:enabled to false.
+        set gui_pegland_kac_status:text to UI_LANG["kac.status.already_created"].
+    }
+    else {
+        set gui_pegland_kac_status:text to UI_LANG["kac.status.ready"].
+    }
 
     // Settings region
     declare global gui_settings_box to gui_mainbox:addvlayout().

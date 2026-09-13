@@ -97,6 +97,8 @@ GLOBAL UI_LANG IS LEXICON(
     "peggui.lbl_ullage_time",   "沉底机动时间 (s) ",
     "peggui.err_ullage_neg",    "沉底机动时间不能为负数！",
     "peggui.lbl_slope",         "坡度 = ",
+    "peggui.btn_create_kac_alarm", "创建点火闹钟",
+    "peggui.kac_notes_prefix",  "PEGLand 点火时刻 UT ",
 
     // UEntry Main Executive
     "uentryMain.terminal_title", "UEntry再入制导",
@@ -137,6 +139,8 @@ GLOBAL UI_LANG IS LEXICON(
     "uentryGui.gui_activate",        "激活引导系统",
     "uentryGui.gui_emergency",       "紧急手动接管",
     "uentryGui.gui_open_kcl",        "打开KCL姿态控制器界面",
+    "uentryGui.btn_create_kac_alarm", "创建再入闹钟",
+    "uentryGui.kac_notes_prefix",     "UEntry 再入界面时刻 UT ",
     "uentryGui.err_preset_not_found","未找到预设文件！",
     "uentryGui.lbl_load_preset",     "读取预设文件:",
     "uentryGui.btn_load",            "读取",
@@ -173,6 +177,16 @@ GLOBAL UI_LANG IS LEXICON(
     "uentryGui.gui_show_prediction", "显示预测",
     "uentryGui.vec_final",           "预测落点",
     "uentryGui.vec_target",          "目标",
+
+    // Kerbal Alarm Clock
+    "kac.status.ready",              "KAC 已就绪",
+    "kac.status.unavailable",        "KAC 不可用",
+    "kac.status.not_ready",          "制导时刻尚未计算完成",
+    "kac.status.too_late",           "已不足 60 秒，无法创建姿态准备闹钟",
+    "kac.status.create_failed",      "KAC 闹钟创建失败",
+    "kac.status.created",            "KAC 闹钟已创建",
+    "kac.status.already_created",    "KAC 闹钟已经创建",
+    "kac.notes_suffix",              "。闹钟提前 60 秒触发，用于姿态对准。",
     "uentryGui.btn_update_pred",     "更新落点预测",
     "uentryGui.err_prop_fail",       "推算再入点失败:",
     "uentryGui.err_pred_fail",       "落点预测失败:",

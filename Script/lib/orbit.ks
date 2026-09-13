@@ -2,6 +2,39 @@ runOncePath("0:/lib/chrismath.ks").
 runOncePath("0:/lib/locales/utils.ks").
 declare global __ORBIT_TIME_N to 23.
 
+function kac_is_available {
+    if (not addons:available("KAC")) {
+        return false.
+    }
+    return addons:KAC:available.
+}
+
+function create_kac_pause_alarm {
+    parameter event_ut.
+    parameter preparation_seconds.
+    parameter alarm_name.
+    parameter alarm_notes.
+
+    if (not kac_is_available()) {
+        return lexicon("ok", false, "status", "unavailable", "alarm", "").
+    }
+    if (event_ut <= 0) {
+        return lexicon("ok", false, "status", "not_ready", "alarm", "").
+    }
+    local alarm_ut to event_ut - preparation_seconds.
+    if (alarm_ut <= time:seconds) {
+        return lexicon("ok", false, "status", "too_late", "alarm", "").
+    }
+
+    local alarm_ref to addAlarm("Raw", alarm_ut, alarm_name, alarm_notes).
+    if (alarm_ref = "") {
+        return lexicon("ok", false, "status", "create_failed", "alarm", "").
+    }
+    set alarm_ref:action to "PauseGame".
+    set alarm_ref:repeat to false.
+    return lexicon("ok", true, "status", "created", "alarm", alarm_ref).
+}
+
 function get_orbit_latus_rectum {
     parameter sma.
     parameter ecc.

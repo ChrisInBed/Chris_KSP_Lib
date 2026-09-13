@@ -10,6 +10,31 @@ declare global hudtextcolor to RGB(22/255, 255/255, 22/255).
 declare global _entrygui_preset to "".
 
 declare global AFS to addons:AFS.
+
+function gui_create_uentry_kac_alarm {
+    if uentry_kac_alarm_created {
+        set gui_uentry_kac_status:text to UI_LANG["kac.status.already_created"].
+        set gui_uentry_kac_button:enabled to false.
+        return.
+    }
+
+    local alarm_notes to UI_LANG["uentryGui.kac_notes_prefix"] + round(uentry_interface_ut, 1)
+        + UI_LANG["kac.notes_suffix"].
+    local alarm_result to create_kac_pause_alarm(
+        uentry_interface_ut,
+        60,
+        "UEntry entry interface",
+        alarm_notes
+    ).
+    local alarm_message to UI_LANG["kac.status." + alarm_result["status"]].
+    set gui_uentry_kac_status:text to alarm_message.
+    hudtext(alarm_message, 4, 2, hudtextsize, hudtextcolor, false).
+    if alarm_result["ok"] {
+        set uentry_kac_alarm_created to true.
+        set gui_uentry_kac_button:enabled to false.
+    }
+}
+
 function edl_MakeEDLGUI {
     // EDL Main GUI
     // Required global variables:
@@ -41,6 +66,21 @@ function edl_MakeEDLGUI {
         parameter newstate.
         set guidance_active to newstate.
     }.
+    declare global gui_uentry_kac_box to gui_edlmainbox:addhlayout().
+    declare global gui_uentry_kac_button to gui_uentry_kac_box:addbutton(UI_LANG["uentryGui.btn_create_kac_alarm"]).
+    declare global gui_uentry_kac_status to gui_uentry_kac_box:addlabel("").
+    set gui_uentry_kac_button:onclick to {gui_create_uentry_kac_alarm().}.
+    if (not kac_is_available()) {
+        set gui_uentry_kac_button:enabled to false.
+        set gui_uentry_kac_status:text to UI_LANG["kac.status.unavailable"].
+    }
+    else if uentry_kac_alarm_created {
+        set gui_uentry_kac_button:enabled to false.
+        set gui_uentry_kac_status:text to UI_LANG["kac.status.already_created"].
+    }
+    else {
+        set gui_uentry_kac_status:text to UI_LANG["kac.status.ready"].
+    }
     declare global gui_edl_emergency_button to gui_edlmainbox:addcheckbox("<b><size=16>" + UI_LANG["uentryGui.gui_emergency"] + "</size></b>", config:suppressautopilot).
     set gui_edl_emergency_button:ontoggle to {
         parameter newstate.
