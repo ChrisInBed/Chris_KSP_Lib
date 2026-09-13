@@ -353,8 +353,8 @@ function phase_descent {
     }
     // outer loop: update control and throttle
     local num_iter to 0.
-    local _old_ground_speed to ship:groundspeed.
-    until (gst["T"] - lo_tt < apprTime or ship:body:distance < vecRL:mag or ship:groundspeed < vecVL_rht:z) {
+    local _old_state_err to 999999999999.
+    until (gst["T"] - lo_tt < apprTime) {
         if (break_guidance_cycle) return.
         local __time_begin to time:seconds.
         set gst["T"] to gst["T"] - lo_tt.
@@ -368,7 +368,7 @@ function phase_descent {
             lexicon("ve", ve, "thrust", f0, "throttle", std_throttle, "mass", ship:mass, "thro_min", thro_min, "thro_max", 1),
             gst
         ).
-        if (gst["stopIter"]) set _inTerminal to false.
+        if (gst["stopIter"]) set _inTerminal to true.
         if (_statuscode = 0) {
             print UI_LANG["pegmain.err_peg_diverged"] AT(0, 16).
             hudtext(UI_LANG["pegmain.err_peg_diverged"], 4, 2, 12, hudtextcolor, false).
@@ -400,10 +400,12 @@ function phase_descent {
                 "throttle", gst["throttle"]
             )).
         }
-        if gst["T"] < 10 and (gst["T"] <= 0 or ship:groundspeed / (abs(ship:verticalspeed) + 0.001) < 1.5 or (ship:groundspeed > _old_ground_speed)) {
+        local _rotRHTL to lookDirUp(vCrs(vecRL, unitUy), unitUy):inverse.
+        local _state_err to (_rotRHTL*ship:velocity:surface - vecVL_rht):mag.
+        if _inTerminal and (gst["T"] <= 0 or (_state_err > _old_state_err)) {
             break.
         }
-        set _old_ground_speed to ship:groundspeed.
+        set _old_state_err to _state_err.
         wait 0.  // wait until next physical tick
     }
     set guidance_status to "waiting for next phase".
