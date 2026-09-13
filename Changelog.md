@@ -181,3 +181,9 @@ Major version update
 - BORG: fixed landing-engine transitions, moving-target prediction, and surface-normal fallback
 - kOS-AFS: corrected RKF45 integration
 - UEntry and shared utilities: fixed angle wrapping, aerodynamic-grid input validation, and several stability issues
+
+## 2026/09/14 v1.0.4
+
+- PEGLand: added the `egland` command alias to avoid activating Atmosphere Autopilot while typing the command
+- PEGLand and UEntry: added support for creating alarms through Kerbal Alarm Clock (KAC)
+- PEGLand: improved the descent-phase termination condition
