@@ -1,9 +1,9 @@
 # PEGLand: Pinpoint Powered Landing Guidance
 
-> [!CAUTION]
-> When you type `pegland` into kOS terminal, Atmosphere Autopilot (AA) might be activated on its default keybinding `[P]`, causing flight control wobbling. You can press `[P]` another time to deactivate AA, or change keybindings.
+> [!TIP]
+> Use the `egland` command alias instead of `pegland`. It accepts the same parameters and avoids typing `[P]`, which may activate Atmosphere Autopilot (AA) on its default keybinding. The original `pegland` command remains available for compatibility.
 
-`pegland` is one of the most exciting programs in this mod, adapted from the PEG launch guidance algorithm developed by NASA in the 1980s for the Space Shuttle program, achieving fuel-optimal pinpoint landing in a vacuum environment.
+PEGLand is one of the most exciting programs in this mod, adapted from the PEG launch guidance algorithm developed by NASA in the 1980s for the Space Shuttle program, achieving fuel-optimal pinpoint landing in a vacuum environment.
 
 Reference: [An explicit solution to the exoatmospheric powered flight guidance and trajectory optimization problem for rocket propelled vehicles | Guidance, Navigation, and Control and Co-located Conferences](https://arc.aiaa.org/doi/10.2514/6.1977-1051)
 
@@ -21,10 +21,10 @@ PEGLand contains three guidance phases:
 
 ```kOS
 switch to 0.  // Switch to the flight center's document system
-run pegland(P_GUI, P_PREC, P_NOWAIT, P_ADJUST, P_ENGINE)
+run egland(P_GUI, P_PREC, P_NOWAIT, P_ADJUST, P_ENGINE)
 Parameters:
    P_GUI: Open GUI. Default is true
-   P_PREC: Add approach phase for high-precision landing. Default is false
+   P_PREC: Add approach phase for high-precision landing. Default is "auto", which enables it when the vehicle can throttle deeply enough
    P_NOWAIT: Start descent program immediately without waiting to coast to ignition position (i.e., ignite_now in GUI window). Default is false
    P_ADJUST: Target correction vector. Default is V(0,0,0)
    P_ENGINE: Engine mode.
@@ -36,10 +36,10 @@ Parameters:
 
 ```kOS
 switch to 0.  // Switch to the flight center's document system
-run pegland.  // Open PEGLand GUI. (RECOMMENDED)
-run pegland(0,1,1). // Don't open GUI, start engine descent immediately, add approach phase
-run pegland(0,0,0,V(0,0,0),"descent"). // Don't open GUI, use engines labeled "descent" for calculations
-run pegland(0,0,0,V(-50,10,1)).  // Move target: 50m south, 10m east, 1m up
+run egland.  // Open PEGLand GUI. (RECOMMENDED)
+run egland(0,1,1). // Don't open GUI, start engine descent immediately, add approach phase
+run egland(0,0,0,V(0,0,0),"descent"). // Don't open GUI, use engines labeled "descent" for calculations
+run egland(0,0,0,V(-50,10,1)).  // Move target: 50m south, 10m east, 1m up
 ```
 
 ## PEGLand GUI

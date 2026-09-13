@@ -1,9 +1,9 @@
 # PEGLand: 定点动力着陆制导
 
-> [!CAUTION]
-> 当你在kOS终端输入`pegland`时，Atmosphere Autopilot (AA) 模组会因为你敲下了字母`[P]`而被激活，导致姿态控制摇摆振荡。你可以再次敲下字母`[P]`解除AA的飞控，或者为它更换快捷键。
+> [!TIP]
+> 推荐使用`egland`命令别名，而不是`pegland`。它接受完全相同的参数，并且无需输入字母`[P]`，从而避免触发Atmosphere Autopilot (AA) 的默认快捷键。原有的`pegland`命令仍然保留，以便兼容旧用法。
 
-`pegland`是这个模组中最精彩的程序之一，从1980s NASA为航天飞机项目开发的PEG发射制导算法修改而来，实现真空环境下燃料最优的定点着陆。
+PEGLand是这个模组中最精彩的程序之一，从1980s NASA为航天飞机项目开发的PEG发射制导算法修改而来，实现真空环境下燃料最优的定点着陆。
 
 参考文献：[An explicit solution to the exoatmospheric powered flight guidance and trajectory optimization problem for rocket propelled vehicles | Guidance, Navigation, and Control and Co-located Conferences](https://arc.aiaa.org/doi/10.2514/6.1977-1051)
 
@@ -19,10 +19,10 @@ PEGLand从一条合适的着陆轨道开始，引导飞船完成动力着陆的�
 
 ```kOS
 switch to 0.  // 切换到航天中心的文档系统
-run pegland(P_GUI, P_PREC, P_NOWAIT, P_ADJUST, P_ENGINE)
+run egland(P_GUI, P_PREC, P_NOWAIT, P_ADJUST, P_ENGINE)
 参数:
    P_GUI: 打开GUI。默认为true
-   P_PREC: 添加接近段，高精度着陆。默认为false
+   P_PREC: 添加接近段，实现高精度着陆。默认为"auto"，会在航天器具备足够深的节流能力时自动启用
    P_NOWAIT: 立刻启动下降程序，不要等待滑行至点火位置(即GUI窗口中的ignite_now)，默认为 false
    P_ADJUST: 目标修正向量。默认为 V(0,0,0)
    P_ENGINE: 引擎模式。
@@ -34,10 +34,10 @@ run pegland(P_GUI, P_PREC, P_NOWAIT, P_ADJUST, P_ENGINE)
 
 ```kOS
 switch to 0.  // 切换到航天中心的文档系统
-run pegland.  // 打开PEGLand GUI (推荐用法)
-run pegland(0,1,1). // 不打开GUI，立刻启动引擎执行下降，添加接近段
-run pegland(0,0,0,V(0,0,0),"descent"). // 不打开GUI，使用标签为"descent"的引擎参数计算
-run pegland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，向上1米
+run egland.  // 打开PEGLand GUI (推荐用法)
+run egland(0,1,1). // 不打开GUI，立刻启动引擎执行下降，添加接近段
+run egland(0,0,0,V(0,0,0),"descent"). // 不打开GUI，使用标签为"descent"的引擎参数计算
+run egland(0,0,0,V(-50,10,1)).  // 移动目标：向南50米，向东10米，向上1米
 ```
 
 ## PEGLand GUI
