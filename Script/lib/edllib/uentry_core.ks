@@ -294,10 +294,17 @@ function entry_initialize_guidance {
         set numiter to numiter + 1.
     }
 
-    if (abs(thetaErr) > theta_tol) return lexicon(
-        "ok", false, "status", "NO_CONVERGENCE",
-        "msg", "Bank solver did not reach 0.1% relative range error."
-    ).
+    local initialization_warning to "".
+    if (abs(thetaErr) > theta_tol) {
+        if (result1["ok"] and (bank_i <= 0 or bank_i >= AFS:bank_max)) {
+            set initialization_warning to "bank_i saturated; target range unreachable. Guidance will continue.".
+            print "Warning: " + initialization_warning AT(0, 30).
+        }
+        else return lexicon(
+            "ok", false, "status", "NO_CONVERGENCE",
+            "msg", "Bank solver did not reach 0.1% relative range error."
+        ).
+    }
 
     local gst to lexicon(
         "bank_i", bank_i,
@@ -312,6 +319,7 @@ function entry_initialize_guidance {
 
     return lexicon(
         "ok", true, "status", "COMPLETED", "gst", gst,
+        "warning", initialization_warning,
         "time_entry", tt, "vecR_entry", vecR, "vecV_entry", vecV,
         "time_final", result1["time_final"], "vecR_final", result1["vecR_final"], "vecV_final", result1["vecV_final"],
         "maxQdot", result1["maxQdot"], "maxQdotTime", result1["maxQdotTime"],
