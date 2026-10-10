@@ -49,14 +49,31 @@ foreach ($targetPath in @($packagePath, $archivePath, $checksumPath)) {
 
 # Read tracked paths, but copy current working-tree content, including release edits.
 # Local boot scripts, caches, sources and dependency DLLs are not distribution files.
-Push-Location -LiteralPath $repoRoot
+# Decode Git's UTF-8 bytes directly instead of using PowerShell's console code page.
+# NUL separators also keep paths containing whitespace or newlines intact.
+$gitStartInfo = New-Object Diagnostics.ProcessStartInfo
+$gitStartInfo.FileName = (Get-Command git -CommandType Application -ErrorAction Stop).Source
+$gitStartInfo.Arguments = 'ls-files -z -- Script docs crafts'
+$gitStartInfo.WorkingDirectory = $repoRoot
+$gitStartInfo.UseShellExecute = $false
+$gitStartInfo.RedirectStandardOutput = $true
+$gitStartInfo.RedirectStandardError = $true
+$gitStartInfo.StandardOutputEncoding = [Text.UTF8Encoding]::new($false, $true)
+$gitProcess = New-Object Diagnostics.Process
+$gitProcess.StartInfo = $gitStartInfo
 try {
-    $contentPaths = @(& git -c core.quotepath=false ls-files -- Script docs crafts)
-    if ($LASTEXITCODE -ne 0 -or $contentPaths.Count -eq 0) {
-        throw 'Cannot enumerate release content. Run this script from a Git checkout with Git installed.'
+    if (-not $gitProcess.Start()) { throw 'Cannot start Git to enumerate release content.' }
+    $gitErrorTask = $gitProcess.StandardError.ReadToEndAsync()
+    $trackedOutput = $gitProcess.StandardOutput.ReadToEnd()
+    $gitProcess.WaitForExit()
+    $gitError = $gitErrorTask.GetAwaiter().GetResult()
+    if ($gitProcess.ExitCode -ne 0) { throw "Cannot enumerate release content: $gitError" }
+    $contentPaths = @($trackedOutput.Split([char]0, [StringSplitOptions]::RemoveEmptyEntries))
+    if ($contentPaths.Count -eq 0) {
+        throw 'No tracked release content found. Run this script from a Git checkout.'
     }
 }
-finally { Pop-Location }
+finally { $gitProcess.Dispose() }
 
 $buildArguments = @{ KspRoot = $KspRoot; RunTests = (-not $SkipTests) }
 if ($ReferenceRoot) { $buildArguments.ReferenceRoot = $ReferenceRoot }
@@ -76,7 +93,7 @@ try {
         $null = New-Item -ItemType Directory -Path (Split-Path $destinationPath -Parent) -Force
         Copy-Item -LiteralPath (Join-Path $repoRoot $relativePath) -Destination $destinationPath
     }
-    foreach ($rootFile in @('README.md', 'README_中文.md', 'Changelog.md', '更新日志.md', 'LICENSE', 'INSTALL.md', 'BUILDING.md')) {
+    foreach ($rootFile in @('README.md', 'README_中文.md', 'Changelog.md', '更新日志.md', 'LICENSE', 'BUILDING.md')) {
         Copy-Item -LiteralPath (Join-Path $repoRoot $rootFile) -Destination (Join-Path $stagePath $rootFile)
     }
     foreach ($kind in @('ATM', 'AFS', 'LTR')) {
