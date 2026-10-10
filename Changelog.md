@@ -187,3 +187,8 @@ Major version update
 - PEGLand: added the `egland` command alias to avoid activating Atmosphere Autopilot while typing the command
 - PEGLand and UEntry: added support for creating alarms through Kerbal Alarm Clock (KAC)
 - PEGLand: improved the descent-phase termination condition
+
+## 2026/10/10 v1.0.5
+
+- Added **kOS-ATM**, a shared atmosphere backend for kOS-AFS and kOS-LTR. Pressure, temperature and density predictions now account for latitude, longitude, Sun position, season and orbital eccentricity, including future trajectory times. This should let UEntry trajectory prediction have SOTA accuracy for now
+- UEntry: Improved solver. Using more professional backtracking clipped Newton solver to get Bank parameter

@@ -68,6 +68,8 @@ After extraction, you will see two folders:
 - `Ships`: Move it to the `<KSP Root Directory>\` folder. When complete, the path `<KSP Root Directory>\Ships\Script\pegland.ks` should exist.
 - `GameData`: Move it to the `<KSP Root Directory>\` folder. When complete, the path `<KSP Root Directory>\GameData\kOS-Addons\AFS\kOS-AFS.dll` should exist.
 
+To compile and package a distribution from source, see [BUILDING.md](./BUILDING.md).
+
 ## Tutorial
 
 [Tutorial](./docs/English/README.md)

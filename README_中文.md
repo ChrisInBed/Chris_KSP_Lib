@@ -72,6 +72,8 @@ Chris GNC Suite 是一个强大的自动驾驶模组，其中包含 PEGLand、UE
 - `Ships`: 把它移动到`<游戏根目录>\`文件夹中，完成后`<游戏根目录>\Ships\Script\pegland.ks`这个路径是存在的。
 - `GameData`: 把它移动到`<游戏根目录>\`文件夹中，完成后`<游戏根目录>\GameData\kOS-Addons\AFS\kOS-AFS.dll`这个路径是存在的。
 
+从源码编译并制作发行包的方法见 [BUILDING.md](./BUILDING.md)。
+
 ## 使用教程
 
 [使用教程](./docs/中文/README.md)
