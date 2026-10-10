@@ -216,7 +216,7 @@ function entry_initialize_guidance {
     local energy_f to AFS:target_energy.
 
     local theta_target to entry_angle_to_target(vecR, vecV, vecRtgt).
-    local bank_tol to 0.3.
+    local theta_tol to 0.001 * abs(theta_target).
     local numiter to 0.
     local result1 to lexicon().
     local thetaErr to 1e6.
@@ -239,34 +239,64 @@ function entry_initialize_guidance {
             else return lexicon("ok", false, "status", result1["status"], "msg", result1["msg"]).
         }
         else {
+            local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
+            set thetaErr to thetaf1 - theta_target.
+            if (thetaErr > 180) set thetaErr to thetaErr - 360.
+            else if (thetaErr < -180) set thetaErr to thetaErr + 360.
+            if (abs(thetaErr) <= theta_tol) break.
+            local bank_probe_step to 0.1.
+            if (bank_i > 179.9) set bank_probe_step to -0.1.
             local result2 to entry_predictor(tt, vecR, vecV, lexicon(
-                "bank_i", bank_i + 0.1,
+                "bank_i", bank_i + bank_probe_step,
                 "bank_f", bank_f,
                 "energy_i", energy_i,
                 "energy_f", energy_f
             ), false).
             if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
-            local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
             local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
-            set thetaErr to thetaf1 - theta_target.
-            if (thetaErr > 180) set thetaErr to thetaErr - 360.
-            else if (thetaErr < -180) set thetaErr to thetaErr + 360.
             local thetaDelta to thetaf2 - thetaf1.
             if (thetaDelta > 180) set thetaDelta to thetaDelta - 360.
             else if (thetaDelta < -180) set thetaDelta to thetaDelta + 360.
-            local thetaErrDBank to thetaDelta / 0.1.
-            local bank_i_old to bank_i.
-            set bank_i to bank_i - max(-5, min(5, thetaErr / msafedivision(thetaErrDBank))).
-            set bank_i to max(0, min(AFS:bank_max, bank_i)).
+            local thetaErrDBank to thetaDelta / bank_probe_step.
+            local bank_step to -max(-5, min(5, thetaErr / msafedivision(thetaErrDBank))).
+            set bank_step to max(0, min(AFS:bank_max, bank_i + bank_step)) - bank_i.
+            local step_accepted to false.
+            local backtrack_iter to 0.
+            // Accept only a valid prediction with a smaller absolute range error.
+            until (backtrack_iter >= 10) {
+                local trial_bank to bank_i + bank_step.
+                if (trial_bank = bank_i) break.
+                local trial_result to entry_predictor(tt, vecR, vecV, lexicon(
+                    "bank_i", trial_bank, "bank_f", bank_f,
+                    "energy_i", energy_i, "energy_f", energy_f
+                ), false).
+                if (trial_result["ok"]) {
+                    local trial_error to entry_angle_to_target(vecR, vecV, trial_result["vecR_final"]) - theta_target.
+                    if (trial_error > 180) set trial_error to trial_error - 360.
+                    else if (trial_error < -180) set trial_error to trial_error + 360.
+                    if (abs(trial_error) < abs(thetaErr)) {
+                        set bank_i to trial_bank.
+                        set result1 to trial_result.
+                        set thetaErr to trial_error.
+                        set step_accepted to true.
+                        break.
+                    }
+                }
+                set bank_step to bank_step * 0.5.
+                set backtrack_iter to backtrack_iter + 1.
+            }
             print "Iteration " + (numiter+1) + ": bank_i = "
                 + round(bank_i, 2) + " deg; theta error = "
                 + round(thetaErr, 4) + " deg." AT(0, 15).
-            if (abs(bank_i - bank_i_old) < bank_tol) {
-                break.
-            }
+            if (abs(thetaErr) <= theta_tol or not step_accepted) break.
         }
         set numiter to numiter + 1.
     }
+
+    if (abs(thetaErr) > theta_tol) return lexicon(
+        "ok", false, "status", "NO_CONVERGENCE",
+        "msg", "Bank solver did not reach 0.1% relative range error."
+    ).
 
     local gst to lexicon(
         "bank_i", bank_i,
@@ -315,8 +345,14 @@ function entry_step_guidance {
         return lexicon("ok", false, "status", result1["status"], "msg", "(bank1) + " + result1["msg"]).
     }
     // set result1["thetaf"] to result1["thetaf"] * rangeFactor.  // adjust for density error
+    local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
+    local thetaErr to thetaf1 - theta_target.
+    if (thetaErr > 180) set thetaErr to thetaErr - 360.
+    else if (thetaErr < -180) set thetaErr to thetaErr + 360.
+    local bank_probe_step to 0.1.
+    if (bank_now > 179.9) set bank_probe_step to -0.1.
     local result2 to entry_predictor(tt, vecR, vecV, lexicon(
-        "bank_i", bank_now + 0.1,
+        "bank_i", bank_now + bank_probe_step,
         "bank_f", gst["bank_f"],
         "energy_i", energy_now,
         "energy_f", gst["energy_f"]
@@ -325,18 +361,37 @@ function entry_step_guidance {
         if (result2["status"] = "TIMEOUT") set gst["bank_i"] to bank_now + 2.
         return lexicon("ok", false, "status", result2["status"], "msg", "(bank2)" + result2["msg"]).
     }
-    local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
     local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
-    local thetaErr to thetaf1 - theta_target.
-    if (thetaErr > 180) set thetaErr to thetaErr - 360.
-    else if (thetaErr < -180) set thetaErr to thetaErr + 360.
     local thetaDelta to thetaf2 - thetaf1.
     if (thetaDelta > 180) set thetaDelta to thetaDelta - 360.
     else if (thetaDelta < -180) set thetaDelta to thetaDelta + 360.
-    local thetaErrDBank to thetaDelta / 0.1.
+    local thetaErrDBank to thetaDelta / bank_probe_step.
+    local bank_step to -max(-1, min(1, thetaErr / msafedivision(thetaErrDBank))).
+    set bank_step to max(0, min(AFS:bank_max, bank_now + bank_step)) - bank_now.
+    local backtrack_iter to 0.
+    // One accepted correction per live update; no convergence iteration.
+    until (backtrack_iter >= 10) {
+        local trial_bank to bank_now + bank_step.
+        if (trial_bank = bank_now) break.
+        local trial_result to entry_predictor(tt, vecR, vecV, lexicon(
+            "bank_i", trial_bank, "bank_f", gst["bank_f"],
+            "energy_i", energy_now, "energy_f", gst["energy_f"]
+        ), false).
+        if (trial_result["ok"]) {
+            local trial_error to entry_angle_to_target(vecR, vecV, trial_result["vecR_final"]) - theta_target.
+            if (trial_error > 180) set trial_error to trial_error - 360.
+            else if (trial_error < -180) set trial_error to trial_error + 360.
+            if (abs(trial_error) < abs(thetaErr)) {
+                set bank_now to trial_bank.
+                set result1 to trial_result.
+                set thetaErr to trial_error.
+                break.
+            }
+        }
+        set bank_step to bank_step * 0.5.
+        set backtrack_iter to backtrack_iter + 1.
+    }
     // update gst
-    set bank_now to bank_now - max(-1, min(1, thetaErr / msafedivision(thetaErrDBank))).
-    set bank_now to max(0, min(AFS:bank_max, bank_now)).
     set gst["bank_i"] to bank_now.
     set gst["energy_i"] to energy_now.
 
