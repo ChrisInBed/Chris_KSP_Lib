@@ -3,6 +3,7 @@ using kOS.Safe.Encapsulation;
 using kOS.Safe.Encapsulation.Suffixes;
 using kOS.Safe.Exceptions;
 using System;
+using KOSAtmosphere;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
@@ -55,12 +56,7 @@ namespace kOS.AddOns.AFSAddon
             // Celestial body parameters
             AddSuffix(new string[] { "mu" }, new SetSuffix<ScalarDoubleValue>(GetMu, SetMu, "Gravity constant of central celestral"));
             AddSuffix(new string[] { "R" }, new SetSuffix<ScalarDoubleValue>(GetR, SetR, "Planet radius"));
-            AddSuffix(new string[] { "molar_mass" }, new SetSuffix<ScalarDoubleValue>(GetMolarMass, SetMolarMass, "Atmospheric average molar mass"));
-            AddSuffix(new string[] { "atm_height" }, new SetSuffix<ScalarDoubleValue>(GetAtmHeight, SetAtmHeight, "Height of the ceiling of the atmosphere"));
             AddSuffix(new string[] { "bodySpin" }, new SetSuffix<Vector>(GetBodySpin, SetBodySpin, "The spin angular vector of the central body"));
-            AddSuffix(new string[] { "AtmAltSamples" }, new SetSuffix<ListValue>(GetAtmAltSamples, SetAtmAltSamples, "Altitude samples (For density profile)"));
-            AddSuffix(new string[] { "AtmLogDensitySamples" }, new SetSuffix<ListValue>(GetAtmLogDensitySamples, SetAtmLogDensitySamples, "Log Density samples"));
-            AddSuffix(new string[] { "AtmTempSamples" }, new SetSuffix<ListValue>(GetAtmTempSamples, SetAtmTempSamples, "Temperature samples"));
 
             // Vessel parameters
             AddSuffix(new string[] { "mass" }, new SetSuffix<ScalarDoubleValue>(GetMass, SetMass, "Vehicle mass"));
@@ -99,13 +95,10 @@ namespace kOS.AddOns.AFSAddon
             // Sync operations
             AddSuffix(new string[] { "GetBankCmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetBankCmd, "Takes state and guidance parameters, output Bank command"));
             AddSuffix(new string[] { "GetAOACmd" }, new OneArgsSuffix<Lexicon, Lexicon>(GetAOACmd, "Takes state, output AOA command"));
+            AddSuffix("InitBody", new NoArgsVoidSuffix(InitBody, "Initialize gravity, radius and raw body spin; atmosphere is supplied by kOS-ATM"));
             AddSuffix(new string[] { "GetState" }, new NoArgsSuffix<Lexicon>(GetState, "Get current state"));
             AddSuffix(new string[] { "GetFARAeroCoefs" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefs, "Takes altitude, speed and AOA as input, output Cd and Cl"));
             AddSuffix(new string[] { "GetFARAeroCoefsEst" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefsEst, "Takes altitude, speed and AOA as input, output estimated Cd and Cl"));
-            AddSuffix(new string[] { "GetDensityAt" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityAt, "Takes altitude as input, output air density in kg/m3"));
-            AddSuffix(new string[] { "GetDensityEst" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityEst, "Takes altitude as input, output estimated air density in kg/m3"));
-            AddSuffix(new string[] { "GetAltEst" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetAltEst, "Takes density as input, output estimated altitude in m"));
-            AddSuffix(new string[] { "InitAtmModel" }, new NoArgsVoidSuffix(InitAtmModel, "Initialize atmosphere model for current body"));
             AddSuffix(new string[] { "DirectionToAngleAxis" }, new OneArgsSuffix<Vector, Direction>(DirectionToAngleAxis, "Takes direction as input, output its angle axis form, where the magnitude of the vector is in radian unit"));
             AddSuffix(new string[] { "GetHeadingErr" }, new OneArgsSuffix<ScalarValue, Lexicon>(GetHeadingErr, "Takes vecR, vecV and vecRtgt as input, output heading error in (-180, 180)"));
 
@@ -187,9 +180,6 @@ namespace kOS.AddOns.AFSAddon
         private ScalarDoubleValue GetR() { return new ScalarDoubleValue(simArgs.R); }
         private void SetR(ScalarDoubleValue val) { simArgs.R = val.GetDoubleValue(); }
 
-        private ScalarDoubleValue GetMolarMass() { return new ScalarDoubleValue(simArgs.molarMass); }
-        private void SetMolarMass(ScalarDoubleValue val) { simArgs.molarMass = val.GetDoubleValue(); }
-
         private ScalarDoubleValue GetMass() { return new ScalarDoubleValue(simArgs.mass * 1e-3); }
         private void SetMass(ScalarDoubleValue val) { simArgs.mass = val.GetDoubleValue() * 1e3; }
 
@@ -201,9 +191,6 @@ namespace kOS.AddOns.AFSAddon
 
         private BooleanValue GetAOAReversal() { return simArgs.AOAReversal ? BooleanValue.True : BooleanValue.False; }
         private void SetAOAReversal(BooleanValue val) { simArgs.AOAReversal = val.Value; }
-
-        private ScalarDoubleValue GetAtmHeight() { return new ScalarDoubleValue(simArgs.atmHeight); }
-        private void SetAtmHeight(ScalarDoubleValue val) { simArgs.atmHeight = val.GetDoubleValue(); }
 
         private Vector GetBodySpin() { return Double3ToVector(simArgs.bodySpin); }
         private void SetBodySpin(Vector val) { simArgs.bodySpin = VectorToDouble3(val); }
@@ -393,31 +380,24 @@ namespace kOS.AddOns.AFSAddon
             simArgs.CtrlAOAsamples = result;
         }
 
-        private ListValue GetAtmAltSamples() { return ListFromDoubleArray(simArgs.AtmAltSamples); }
-        private void SetAtmAltSamples(ListValue val) { simArgs.AtmAltSamples = ExtractDoubleArray(val, "altsamples"); }
-
-        private ListValue GetAtmLogDensitySamples() { return ListFromDoubleArray(simArgs.AtmLogDensitySamples); }
-        private void SetAtmLogDensitySamples(ListValue val) { simArgs.AtmLogDensitySamples = ExtractDoubleArray(val, "logdensitysamples"); }
-
         private void SetAeroDsFromAlt(ListValue val)
         {
             double[] altSamples = ExtractDoubleArray(val, "alt samples");
             for (int i = 0; i < altSamples.Length; ++i)
             {
-                double density = AFSCore.GetDensityAt(shared.Vessel, altSamples[i]);
+                double density = FARAtmosphere.GetGasProperties(shared.Vessel.mainBody, new Vector3d(shared.Vessel.latitude, shared.Vessel.longitude, altSamples[i]), Planetarium.GetUniversalTime()).Density;
                 altSamples[i] = density > Double.Epsilon ? Math.Log(density) : Double.MinValue * 0.5;
             }
             simArgs.AeroLogDensitySamples = altSamples;
         }
-
-        private ListValue GetAtmTempSamples() { return ListFromDoubleArray(simArgs.AtmTempSamples); }
-        private void SetAtmTempSamples(ListValue val) { simArgs.AtmTempSamples = ExtractDoubleArray(val, "temperaturesamples"); }
 
         private Lexicon GetBankCmd(Lexicon args)
         {
             PhyState state = RequirePhyState(args);
             BankPlanArgs bargs = RequireBankArgs(args);
             AFSCore.Context context = new AFSCore.Context();
+            // Synchronous main-thread query; only workers need deep configuration copies.
+            simArgs.Atmosphere=AtmosphereSnapshotValue.ForPrediction(args,shared.Vessel,new AtmosphereVector(simArgs.bodySpin.x,simArgs.bodySpin.y,simArgs.bodySpin.z));
             double BankCmd = AFSCore.GetBankCommand(state, simArgs, bargs, context);
             Lexicon result = new Lexicon();
             result.Add(new StringValue("Bank"), new ScalarDoubleValue(BankCmd / Math.PI * 180));
@@ -457,7 +437,7 @@ namespace kOS.AddOns.AFSAddon
         private Lexicon GetFARAeroCoefsEst(Lexicon args)
         {
             double altitude = RequireDoubleArg(args, "altitude");
-            double logRho = AFSCore.GetLogDensityEst(simArgs, altitude);
+            double logRho = Math.Log(Math.Max(double.Epsilon, AtmosphereCapture.Capture(shared.Vessel).EvaluateColumn(altitude).Density));
             double speed = RequireDoubleArg(args, "speed");
             AFSCore.GetAeroCoefficients(simArgs, speed, logRho, out double Cd, out double Cl);
             Lexicon result = new Lexicon();
@@ -466,24 +446,11 @@ namespace kOS.AddOns.AFSAddon
             return result;
         }
 
-        private ScalarValue GetDensityAt(ScalarValue altitude)
+        private void InitBody()
         {
-            return ScalarValue.Create(AFSCore.GetSafeDouble(AFSCore.GetDensityAt(shared.Vessel, altitude.GetDoubleValue())));
-        }
-
-        private ScalarValue GetDensityEst(ScalarValue altitude)
-        {
-            return ScalarValue.Create(AFSCore.GetSafeDouble(AFSCore.GetDensityEst(simArgs, altitude.GetDoubleValue())));
-        }
-
-        private ScalarValue GetAltEst(ScalarValue density)
-        {
-            return ScalarValue.Create(AFSCore.GetSafeDouble(AFSCore.GetHeightEst(simArgs, density.GetDoubleValue())));
-        }
-
-        private void InitAtmModel()
-        {
-            AFSCore.InitAtmModel(shared.Vessel, simArgs);
+            simArgs.R=shared.Vessel.mainBody.Radius;simArgs.mu=shared.Vessel.mainBody.gravParameter;
+            AtmosphereVector spin=AtmosphereCapture.AngularVelocity(shared.Vessel.mainBody);
+            simArgs.bodySpin=new double3(spin.X,spin.Y,spin.Z);
         }
 
         private ScalarValue StartSimAtmTraj(Lexicon args)
@@ -507,11 +474,13 @@ namespace kOS.AddOns.AFSAddon
                 throw new KOSException($"Argument error: {ex.Message}");
             }
 
+            SimAtmTrajArgs argsSnapshot = simArgs.Clone();
+            argsSnapshot.Atmosphere = AtmosphereSnapshotValue.ForPrediction(args, shared.Vessel, new AtmosphereVector(simArgs.bodySpin.x,simArgs.bodySpin.y,simArgs.bodySpin.z));
             record.WorkerTask = Task.Run(() =>
             {
                 try
                 {
-                    PredictResult simResult = AFSCore.PredictTrajectory(t, state, simArgs, bargs);
+                    PredictResult simResult = AFSCore.PredictTrajectory(t, state, argsSnapshot, bargs);
 
                     // Parse results
                     record.Result.Add(new StringValue("ok"), BooleanValue.True);

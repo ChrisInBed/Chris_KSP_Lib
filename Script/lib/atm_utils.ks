@@ -1,6 +1,6 @@
 function atm_get_density_at_altitude {
     parameter _altitude.
-    return addons:AFS:GetDensityAt(_altitude).
+    return addons:ATM:GetDensityAt(_altitude).
 }
 
 function atm_get_sealevel_density {

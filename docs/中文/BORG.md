@@ -1,5 +1,8 @@
 # BORG —— Booster Operation, Recovery and Guidance
 
+此版本需要 kOS-ATM 和配套重新编译的 kOS-LTR 插件；请一起更新 DLL 与脚本。轨迹预测现在考虑纬度、经度、太阳高度和未来时刻的大气数据。参见[安装说明与研究结果](../../src/kOS-ATM/README.md)。
+
+
 切换到[English version](../English/BORG.md)。
 
 ## 1. 程序简介

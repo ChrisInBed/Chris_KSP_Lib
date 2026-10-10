@@ -1,0 +1,4 @@
+# Generated test outputs, staging directories and installation packages
+/artifacts/
+# Locally copied KSP/mod dependencies
+/references/

@@ -59,14 +59,9 @@ function entry_async_set_aeroprofile {
     }
 }
 
-function entry_initAtmModel {
-    // Initialize atmosphere density model
-    AFS:InitAtmModel().
-    // set AFS:mu to body:mu.
-    // set AFS:R to body:radius.
-    // set AFS:molar_mass to body:atm:molarmass.
-    // set AFS:atm_height to body:atm:height.
-    // There is something wrong with CelestialBody.angularVel API, so here we set it with kOS values
+function entry_init_body {
+    // Gravity and raw spin only; kOS-ATM owns the atmospheric model.
+    AFS:InitBody().
     set AFS:bodySpin to body:angularvel.
 }
 
@@ -76,7 +71,11 @@ function entry_initialize {
         print 1/0.
     }
 
-    entry_initAtmModel().
+    if (not addons:hasaddon("ATM")) {
+        print "kOS-ATM addon is required for UEntry.".
+        print 1/0.
+    }
+    entry_init_body().
 
     // set basic ship parameters
     set AFS:mass to ship:mass.
@@ -191,6 +190,8 @@ function entry_initialize_guidance {
     local vecRtgt to entry_target_geo:position - body:position.
     set AFS:RTarget to vecRtgt.
 
+    // One epoch for the coast and all related bank-plan evaluations.
+    local atmosphere_context to lexicon("snapshot", addons:ATM:SNAPSHOT()).
     // propagate to entry interface
     local entryInfo to entry_propagate_to_entry(tt, vecR, vecV).
     if (not entryInfo["ok"]) return lexicon(
@@ -226,7 +227,7 @@ function entry_initialize_guidance {
             "bank_f", bank_f,
             "energy_i", energy_i,
             "energy_f", energy_f
-        ), false).
+        ), false, atmosphere_context).
         if (not result1["ok"]) {
             print "Entry predictor error: (" + result1["status"] + ") "
                 + result1["msg"] AT(0, 15).
@@ -244,7 +245,7 @@ function entry_initialize_guidance {
                 "bank_f", bank_f,
                 "energy_i", energy_i,
                 "energy_f", energy_f
-            ), false).
+            ), false, atmosphere_context).
             if (not result2["ok"]) return lexicon("ok", false, "status", result2["status"], "msg", result2["msg"]).
             local thetaf1 to entry_angle_to_target(vecR, vecV, result1["vecR_final"]).
             local thetaf2 to entry_angle_to_target(vecR, vecV, result2["vecR_final"]).
@@ -296,6 +297,7 @@ function entry_step_guidance {
     parameter vecV.  // surface velocity
     parameter gst.
 
+    local atmosphere_context to lexicon("snapshot", addons:ATM:SNAPSHOT()).
     // re-align guidance start point
     local energy_now to entry_get_spercific_energy(vecR:mag, vecV:mag).
     local bank_now to gst["bank_i"]
@@ -309,7 +311,7 @@ function entry_step_guidance {
         "bank_f", gst["bank_f"],
         "energy_i", energy_now,
         "energy_f", gst["energy_f"]
-    ), false).
+    ), false, atmosphere_context).
     if (not result1["ok"]) {
         if (result1["status"] = "TIMEOUT") set gst["bank_i"] to bank_now + 2.
         return lexicon("ok", false, "status", result1["status"], "msg", "(bank1) + " + result1["msg"]).
@@ -320,7 +322,7 @@ function entry_step_guidance {
         "bank_f", gst["bank_f"],
         "energy_i", energy_now,
         "energy_f", gst["energy_f"]
-    ), false).
+    ), false, atmosphere_context).
     if (not result2["ok"]) {
         if (result2["status"] = "TIMEOUT") set gst["bank_i"] to bank_now + 2.
         return lexicon("ok", false, "status", result2["status"], "msg", "(bank2)" + result2["msg"]).
@@ -356,6 +358,14 @@ function entry_predictor {
     parameter vecV.  // orbital or surface velocity
     parameter gst.
     parameter PlanMode is true.
+    parameter atmosphere_context is lexicon().
+
+    local atmosphere_ref to 0.
+    if atmosphere_context:haskey("snapshot") {
+        set atmosphere_ref to atmosphere_context["snapshot"].
+    } else {
+        set atmosphere_ref to addons:ATM:SNAPSHOT().
+    }
 
     set AFS:RTarget to entry_target_geo:position - body:position.
     if (PlanMode) {
@@ -387,7 +397,7 @@ function entry_predictor {
 
     // Propagate to final state
     local _jobid to AFS:AsyncSimAtmTraj(lexicon(
-        "t", tt, "vecR", vecR, "vecV", vecV,
+        "t", tt, "vecR", vecR, "vecV", vecV, "atmosphere", atmosphere_ref,
         "bank_i", gst["bank_i"], "bank_f", gst["bank_f"],
         "energy_i", gst["energy_i"], "energy_f", gst["energy_f"]
     )).

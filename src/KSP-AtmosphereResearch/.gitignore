@@ -1,0 +1,4 @@
+# Generated logs, analysis reports, inspection binaries and packages
+/artifacts/
+# Locally copied KSP/mod dependencies
+/references/

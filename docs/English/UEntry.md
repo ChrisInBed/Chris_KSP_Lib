@@ -1,5 +1,8 @@
 # UEntry: Universal Atmospheric Lift Reentry Guidance
 
+This version requires kOS-ATM together with the matching rebuilt kOS-AFS addon. Update the DLLs and scripts together. Atmospheric prediction includes latitude, longitude, Sun height and future time. See [installation and research results](../../src/kOS-ATM/README.md).
+
+
 `uentry` is one of the most exciting programs in this mod. From 1960-1980s, NASA developed reentry guidance programs for their capsules and space shuttles, but limited by the computing power of the time, the guidance algorithms were full of empirical parameters and clever workarounds. Today we can run more advanced guidance algorithms on personal computers, using the same algorithm to guide the reentry process of various spacecraft. This algorithm is improved from the reentry guidance algorithm published by Lu et al. in 2013. UEntry can achieve:
 
 - High lift-to-drag ratio/low lift-to-drag ratio spacecraft, precise pinpoint guidance for reentry from low orbit/flyby trajectory into the atmosphere;

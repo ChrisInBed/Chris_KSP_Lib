@@ -33,7 +33,7 @@ function entry_phase {
     local startTime to time:seconds.
     set AFS:mass to ship:mass.
     set AFS:area to AFS:REFAREA.
-    entry_initAtmModel().
+    entry_init_body().
     local initInfo to entry_initialize_guidance(0, -body:position, ship:velocity:orbit, entry_bank_i, entry_bank_f).
     if (not initInfo["ok"]) {
         print "Error: (" + initInfo["status"] + ")" + initInfo["msg"] AT(0, 30).
@@ -87,7 +87,7 @@ function entry_phase {
     until (ee < ef or done or (not guidance_active)) {
         set AFS:mass to ship:mass.
         set AFS:area to AFS:REFAREA.
-        entry_initAtmModel().
+        entry_init_body().
         set stepInfo to entry_step_guidance(0, -body:position, ship:velocity:surface, gst).
         if (not stepInfo["ok"]) {
             print "Error: (" + stepInfo["status"] + ")" + stepInfo["msg"] AT(0, 30).
@@ -105,7 +105,7 @@ function entry_phase {
             print UI_LANG["uentryMain.lbl_est_cdl"] + round(estimated_cdl["CD"], 2) + ", CL = " + round(estimated_cdl["CL"], 2) + "          " AT(0, 14).
             print UI_LANG["uentryMain.lbl_calc_cdl"] + round(calculated_cdl["CD"], 2) + ", CL = " + round(calculated_cdl["CL"], 2) + "          " AT(0, 15).
             print UI_LANG["uentryMain.lbl_air_dens"] + AFS:Density + " kg/m^3          " AT(0,16).
-            print UI_LANG["uentryMain.lbl_est_dens"] + AFS:GetDensityEst(ship:altitude) + " kg/m^3          " AT(0,17).
+            print UI_LANG["uentryMain.lbl_est_dens"] + addons:ATM:GetDensityAt(ship:altitude) + " kg/m^3          " AT(0,17).
             if (defined gui_edlmain) {
                 set gui_edl_state_banki:text to UI_LANG["uentryMain.lbl_bank_i"] + round(gst["bank_i"],1):tostring + " °".
                 set gui_edl_state_T:text to UI_LANG["uentryMain.lbl_time_t"] + round(stepInfo["time_final"]):tostring + " s".

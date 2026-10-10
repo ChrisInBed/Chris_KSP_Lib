@@ -1,5 +1,6 @@
-﻿using FerramAerospaceResearch;
+using FerramAerospaceResearch;
 using System;
+using KOSAtmosphere;
 using System.Collections.Generic;
 //using Unity.Burst;
 using Unity.Mathematics;
@@ -11,9 +12,9 @@ namespace AFS
     internal class SimAtmTrajArgs
     {
         // Celestial body parameters
-        public double mu, R, molarMass, atmHeight;
+        public double mu, R;
         public double3 bodySpin;
-        public double[] AtmAltSamples, AtmTempSamples, AtmLogDensitySamples;
+        public AtmosphereSnapshot Atmosphere;
         // Vessel parameters
         public double mass, area;
         public Quaternion rotation;
@@ -35,12 +36,7 @@ namespace AFS
             // Celestial body parameters
             mu = 3.98589e14;  // Earth
             R = 6.371e6;
-            molarMass = 0.02897;
-            atmHeight = 140e3;
             bodySpin = double3.zero;
-            AtmAltSamples = new double[] { 0e3, 140e3 };
-            AtmTempSamples = new double[] { 296.0, 220.0 };
-            AtmLogDensitySamples = new double[] { Math.Log(1.2250), Math.Log(1.2250) - 140.0 / 8.5 };
             // Vessel parameters
             mass = 6000;
             area = 12;
@@ -71,6 +67,14 @@ namespace AFS
             predict_tmax = 3600;
             predict_traj_dSqrtE = 300.0;
             predict_traj_dH = 10e3;
+        }
+        public SimAtmTrajArgs Clone()
+        {
+            var copy=(SimAtmTrajArgs)MemberwiseClone();
+            copy.CtrlSpeedSamples=(double[])CtrlSpeedSamples.Clone();copy.CtrlAOAsamples=(double[])CtrlAOAsamples.Clone();
+            copy.AeroSpeedSamples=(double[])AeroSpeedSamples.Clone();copy.AeroLogDensitySamples=(double[])AeroLogDensitySamples.Clone();
+            copy.AeroCdSamples=(double[,])AeroCdSamples.Clone();copy.AeroClSamples=(double[,])AeroClSamples.Clone();
+            return copy; // Atmosphere is immutable and may be shared across workers.
         }
     }
     internal struct BankPlanArgs
@@ -213,15 +217,13 @@ namespace AFS
         private const double S5 = 1.0 / 2.0, Beta50 = -8.0 / 27.0, Beta51 = 2.0, Beta52 = -3544.0 / 2565.0, Beta53 = 1859.0 / 4104.0, Beta54 = -11.0 / 40.0, C54 = 0.0, C55 = 2.0 / 55.0;
         // Simulation constants
         private const double ENERGY_ERR_TOL = 1;
-        // Atmospheric model constants
-        private const double GAS_CONSTANT = 8.314462618; // J/(mol·K)
 
         public class Context
         {
             public double G, L, D, Qdot, acc, dynp;
             public double bank;
         }
-        public static double GetBankCommand(PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
+        public static double GetBankCommand(PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context, double t = 0)
         {
             double r = state.r;
             double v = state.v;
@@ -230,8 +232,9 @@ namespace AFS
             double bankBase = bargs.bank_f + (bargs.bank_i - bargs.bank_f) * (energy - bargs.energy_f) / (bargs.energy_i - bargs.energy_f);
             double G = args.mu / r / r;
 
-            double logRho = GetLogDensityEst(args, r - args.R);
-            double rho = Math.Exp(logRho);
+            AtmosphereSample air = args.Atmosphere.EvaluatePosition(state.vecR.x, state.vecR.y, state.vecR.z, t);
+            double rho = air.Density;
+            double logRho = Math.Log(Math.Max(rho, double.Epsilon));
             double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
             GetAeroCoefficients(args, v, logRho, out double Cd, out double Cl);
             double D = aeroCoef * Cd;
@@ -247,7 +250,7 @@ namespace AFS
             double Bank;
             if (L > args.L_min)
             {
-                double hs = GetScaleHeightEst(args, r - args.R);
+                double hs = args.Atmosphere.ScaleHeight(r - args.R, air.TemperatureK);
                 // QEGC correction
                 double hdot = v * Math.Sin(gamma);
                 double hdotQEGC = -2.0 * G / SafeValue(v / hs * Math.Cos(bankBase)) * (Cd / SafeValue(Cl));
@@ -320,6 +323,7 @@ namespace AFS
 
         public static PredictResult PredictTrajectory(double t, PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs)
         {
+            if(args.Atmosphere==null)throw new ArgumentException("Capture a kOS-ATM snapshot before predicting.");
             int nsteps = 0;
             double E = GetSpecificEnergy(args.mu, state.r, state.v);
             double Eold = E;
@@ -331,7 +335,7 @@ namespace AFS
             List<double> AOAseq = new List<double>();
             List<double> Bankseq = new List<double>();
             double AOA = GetAOACommand(state, args);
-            double Bank = GetBankCommand(state, args, bargs, null);
+            double Bank = GetBankCommand(state, args, bargs, null, t);
             AOAseq.Add(AOA);
             Bankseq.Add(Bank);
 
@@ -414,8 +418,8 @@ namespace AFS
                 if (Math.Abs(Err) < ENERGY_ERR_TOL) break;
 
                 double G = args.mu / (r * r);
-                double logRho = GetLogDensityEst(args, r - args.R);
-                double rho = Math.Exp(logRho);
+                double rho = args.Atmosphere.EvaluatePosition(state.vecR.x, state.vecR.y, state.vecR.z, t).Density;
+                double logRho = Math.Log(Math.Max(rho, double.Epsilon));
                 double aeroCoef = 0.5 * rho * v * v * args.area / args.mass;
                 GetAeroCoefficients(args, v, logRho, out double Cd, out _);
                 double D = aeroCoef * Cd;
@@ -518,7 +522,7 @@ namespace AFS
         private static PhyStateDerivative ComputeDerivatives(double t, PhyState state, SimAtmTrajArgs args, BankPlanArgs bargs, Context context)
         {
             if (context == null) context = new Context();
-            double bank = GetBankCommand(state, args, bargs, context);
+            double bank = GetBankCommand(state, args, bargs, context, t);
             context.bank = bank;
             double3 localUp = math.normalize(state.vecR);
             double3 G = -context.G * localUp;
@@ -676,142 +680,19 @@ namespace AFS
             if (AOAReversal) AOA = -AOA;
             if (rot == null) rot = Quaternion.identity;
             double atmHeight = vessel.mainBody.atmosphereDepth;
-            double hs = GetScaleHeightAt(vessel, 0);
+            double hs = AtmosphereCapture.Capture(vessel).ScaleHeightColumn(0);
             double area = FARAPI.VesselRefArea(vessel);
             if (altitude > atmHeight - hs) altitude = atmHeight - hs;
             Quaternion facing = vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rot;
             Vector3 unitV = facing * Quaternion.Euler((float)(AOA * 180.0 / Math.PI), 0, 0) * Vector3.forward;
             Vector3 unitL = facing * Quaternion.Euler((float)(AOA * 180.0 / Math.PI - 90), 0, 0) * Vector3.forward;
             FARAPI.CalculateVesselAeroForces(vessel, out Vector3 forceVec, out _, unitV * (float)speed, altitude);
-            double _factor = 0.5 * GetDensityAt(vessel, altitude) * speed * speed * area * 1e-3;
+            double _factor = 0.5 * FARAtmosphere.GetGasProperties(vessel.mainBody, new Vector3d(vessel.latitude, vessel.longitude, altitude), Planetarium.GetUniversalTime()).Density * speed * speed * area * 1e-3;
+            if(!IsFinite(_factor)||_factor<=0) { Cd=0;Cl=0;return; }
             Cd = -Vector3.Dot(forceVec, unitV) / _factor;
             Cl = Vector3.Dot(forceVec, unitL) / _factor;
             //Debug.Log($"[kOS-AFS] altitude={altitude * 1e-3:F2}km; AOA={AOA * 180 / Math.PI:F2}d; V={speed * 1e-3:F3}km/s; Cd={Cd:F3}; Cl={Cl:F3}");
             return;
-        }
-
-        public static double GetPressureAt(Vessel vessel, double altitude) { return vessel.mainBody.GetPressure(altitude) * 1e3; }
-        public static double GetTemperatureAt(Vessel vessel, double altitude) { return vessel.mainBody.GetTemperature(altitude); }
-        public static double GetDensityAt(Vessel vessel, double altitude)
-        {
-            if (altitude > vessel.mainBody.atmosphereDepth) return 0;
-            double P = GetPressureAt(vessel, altitude);
-            double T = GetTemperatureAt(vessel, altitude);
-            if (T < 1e-3) T = 1e-3;
-            double MW = vessel.mainBody.atmosphereMolarMass;
-            return P * MW / (GAS_CONSTANT * T);
-        }
-        public static double GetScaleHeightAt(Vessel vessel, double altitude)
-        {
-            double r = altitude + vessel.mainBody.Radius;
-            double g = vessel.mainBody.gravParameter / r / r;
-            double T = GetTemperatureAt(vessel, altitude);
-            double MW = vessel.mainBody.atmosphereMolarMass;
-            return (GAS_CONSTANT * T) / (MW * g);
-        }
-
-        public static void InitAtmModel(Vessel vessel, SimAtmTrajArgs args)
-        {
-            // Set basic parameters
-            args.R = vessel.mainBody.Radius;
-            args.mu = vessel.mainBody.gravParameter;
-            args.molarMass = vessel.mainBody.atmosphereMolarMass;
-            args.atmHeight = vessel.mainBody.atmosphereDepth;
-            args.bodySpin = Vector3dToDouble3(vessel.mainBody.angularVelocity);
-            // Sampling altitude, get density and temperatures
-            const int nSamples = 129;
-            double[] altSamples = new double[nSamples];
-            double[] tempSamples = new double[nSamples];
-            double[] logDensitySamples = new double[nSamples];
-            double dAlt = (args.atmHeight - 1000) / (nSamples - 1);
-            double P, T, D;
-            for (int i = 0; i < nSamples; ++i)
-            {
-                altSamples[i] = i * dAlt;
-                T = GetTemperatureAt(vessel, altSamples[i]);
-                P = GetPressureAt(vessel, altSamples[i]);
-                D = P * args.molarMass / (GAS_CONSTANT * T);
-                tempSamples[i] = T;
-                logDensitySamples[i] = Math.Log(D);
-            }
-            args.AtmAltSamples = altSamples;
-            args.AtmTempSamples = tempSamples;
-            args.AtmLogDensitySamples = logDensitySamples;
-        }
-
-        public static double GetTemperatureEst(SimAtmTrajArgs args, double altitude)
-        {
-            int idx = FindUpperBound(args.AtmAltSamples, altitude);
-            if (idx == 0)
-            {
-                return args.AtmTempSamples[0];
-            }
-            else if (idx == args.AtmAltSamples.Length)
-            {
-                return args.AtmTempSamples[args.AtmTempSamples.Length - 1];
-            }
-            else
-            {
-                double t = (altitude - args.AtmAltSamples[idx - 1]) / (args.AtmAltSamples[idx] - args.AtmAltSamples[idx - 1]);
-                return args.AtmTempSamples[idx - 1] + t * (args.AtmTempSamples[idx] - args.AtmTempSamples[idx - 1]);
-            }
-        }
-
-        public static double GetLogDensityEst(SimAtmTrajArgs args, double altitude)
-        {
-            int idx = FindUpperBound(args.AtmAltSamples, altitude);
-            if (idx == 0)
-            {
-                double hs = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AtmTempSamples[0]);
-                return args.AtmLogDensitySamples[0] - (altitude - args.AtmAltSamples[0]) / hs;
-            }
-            else if (idx == args.AtmAltSamples.Length)
-            {
-                double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AtmTempSamples[args.AtmAltSamples.Length - 1]);
-                return args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1] - (altitude - args.AtmAltSamples[args.AtmAltSamples.Length - 1]) / hs;
-            }
-            else
-            {
-                double t = (altitude - args.AtmAltSamples[idx - 1]) / (args.AtmAltSamples[idx] - args.AtmAltSamples[idx - 1]);
-                return args.AtmLogDensitySamples[idx - 1] + t * (args.AtmLogDensitySamples[idx] - args.AtmLogDensitySamples[idx - 1]);
-            }
-        }
-
-        public static double GetDensityEst(SimAtmTrajArgs args, double altitude)
-        {
-            if (altitude > args.atmHeight) return 0;
-            return Math.Exp(GetLogDensityEst(args, altitude));
-        }
-
-        public static double GetHeightEst(SimAtmTrajArgs args, double density)
-        {
-            if ((!IsFinite(density)) || (density <= 0)) return args.atmHeight;
-            // Find the altitude that corresponds to the given density via interpolation
-            double logD = Math.Log(density);
-            int idx = FindUpperBound(args.AtmLogDensitySamples, logD, Comparer<double>.Create((a, b) => b.CompareTo(a)));
-            if (idx == 0)
-            {
-                double hs = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AtmTempSamples[0]);
-                return args.AtmAltSamples[0] - hs * (logD - args.AtmLogDensitySamples[0]);
-            }
-            else if (idx == args.AtmLogDensitySamples.Length)
-            {
-                double hs = GetScaleHeightEst(args, args.AtmAltSamples[args.AtmAltSamples.Length - 1], args.AtmTempSamples[args.AtmAltSamples.Length - 1]);
-                return args.AtmAltSamples[args.AtmAltSamples.Length - 1] - hs * (logD - args.AtmLogDensitySamples[args.AtmAltSamples.Length - 1]);
-            }
-            else
-            {
-                double t = (logD - args.AtmLogDensitySamples[idx - 1]) / (args.AtmLogDensitySamples[idx] - args.AtmLogDensitySamples[idx - 1]);
-                return args.AtmAltSamples[idx - 1] + t * (args.AtmAltSamples[idx] - args.AtmAltSamples[idx - 1]);
-            }
-        }
-
-        public static double GetScaleHeightEst(SimAtmTrajArgs args, double altitude, double? temperature = null)
-        {
-            if (temperature == null) temperature = GetTemperatureEst(args, altitude);
-            double r = altitude + args.R;
-            double g = args.mu / (r * r);
-            return GAS_CONSTANT * (double)temperature / (args.molarMass * g);
         }
 
         public static double GetSafeDouble(double value)

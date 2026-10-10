@@ -1,0 +1,32 @@
+[
+  {
+    "name": "KSP",
+    "assembly": "ASSEMBLY Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null MVID 4b449f28-41f8-4227-adfa-ad3149c8fdba",
+    "sha256": "d9e42483f25ee80a9c11d6c1c0a0d29b4ec78c1e08d76c971b71580c9cce51e4",
+    "size": 10790912
+  },
+  {
+    "name": "FAR",
+    "assembly": "ASSEMBLY FerramAerospaceResearch, Version=0.16.1.2, Culture=neutral, PublicKeyToken=null MVID 8fc38445-9156-49c4-8b25-aabd1db34a9d",
+    "sha256": "cd902484e9b9cdc5f09914968e6b66d966e25fa5a854e561e124a96b17f7f4b0",
+    "size": 391680
+  },
+  {
+    "name": "FAR.Base",
+    "assembly": "ASSEMBLY FerramAerospaceResearch.Base, Version=0.16.1.2, Culture=neutral, PublicKeyToken=null MVID d991dd6a-a68b-4c9d-9ab0-9fa5226ccaf0",
+    "sha256": "130f166b53b8210cea8148ff74f21ee6fef7d1a85ee9095c954f8bb6c19a7fd3",
+    "size": 135680
+  },
+  {
+    "name": "Trajectories",
+    "assembly": "ASSEMBLY Trajectories, Version=2.4.5.4, Culture=neutral, PublicKeyToken=null MVID 66ecf909-a10a-411c-997c-d71f56f0ef20",
+    "sha256": "eb90ffd26ae3d5f0b35f5474c4ffe3d62ca5ed176abd1ad37108cbdf5e48ef2a",
+    "size": 118272
+  },
+  {
+    "name": "MechJeb2",
+    "assembly": "ASSEMBLY MechJeb2, Version=2.15.0.0, Culture=neutral, PublicKeyToken=null MVID 30fbe3c4-e77e-4abc-895b-a635d5924a08",
+    "sha256": "6851b17fd2a73cb09e399f55a3322de3eaa8f047136251f52a343fae2f3df929",
+    "size": 2041856
+  }
+]

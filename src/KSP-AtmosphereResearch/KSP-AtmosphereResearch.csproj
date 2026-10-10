@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <OutputType>Library</OutputType>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <AssemblyName>KSP-AtmosphereResearch</AssemblyName>
+    <RootNamespace>KSPAtmosphereResearch</RootNamespace>
+    <OutputPath>bin/$(Configuration)/</OutputPath>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <KspRoot Condition="'$(KspRoot)' == ''">D:/opt/entertainments/Steam/steamapps/common/KSP_instances/KSP_main_Sol/Kerbal Space Program</KspRoot>
+    <KspManaged>$(KspRoot)/KSP_x64_Data/Managed</KspManaged>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="Assembly-CSharp"><HintPath>$(KspManaged)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(KspManaged)/Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(KspManaged)/UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(KspManaged)/UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(KspManaged)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(KspManaged)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AtmosphereApi.cs" />
+    <Compile Include="ModCandidates.cs" />
+    <Compile Include="FlightRecorder.cs" />
+    <Compile Include="ThermalSnapshot.cs" />
+    <Compile Include="NativeBenchmark.cs" />
+    <Compile Include="Properties/AssemblyInfo.cs" />
+  </ItemGroup>
+  <Target Name="CheckKspReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(KspManaged)/Assembly-CSharp.dll')" Text="Set KspRoot to the KSP installation containing KSP_x64_Data/Managed." />
+  </Target>
+  <Import Project="$(MSBuildToolsPath)/Microsoft.CSharp.targets" />
+</Project>

@@ -1,14 +1,26 @@
+# Local editor and development settings
 .vscode/
-Script/entry_presets/*
-**/.vs
-**/bin
-**/obj
-**/GameData
-**/packages
-**/Resources
+**/.vs/
 .local/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
+# C# build outputs, installed plugins and restored dependencies
+**/bin/
+**/obj/
+**/GameData/
+**/packages/
+**/Resources/
 *.pdb
 *.dll
 
+# Python analysis and validation caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Keep shareable entry presets, omit other local preset files
+Script/entry_presets/*
 !Script/entry_presets/*.json

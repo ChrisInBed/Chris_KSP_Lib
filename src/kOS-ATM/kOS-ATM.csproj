@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Platform Condition="'$(Platform)' == ''">AnyCPU</Platform>
+    <ProjectGuid>{87C69670-4D36-448D-8A54-8DF3D73B90A9}</ProjectGuid>
+    <OutputType>Library</OutputType><AssemblyName>kOS-ATM</AssemblyName><RootNamespace>KOSAtmosphere</RootNamespace>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion><Deterministic>true</Deterministic>
+    <OutputPath>bin\$(Configuration)\</OutputPath><Optimize>true</Optimize><DebugType>pdbonly</DebugType><WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <Import Project="..\AtmosphereAddons.props" />
+  <ItemGroup>
+    <Compile Include="ManagedMath.cs" />
+    <Compile Include="AtmosphereSnapshot.cs" />
+    <Compile Include="AtmosphereCapture.cs" />
+    <Compile Include="ATMAddon.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

@@ -160,7 +160,7 @@ deceleration-to-landing transition.
 
 The recovery executive always waits for the booster mass to fall below
 `boostBackMass`, then waits `boostBackDelay`. It initializes the target and LTR
-after this handoff. The LTR body model calls `InitAtmModel` and sets body spin
+after this handoff. The LTR body model calls `InitBody` and sets body spin
 from `BODY:ANGULARVEL`; aerodynamic coefficients are sampled from FAR using
 the configured speed and altitude grids.
 
@@ -365,3 +365,5 @@ look like a guidance failure.
 The included ascent guidance is only a convenience. A player-controlled,
 MechJeb, PEGAS, or other ascent can be used as long as the booster reaches
 separation in a state the recovery profile can physically recover.
+
+Atmosphere data now comes from kOS-ATM. Install kOS-ATM with the matching rebuilt AFS/LTR DLLs and update f9utility.ks. BORG shares one immutable atmosphere snapshot and its elapsed time across chained LTR predictions; all RKF45 stages use position/time-dependent native thermal density. See [installation and API](../../src/kOS-ATM/README.md).

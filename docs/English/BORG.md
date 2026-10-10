@@ -1,5 +1,8 @@
 # BORG — Booster Operation, Recovery and Guidance
 
+This version requires kOS-ATM together with the matching rebuilt kOS-LTR addon. Update the DLLs and scripts together. Atmospheric prediction includes latitude, longitude, Sun height and future time. See [installation and research results](../../src/kOS-ATM/README.md).
+
+
 Switch to the [Chinese version](../%E4%B8%AD%E6%96%87/BORG.md).
 
 ## 1. What this program does

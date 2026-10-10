@@ -158,7 +158,7 @@ function edl_MakeEDLGUI {
             return.
         }
         set _entrygui_preset to presetName.
-        entry_gui_initAtmModel().
+        entry_gui_init_body().
         local _presetBody to readJSON(_path).
         local _vesselInfo to _presetBody["vessel"].
         set AFS:mass to _vesselInfo["mass"].
@@ -441,7 +441,7 @@ function edl_MakeEDLGUI {
     }.
     declare global gui_edl_planner_update_button to gui_edl_planner_box1:addbutton(UI_LANG["uentryGui.btn_update_pred"]).
     set gui_edl_planner_update_button:onclick to {
-        entry_gui_initAtmModel().
+        entry_gui_init_body().
         // Propagate to entry
         local tt to 0.
         local vecR to v(0,0,0).
@@ -584,7 +584,7 @@ function edl_MakeAeroGUI {
         }
         set AFS:mass to gui_aero_mass_input:text:tonumber.
         set AFS:area to AFS:REFAREA.
-        entry_gui_initAtmModel().
+        entry_gui_init_body().
         local CtrlSpeedSamples to str2arr(gui_aero_speedsamples_input:text).
         mscalarmul(CtrlSpeedSamples, 1e3).  // convert to m/s
         local CtrlAOASamples to str2arr(gui_aero_AOAsamples_input:text).
@@ -673,8 +673,8 @@ function edl_MakeAeroGUI {
     local _nhpoints to 0.
     if (AFS:AeroLogDensitySamples:length() > 1) {
         set _nhpoints to AFS:AeroLogDensitySamples:length().
-        set _hmin to AFS:GetAltEst(exp(AFS:AeroLogDensitySamples[_nhpoints-1])).
-        set _hmax to AFS:GetAltEst(exp(AFS:AeroLogDensitySamples[0])).
+        set _hmin to addons:ATM:GetAltForDensity(exp(AFS:AeroLogDensitySamples[_nhpoints-1])).
+        set _hmax to addons:ATM:GetAltForDensity(exp(AFS:AeroLogDensitySamples[0])).
     }
     else {
         set _nhpoints to 64.
@@ -855,13 +855,7 @@ function fc_MakeKCLGUI {
     return gui_kclmain.
 }
 
-function entry_gui_initAtmModel {
-    // Initialize atmosphere density model
-    AFS:InitAtmModel().
-    // set AFS:mu to body:mu.
-    // set AFS:R to body:radius.
-    // set AFS:molar_mass to body:atm:molarmass.
-    // set AFS:atm_height to body:atm:height.
-    // There is something wrong with CelestialBody.angularVel API, so here we set it with kOS values
+function entry_gui_init_body {
+    AFS:InitBody().
     set AFS:bodySpin to body:angularvel.
 }

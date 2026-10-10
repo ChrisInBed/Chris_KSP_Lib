@@ -1,0 +1,29 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <KspRoot Condition="'$(KspRoot)' == ''">D:\opt\entertainments\Steam\steamapps\common\KSP_instances\KSP_main_Sol\Kerbal Space Program</KspRoot>
+    <ReferenceRoot Condition="'$(ReferenceRoot)' == ''">$(MSBuildThisFileDirectory)kOS-ATM\references</ReferenceRoot>
+    <LangVersion>7.3</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" /><Reference Include="System.Core" />
+    <Reference Include="Assembly-CSharp"><HintPath>$(KspRoot)\KSP_x64_Data\Managed\Assembly-CSharp.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(KspRoot)\KSP_x64_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(KspRoot)\KSP_x64_Data\Managed\UnityEngine.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(KspRoot)\KSP_x64_Data\Managed\UnityEngine.CoreModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="kOS"><HintPath>$(KspRoot)\GameData\kOS\Plugins\kOS.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="kOS.Safe"><HintPath>$(KspRoot)\GameData\kOS\Plugins\kOS.Safe.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Unity.Mathematics" Condition="'$(AssemblyName)' != 'kOS-ATM'">
+      <HintPath Condition="Exists('$(ReferenceRoot)\Unity.Mathematics.dll')">$(ReferenceRoot)\Unity.Mathematics.dll</HintPath>
+      <HintPath Condition="!Exists('$(ReferenceRoot)\Unity.Mathematics.dll')">$(KspRoot)\GameData\000_KSPBurst\Plugins\Unity.Mathematics.dll</HintPath><Private>False</Private>
+    </Reference>
+    <Reference Include="FerramAerospaceResearch" Condition="'$(AssemblyName)' != 'kOS-ATM'">
+      <HintPath Condition="Exists('$(ReferenceRoot)\FerramAerospaceResearch.dll')">$(ReferenceRoot)\FerramAerospaceResearch.dll</HintPath>
+      <HintPath Condition="!Exists('$(ReferenceRoot)\FerramAerospaceResearch.dll')">$(KspRoot)\GameData\FerramAerospaceResearch\Plugins\FerramAerospaceResearch.dll</HintPath><Private>False</Private>
+    </Reference>
+    <Reference Include="FerramAerospaceResearch.Base" Condition="'$(AssemblyName)' != 'kOS-ATM'">
+      <HintPath Condition="Exists('$(ReferenceRoot)\FerramAerospaceResearch.Base.dll')">$(ReferenceRoot)\FerramAerospaceResearch.Base.dll</HintPath>
+      <HintPath Condition="!Exists('$(ReferenceRoot)\FerramAerospaceResearch.Base.dll')">$(KspRoot)\GameData\FerramAerospaceResearch\Plugins\FerramAerospaceResearch.Base.dll</HintPath><Private>False</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

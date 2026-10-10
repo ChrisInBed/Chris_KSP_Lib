@@ -1,5 +1,6 @@
 using FerramAerospaceResearch;
 using System;
+using KOSAtmosphere;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
@@ -11,9 +12,9 @@ namespace LTR
     internal class SimAtmTrajArgs
     {
         // Celestial body parameters
-        public double mu, R, molarMass, atmHeight;
+        public double mu, R;
         public double3 bodySpin;
-        public double[] AtmAltSamples, AtmTempSamples, AtmLogDensitySamples;
+        public AtmosphereSnapshot Atmosphere;
 
         // Vessel parameters
         public double mass, area;
@@ -34,12 +35,7 @@ namespace LTR
         {
             mu = 3.98589e14;
             R = 6.371e6;
-            molarMass = 0.02897;
-            atmHeight = 140e3;
             bodySpin = double3.zero;
-            AtmAltSamples = new[] { 0.0, 140e3 };
-            AtmTempSamples = new[] { 296.0, 220.0 };
-            AtmLogDensitySamples = new[] { Math.Log(1.2250), Math.Log(1.2250) - 140.0 / 8.5 };
 
             mass = 6000;
             area = 12;
@@ -65,12 +61,8 @@ namespace LTR
             {
                 mu = mu,
                 R = R,
-                molarMass = molarMass,
-                atmHeight = atmHeight,
                 bodySpin = bodySpin,
-                AtmAltSamples = AtmAltSamples == null ? null : (double[])AtmAltSamples.Clone(),
-                AtmTempSamples = AtmTempSamples == null ? null : (double[])AtmTempSamples.Clone(),
-                AtmLogDensitySamples = AtmLogDensitySamples == null ? null : (double[])AtmLogDensitySamples.Clone(),
+                Atmosphere = Atmosphere,
                 mass = mass,
                 area = area,
                 rotation = rotation,
@@ -144,7 +136,6 @@ namespace LTR
         private const double MinScale = 0.2;
         private const double MaxScale = 5.0;
         private const double AltitudeTolerance = 0.01;
-        private const double GasConstant = 8.314462618;
 
         // Fehlberg 4(5) constants. Their layout intentionally matches kOS-AFS.
         private const double C04 = 25.0 / 216.0, C05 = 16.0 / 135.0;
@@ -283,10 +274,7 @@ namespace LTR
             ValidateMonotonicSamples(args.AeroLogDensitySamples, "AeroLogDensitySamples");
             ValidateMatrix(args.AeroCdSamples, args.AeroSpeedSamples.Length, args.AeroLogDensitySamples.Length, "AeroCdSamples");
             ValidateMatrix(args.AeroClSamples, args.AeroSpeedSamples.Length, args.AeroLogDensitySamples.Length, "AeroClSamples");
-            ValidateSamples(args.AtmAltSamples, "AtmAltSamples");
-            if (args.AtmTempSamples == null || args.AtmTempSamples.Length != args.AtmAltSamples.Length
-                || args.AtmLogDensitySamples == null || args.AtmLogDensitySamples.Length != args.AtmAltSamples.Length)
-                throw new ArgumentException("Atmosphere sample arrays must have matching lengths.");
+            if(args.Atmosphere==null)throw new ArgumentException("Capture a kOS-ATM snapshot before predicting.");
             if (args.predictMinStep < 0 || args.predictMaxStep <= 0 || args.predictMinStep > args.predictMaxStep)
                 throw new ArgumentException("Predictor step limits are invalid.");
             if (args.predictTMax <= 0)
@@ -372,7 +360,7 @@ namespace LTR
             double3 lift = double3.zero;
 
             context.AOA = GetAOACommand(state, args);
-            context.density = GetDensityEst(args, r - args.R);
+            context.density = args.Atmosphere.EvaluatePosition(state.vecR.x, state.vecR.y, state.vecR.z, t).Density;
             double logDensity = Math.Log(Math.Max(context.density, double.Epsilon));
             GetAeroCoefficients(args, speed, logDensity, out context.Cd, out context.Cl);
             double aeroAcceleration = 0.5 * context.density * speed * speed * args.area / args.mass;
@@ -513,14 +501,14 @@ namespace LTR
             bool reversal)
         {
             if (reversal) AOA = -AOA;
-            double scaleHeight = GetScaleHeightAt(vessel, 0);
+            double scaleHeight = AtmosphereCapture.Capture(vessel).ScaleHeightColumn(0);
             altitude = Math.Min(altitude, Math.Max(0, vessel.mainBody.atmosphereDepth - scaleHeight));
             speed = Math.Max(0.1, speed);
             Quaternion facing = vessel.ReferenceTransform.rotation * Quaternion.Euler(-90, 0, 0) * rotation;
             Vector3 unitV = facing * Quaternion.Euler((float)(AOA * 180.0 / Math.PI), 0, 0) * Vector3.forward;
             Vector3 unitL = facing * Quaternion.Euler((float)(AOA * 180.0 / Math.PI - 90), 0, 0) * Vector3.forward;
             FARAPI.CalculateVesselAeroForces(vessel, out Vector3 force, out _, unitV * (float)speed, altitude);
-            double factor = 0.5 * GetDensityAt(vessel, altitude) * speed * speed * FARAPI.VesselRefArea(vessel) * 1e-3;
+            double factor = 0.5 * FARAtmosphere.GetGasProperties(vessel.mainBody, new Vector3d(vessel.latitude, vessel.longitude, altitude), Planetarium.GetUniversalTime()).Density * speed * speed * FARAPI.VesselRefArea(vessel) * 1e-3;
             if (factor <= double.Epsilon)
             {
                 Cd = 0;
@@ -529,127 +517,6 @@ namespace LTR
             }
             Cd = -Vector3.Dot(force, unitV) / factor;
             Cl = Vector3.Dot(force, unitL) / factor;
-        }
-
-        public static double GetPressureAt(Vessel vessel, double altitude)
-        {
-            return vessel.mainBody.GetPressure(altitude) * 1e3;
-        }
-
-        public static double GetTemperatureAt(Vessel vessel, double altitude)
-        {
-            return vessel.mainBody.GetTemperature(altitude);
-        }
-
-        public static double GetDensityAt(Vessel vessel, double altitude)
-        {
-            if (altitude > vessel.mainBody.atmosphereDepth || !vessel.mainBody.atmosphere) return 0;
-            double temperature = Math.Max(1e-3, GetTemperatureAt(vessel, altitude));
-            return GetPressureAt(vessel, altitude) * vessel.mainBody.atmosphereMolarMass
-                / (GasConstant * temperature);
-        }
-
-        public static double GetScaleHeightAt(Vessel vessel, double altitude)
-        {
-            double radius = altitude + vessel.mainBody.Radius;
-            double gravity = vessel.mainBody.gravParameter / (radius * radius);
-            return GasConstant * Math.Max(1e-3, GetTemperatureAt(vessel, altitude))
-                / (Math.Max(1e-9, vessel.mainBody.atmosphereMolarMass) * gravity);
-        }
-
-        public static void InitAtmModel(Vessel vessel, SimAtmTrajArgs args)
-        {
-            args.R = vessel.mainBody.Radius;
-            args.mu = vessel.mainBody.gravParameter;
-            args.molarMass = vessel.mainBody.atmosphereMolarMass;
-            args.atmHeight = vessel.mainBody.atmosphereDepth;
-            args.bodySpin = Vector3dToDouble3(vessel.mainBody.angularVelocity);
-            if (!vessel.mainBody.atmosphere || args.atmHeight <= 0)
-            {
-                args.AtmAltSamples = new[] { 0.0 };
-                args.AtmTempSamples = new[] { 1.0 };
-                args.AtmLogDensitySamples = new[] { Math.Log(double.Epsilon) };
-                return;
-            }
-
-            const int sampleCount = 129;
-            var altitudes = new double[sampleCount];
-            var temperatures = new double[sampleCount];
-            var logDensities = new double[sampleCount];
-            double altitudeStep = Math.Max(0, args.atmHeight - 1000) / (sampleCount - 1);
-            for (int i = 0; i < sampleCount; ++i)
-            {
-                altitudes[i] = i * altitudeStep;
-                temperatures[i] = Math.Max(1e-3, GetTemperatureAt(vessel, altitudes[i]));
-                logDensities[i] = Math.Log(Math.Max(double.Epsilon, GetDensityAt(vessel, altitudes[i])));
-            }
-            args.AtmAltSamples = altitudes;
-            args.AtmTempSamples = temperatures;
-            args.AtmLogDensitySamples = logDensities;
-        }
-
-        public static double GetTemperatureEst(SimAtmTrajArgs args, double altitude)
-        {
-            return InterpolateClamped(args.AtmAltSamples, args.AtmTempSamples, altitude);
-        }
-
-        public static double GetLogDensityEst(SimAtmTrajArgs args, double altitude)
-        {
-            int idx = FindUpperBound(args.AtmAltSamples, altitude);
-            if (idx == 0)
-            {
-                double scaleHeight = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AtmTempSamples[0]);
-                return args.AtmLogDensitySamples[0] - (altitude - args.AtmAltSamples[0]) / scaleHeight;
-            }
-            if (idx == args.AtmAltSamples.Length)
-            {
-                int last = args.AtmAltSamples.Length - 1;
-                double scaleHeight = GetScaleHeightEst(args, args.AtmAltSamples[last], args.AtmTempSamples[last]);
-                return args.AtmLogDensitySamples[last] - (altitude - args.AtmAltSamples[last]) / scaleHeight;
-            }
-            double t = (altitude - args.AtmAltSamples[idx - 1])
-                / (args.AtmAltSamples[idx] - args.AtmAltSamples[idx - 1]);
-            return args.AtmLogDensitySamples[idx - 1]
-                + t * (args.AtmLogDensitySamples[idx] - args.AtmLogDensitySamples[idx - 1]);
-        }
-
-        public static double GetDensityEst(SimAtmTrajArgs args, double altitude)
-        {
-            if (altitude > args.atmHeight) return 0;
-            return Math.Exp(GetLogDensityEst(args, altitude));
-        }
-
-        public static double GetHeightEst(SimAtmTrajArgs args, double density)
-        {
-            if (double.IsNaN(density) || double.IsInfinity(density) || density <= 0) return args.atmHeight;
-            double logDensity = Math.Log(density);
-            int idx = FindUpperBound(
-                args.AtmLogDensitySamples,
-                logDensity,
-                Comparer<double>.Create((a, b) => b.CompareTo(a)));
-            if (idx == 0)
-            {
-                double scaleHeight = GetScaleHeightEst(args, args.AtmAltSamples[0], args.AtmTempSamples[0]);
-                return args.AtmAltSamples[0] - scaleHeight * (logDensity - args.AtmLogDensitySamples[0]);
-            }
-            if (idx == args.AtmLogDensitySamples.Length)
-            {
-                int last = args.AtmLogDensitySamples.Length - 1;
-                double scaleHeight = GetScaleHeightEst(args, args.AtmAltSamples[last], args.AtmTempSamples[last]);
-                return args.AtmAltSamples[last] - scaleHeight * (logDensity - args.AtmLogDensitySamples[last]);
-            }
-            double t = (logDensity - args.AtmLogDensitySamples[idx - 1])
-                / (args.AtmLogDensitySamples[idx] - args.AtmLogDensitySamples[idx - 1]);
-            return args.AtmAltSamples[idx - 1]
-                + t * (args.AtmAltSamples[idx] - args.AtmAltSamples[idx - 1]);
-        }
-
-        public static double GetScaleHeightEst(SimAtmTrajArgs args, double altitude, double? temperature = null)
-        {
-            double temp = temperature ?? GetTemperatureEst(args, altitude);
-            double radius = altitude + args.R;
-            double gravity = args.mu / (radius * radius);
-            return GasConstant * temp / (Math.Max(1e-9, args.molarMass) * gravity);
         }
 
         private static double InterpolateClamped(double[] xs, double[] ys, double x)

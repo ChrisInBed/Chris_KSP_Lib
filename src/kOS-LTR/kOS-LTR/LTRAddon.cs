@@ -6,6 +6,7 @@ using kOS.Safe.Exceptions;
 using kOS.Suffixed;
 using LTR;
 using System;
+using KOSAtmosphere;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
@@ -55,12 +56,7 @@ namespace kOS.AddOns.LTRAddon
             // Celestial-body parameters.
             AddSuffix(new[] { "mu" }, new SetSuffix<ScalarDoubleValue>(GetMu, SetMu, "Gravity parameter"));
             AddSuffix(new[] { "R" }, new SetSuffix<ScalarDoubleValue>(GetR, SetR, "Body radius"));
-            AddSuffix(new[] { "molar_mass" }, new SetSuffix<ScalarDoubleValue>(GetMolarMass, SetMolarMass, "Atmospheric molar mass"));
-            AddSuffix(new[] { "atm_height" }, new SetSuffix<ScalarDoubleValue>(GetAtmHeight, SetAtmHeight, "Atmosphere height"));
             AddSuffix(new[] { "bodySpin" }, new SetSuffix<Vector>(GetBodySpin, SetBodySpin, "Body angular-velocity vector"));
-            AddSuffix(new[] { "AtmAltSamples" }, new SetSuffix<ListValue>(GetAtmAltSamples, SetAtmAltSamples, "Atmosphere altitude samples"));
-            AddSuffix(new[] { "AtmLogDensitySamples" }, new SetSuffix<ListValue>(GetAtmLogDensitySamples, SetAtmLogDensitySamples, "Atmosphere log-density samples"));
-            AddSuffix(new[] { "AtmTempSamples" }, new SetSuffix<ListValue>(GetAtmTempSamples, SetAtmTempSamples, "Atmosphere temperature samples"));
 
             // Vessel and aerodynamic-model parameters.
             AddSuffix(new[] { "mass" }, new SetSuffix<ScalarDoubleValue>(GetMass, SetMass, "Vehicle mass in metric tons"));
@@ -83,14 +79,11 @@ namespace kOS.AddOns.LTRAddon
             AddSuffix(new[] { "predict_tmax" }, new SetSuffix<ScalarDoubleValue>(GetPredictTMax, SetPredictTMax, "Predictor maximum duration"));
 
             // Synchronous operations.
+            AddSuffix("InitBody", new NoArgsVoidSuffix(InitBody, "Initialize gravity, radius and raw body spin; atmosphere is supplied by kOS-ATM"));
             AddSuffix(new[] { "GetAOACmd" }, new OneArgsSuffix<Lexicon, Structure>(GetAOACmd, "Interpolate the speed-AOA profile from a speed or state"));
             AddSuffix(new[] { "GetState" }, new NoArgsSuffix<Lexicon>(GetState, "Get the current body-centered state"));
             AddSuffix(new[] { "GetFARAeroCoefs" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefs, "Sample FAR aerodynamic coefficients"));
             AddSuffix(new[] { "GetFARAeroCoefsEst" }, new OneArgsSuffix<Lexicon, Lexicon>(GetFARAeroCoefsEst, "Interpolate aerodynamic coefficients"));
-            AddSuffix(new[] { "GetDensityAt" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityAt, "Get stock atmospheric density"));
-            AddSuffix(new[] { "GetDensityEst" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetDensityEst, "Interpolate atmospheric density"));
-            AddSuffix(new[] { "GetAltEst" }, new OneArgsSuffix<ScalarValue, ScalarValue>(GetAltEst, "Estimate altitude from density"));
-            AddSuffix(new[] { "InitAtmModel" }, new NoArgsVoidSuffix(InitAtmModel, "Initialize the atmospheric model"));
             AddSuffix(new[] { "DirectionToAngleAxis" }, new OneArgsSuffix<Vector, Direction>(DirectionToAngleAxis, "Convert a direction to an angle-axis vector"));
 
             // Asynchronous simulation and task management.
@@ -134,10 +127,6 @@ namespace kOS.AddOns.LTRAddon
         private void SetMu(ScalarDoubleValue value) { simArgs.mu = value.GetDoubleValue(); }
         private ScalarDoubleValue GetR() { return new ScalarDoubleValue(simArgs.R); }
         private void SetR(ScalarDoubleValue value) { simArgs.R = value.GetDoubleValue(); }
-        private ScalarDoubleValue GetMolarMass() { return new ScalarDoubleValue(simArgs.molarMass); }
-        private void SetMolarMass(ScalarDoubleValue value) { simArgs.molarMass = value.GetDoubleValue(); }
-        private ScalarDoubleValue GetAtmHeight() { return new ScalarDoubleValue(simArgs.atmHeight); }
-        private void SetAtmHeight(ScalarDoubleValue value) { simArgs.atmHeight = value.GetDoubleValue(); }
         private Vector GetBodySpin() { return Double3ToVector(simArgs.bodySpin); }
         private void SetBodySpin(Vector value) { simArgs.bodySpin = VectorToDouble3(value); }
 
@@ -161,12 +150,6 @@ namespace kOS.AddOns.LTRAddon
         private ScalarDoubleValue GetPredictTMax() { return new ScalarDoubleValue(simArgs.predictTMax); }
         private void SetPredictTMax(ScalarDoubleValue value) { simArgs.predictTMax = value.GetDoubleValue(); }
 
-        private ListValue GetAtmAltSamples() { return ListFromDoubleArray(simArgs.AtmAltSamples); }
-        private void SetAtmAltSamples(ListValue value) { simArgs.AtmAltSamples = ExtractDoubleArray(value, "AtmAltSamples"); }
-        private ListValue GetAtmLogDensitySamples() { return ListFromDoubleArray(simArgs.AtmLogDensitySamples); }
-        private void SetAtmLogDensitySamples(ListValue value) { simArgs.AtmLogDensitySamples = ExtractDoubleArray(value, "AtmLogDensitySamples"); }
-        private ListValue GetAtmTempSamples() { return ListFromDoubleArray(simArgs.AtmTempSamples); }
-        private void SetAtmTempSamples(ListValue value) { simArgs.AtmTempSamples = ExtractDoubleArray(value, "AtmTempSamples"); }
         private ListValue GetCtrlSpeedSamples() { return ListFromDoubleArray(simArgs.CtrlSpeedSamples); }
         private void SetCtrlSpeedSamples(ListValue value) { simArgs.CtrlSpeedSamples = ExtractDoubleArray(value, "CtrlSpeedSamples"); }
         private ListValue GetAeroSpeedSamples() { return ListFromDoubleArray(simArgs.AeroSpeedSamples); }
@@ -199,7 +182,7 @@ namespace kOS.AddOns.LTRAddon
             double[] altitudes = ExtractDoubleArray(value, "aerodynamic altitude samples");
             var densities = new double[altitudes.Length];
             for (int i = 0; i < altitudes.Length; ++i)
-                densities[i] = Math.Log(Math.Max(double.Epsilon, LTRCore.GetDensityAt(shared.Vessel, altitudes[i])));
+                densities[i] = Math.Log(Math.Max(double.Epsilon, FARAtmosphere.GetGasProperties(shared.Vessel.mainBody, new Vector3d(shared.Vessel.latitude, shared.Vessel.longitude, altitudes[i]), Planetarium.GetUniversalTime()).Density));
             simArgs.AeroLogDensitySamples = densities;
         }
 
@@ -246,7 +229,7 @@ namespace kOS.AddOns.LTRAddon
         {
             double altitude = RequireDoubleArg(args, "altitude");
             double speed = RequireDoubleArg(args, "speed");
-            double logDensity = LTRCore.GetLogDensityEst(simArgs, altitude);
+            double logDensity = Math.Log(Math.Max(double.Epsilon, AtmosphereCapture.Capture(shared.Vessel).EvaluateColumn(altitude).Density));
             LTRCore.GetAeroCoefficients(simArgs, speed, logDensity, out double cd, out double cl);
             return AeroLexicon(cd, cl);
         }
@@ -259,20 +242,6 @@ namespace kOS.AddOns.LTRAddon
             return result;
         }
 
-        private ScalarValue GetDensityAt(ScalarValue altitude)
-        {
-            return ScalarValue.Create(LTRCore.GetSafeDouble(LTRCore.GetDensityAt(shared.Vessel, altitude.GetDoubleValue())));
-        }
-        private ScalarValue GetDensityEst(ScalarValue altitude)
-        {
-            return ScalarValue.Create(LTRCore.GetSafeDouble(LTRCore.GetDensityEst(simArgs, altitude.GetDoubleValue())));
-        }
-        private ScalarValue GetAltEst(ScalarValue density)
-        {
-            return ScalarValue.Create(LTRCore.GetSafeDouble(LTRCore.GetHeightEst(simArgs, density.GetDoubleValue())));
-        }
-        private void InitAtmModel() { LTRCore.InitAtmModel(shared.Vessel, simArgs); }
-
         private Vector DirectionToAngleAxis(Direction direction)
         {
             direction.Rotation.ToAngleAxis(out float angle, out Vector3 axis);
@@ -283,6 +252,13 @@ namespace kOS.AddOns.LTRAddon
             }
             Vector result = new Vector(axis * (angle * Mathf.Deg2Rad));
             return IsFinite(result.X) && IsFinite(result.Y) && IsFinite(result.Z) ? result : Vector.Zero;
+        }
+
+        private void InitBody()
+        {
+            simArgs.R=shared.Vessel.mainBody.Radius;simArgs.mu=shared.Vessel.mainBody.gravParameter;
+            AtmosphereVector spin=AtmosphereCapture.AngularVelocity(shared.Vessel.mainBody);
+            simArgs.bodySpin=new double3(spin.X,spin.Y,spin.Z);
         }
 
         private ScalarValue StartSimAtmTraj(Lexicon args)
@@ -303,6 +279,7 @@ namespace kOS.AddOns.LTRAddon
             int id = Interlocked.Increment(ref NextTaskId);
             var record = new TaskRecord { Result = new Lexicon() };
             SimAtmTrajArgs argsSnapshot = simArgs.Clone();
+            argsSnapshot.Atmosphere = AtmosphereSnapshotValue.ForPrediction(args, shared.Vessel, new AtmosphereVector(simArgs.bodySpin.x,simArgs.bodySpin.y,simArgs.bodySpin.z));
             record.WorkerTask = Task.Run(() =>
             {
                 try

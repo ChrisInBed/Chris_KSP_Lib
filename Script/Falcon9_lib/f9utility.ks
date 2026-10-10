@@ -339,11 +339,8 @@ FUNCTION f9_get_aero_target_position {
 FUNCTION f9_initialize_ltr_body {
     PARAMETER ltr.
 
-    // Let the addon build its atmosphere interpolation tables automatically.
-    // All other body parameters are assigned explicitly because the values in
-    // LTR's C# constructor are only external-test fixtures. BODY:ANGULARVEL is
-    // in the same raw reference frame as the body-centred prediction state.
-    ltr:InitAtmModel().
+    // Initialize gravity and raw body spin. kOS-ATM supplies space/time density.
+    ltr:InitBody().
     // There is something wrong with CelestialBody.angularVel API, so here we set it with kOS values
     SET ltr:bodySpin TO BODY:ANGULARVEL.
     RETURN TRUE.
@@ -362,6 +359,10 @@ FUNCTION f9_initialize_ltr {
         RETURN FALSE.
     }
 
+    IF NOT ADDONS:HASADDON("ATM") {
+        f9_print_result("ERROR: kOS-ATM addon is unavailable").
+        RETURN FALSE.
+    }
     LOCAL ltr IS ADDONS:LTR.
     IF NOT f9_initialize_ltr_body(ltr) {
         RETURN FALSE.
@@ -428,6 +429,7 @@ FUNCTION f9_ltr_predict {
     SET ltr:MASS TO SHIP:MASS.
     SET ltr:RTarget TO targetBodyPosition.
 
+    LOCAL atmosphere_ref TO ADDONS:ATM:SNAPSHOT().
     LOCAL initVecR TO -ship:body:position.
     LOCAL initVecV TO ship:velocity:surface.
     LOCAL vecR to initVecR.
@@ -437,7 +439,7 @@ FUNCTION f9_ltr_predict {
         // Propagate to entry interface
         SET ltr:target_altitude TO entryAlt.
         LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
-            "t", tt,
+            "t", tt, "atmosphere", atmosphere_ref,
             "vecR", vecR,
             "vecV", vecV
         )).
@@ -455,7 +457,7 @@ FUNCTION f9_ltr_predict {
     // LOCAL state IS ltr:GetState().
     // LOCAL state IS LEXICON("vecR", -ship:body:position, "vecV", ship:velocity:surface).
     LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
-        "t", tt,
+        "t", tt, "atmosphere", atmosphere_ref,
         "vecR", vecR,
         "vecV", vecV
     )).
@@ -561,10 +563,11 @@ FUNCTION f9_step_entry_vgo {
     LOCAL vy TO vDot(vecV + vecVGO, upAxis).
     LOCAL ry TO vDot(vecR - vecRT, upAxis).
     LOCAL tt TO (vy + sqrt(vy^2 + 2*g0*ry)) / g0.
+    LOCAL atmosphere_ref TO ADDONS:ATM:SNAPSHOT().
     // 3. predict impact point
     SET ltr:target_altitude TO targetContext["altitude"].
     LOCAL handle IS ltr:AsyncSimAtmTraj(LEXICON(
-        "t", 0,
+        "t", 0, "atmosphere", atmosphere_ref,
         "vecR", vecR,
         "vecV", vecV + vecVGO
     )).
