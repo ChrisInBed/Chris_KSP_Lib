@@ -30,7 +30,7 @@ GLOBAL UI_LANG IS LEXICON(
     "peggui.msg_summary",      "PEG 着陆引导",
     "peggui.lbl_status",       "当前状态:",
     "peggui.lbl_peg_iter",     "迭代次数:",
-    "peggui.lbl_height",       "雷达高度 = ",
+    "peggui.lbl_height",       "海拔 = ",
     "peggui.lbl_dist",         "离目标距离 = ",
     "peggui.lbl_error",        "落点误差 = ",
     "peggui.lbl_v_spd",        "垂直速度 = ",

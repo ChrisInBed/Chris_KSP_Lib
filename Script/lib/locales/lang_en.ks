@@ -35,7 +35,7 @@ GLOBAL UI_LANG IS LEXICON(
     "peggui.msg_summary", "PEG Landing Guidance",
     "peggui.lbl_status", "Status: ",
     "peggui.lbl_peg_iter", "Iteration: ",
-    "peggui.lbl_height", "Height = ",
+    "peggui.lbl_height", "Altitude = ",
     "peggui.lbl_dist", "Distance = ",
     "peggui.lbl_error", "Error = ",
     "peggui.lbl_v_spd", "Vertical speed = ",
