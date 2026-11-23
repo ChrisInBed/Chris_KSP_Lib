@@ -3,7 +3,7 @@
 .SYNOPSIS
 Build and package Chris GNC Suite using the published distribution layout.
 .EXAMPLE
-powershell -NoProfile -ExecutionPolicy Bypass -File build-release.ps1 -Version 1.0.5
+powershell -NoProfile -ExecutionPolicy Bypass -File build-release.ps1 -Version 1.0.6
 #>
 [CmdletBinding()]
 param(

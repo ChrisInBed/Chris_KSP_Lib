@@ -3,7 +3,7 @@
 From a Git checkout, run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File build-release.ps1 -Version 1.0.5
+powershell -NoProfile -ExecutionPolicy Bypass -File build-release.ps1 -Version 1.0.6
 ```
 
 The version is an explicit package label; choose it when preparing the release. The script does not change assembly versions, commit, tag, install into KSP, or publish a release. Finalize the draft entries in `Changelog.md` and `更新日志.md` before distributing.
@@ -11,7 +11,7 @@ The version is an explicit package label; choose it when preparing the release. 
 Requirements: Windows PowerShell 5.1 or newer, Git, a .NET SDK with Roslyn, .NET Framework 4.8 reference assemblies, Python for integration checks, and a KSP installation containing kOS, FAR and KSPBurst. The default KSP path matches the existing addon build script. For another installation:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File build-release.ps1 -Version 1.0.5 `
+powershell -NoProfile -ExecutionPolicy Bypass -File build-release.ps1 -Version 1.0.6 `
     -KspRoot 'D:\Games\Kerbal Space Program' -OutputRoot '.\dist'
 ```
 

@@ -192,3 +192,7 @@ Major version update
 
 - Added **kOS-ATM**, a shared atmosphere backend for kOS-AFS and kOS-LTR. Pressure, temperature and density predictions now account for latitude, longitude, Sun position, season and orbital eccentricity, including future trajectory times. This should let UEntry trajectory prediction have SOTA accuracy for now
 - UEntry: Improved solver. Using more professional backtracking clipped Newton solver to get Bank parameter
+
+## 2026/11/24 v1.0.6
+
+- BORG: fixed a landing-burn bug when using separate deceleration and landing engine groups. After switching to the landing engines, throttle now follows the guidance target instead of remaining fixed at 1 (full throttle).
